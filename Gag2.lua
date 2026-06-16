@@ -253,8 +253,8 @@ ContentFrame.Parent = MainFrame
 
 -- Create tabs
 local Tabs = {}
-local TabNames = {"Main", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
+local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -434,10 +434,10 @@ CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
 
-CreateLabel(MainTab, "=== STEALING CONTROLS ===", Color3.fromRGB(180, 80, 200))
-local _, getAutoSteal = CreateToggle(MainTab, "Auto Steal (Night)", "Steal crops from other bases", false)
-local _, getStealHighValue = CreateToggle(MainTab, "Steal High Value Only", "Only steal rare crops", true)
-local _, getAutoAttackOwner = CreateToggle(MainTab, "Attack Plot Owner", "Attack them while stealing", false)
+CreateLabel(MainTab, "=== UTILITIES ===", Color3.fromRGB(200, 180, 80))
+local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", true)
+local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", true)
+local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", true)
 
 local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
 StatusLabelTitle.LayoutOrder = 100
@@ -470,6 +470,32 @@ local function UpdateCanvas()
     end
     ContentFrame.CanvasSize = UDim2.new(0, 0, 0, totalH + 20)
 end
+
+-- ==========================================
+-- TAB: STEAL
+-- ==========================================
+local StealTab = Instance.new("Frame")
+StealTab.Name = "Steal"
+StealTab.Size = UDim2.new(1, 0, 0, 0)
+StealTab.AutomaticSize = Enum.AutomaticSize.Y
+StealTab.BackgroundTransparency = 1
+StealTab.Visible = false
+StealTab.Parent = ContentFrame
+
+local StealLayout = Instance.new("UIListLayout")
+StealLayout.SortOrder = Enum.SortOrder.LayoutOrder
+StealLayout.Padding = UDim.new(0, 4)
+StealLayout.Parent = StealTab
+
+CreateLabel(StealTab, "=== STEALING CONTROLS ===", Color3.fromRGB(180, 80, 200))
+local _, getAutoSteal = CreateToggle(StealTab, "Auto Steal (Night)", "Steal crops from other bases", false)
+local _, getStealHighValue = CreateToggle(StealTab, "Steal High Value Only", "Only steal rare crops", true)
+local _, getAutoAttackOwner = CreateToggle(StealTab, "Attack Plot Owner", "Attack them while stealing", false)
+
+CreateLabel(StealTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(StealTab, "Automatically invades other player's gardens", Color3.fromRGB(200, 150, 200))
+CreateLabel(StealTab, "during the Night cycle to steal crops.", Color3.fromRGB(200, 150, 200))
+CreateLabel(StealTab, "Bypasses Auto Stay while active.", Color3.fromRGB(200, 150, 200))
 
 -- ==========================================
 -- TAB: DEFENSE
@@ -1807,6 +1833,42 @@ local function MainLoop()
                 end
             end
             
+            -- 6. Utilities
+            if getAntiPause() then
+                pcall(function()
+                    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
+                end)
+            end
+            
+            if getAutoSkip() then
+                pcall(function()
+                    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                    if playerGui then
+                        for _, gui in pairs(playerGui:GetDescendants()) do
+                            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                                local text = (gui:IsA("TextButton") and gui.Text:lower()) or gui.Name:lower()
+                                if text:find("skip") or text:find("play") or text:find("continue") or text:find("start") then
+                                    if gui.Visible and gui.Active and gui.AbsoluteSize.X > 0 then
+                                        local screenGui = gui:FindFirstAncestorWhichIsA("ScreenGui")
+                                        if screenGui and (screenGui.Name:lower():find("intro") or screenGui.Name:lower():find("main") or screenGui.Name:lower():find("loading") or screenGui.Name:lower():find("menu") or text:find("skip")) then
+                                            if getconnections then
+                                                for _, connection in pairs(getconnections(gui.MouseButton1Click)) do connection:Fire() end
+                                                for _, connection in pairs(getconnections(gui.Activated)) do connection:Fire() end
+                                            else
+                                                local pos = gui.AbsolutePosition + (gui.AbsoluteSize / 2)
+                                                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+                                                task.wait(0.05)
+                                                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+            
             -- Update base status label
             if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") then
                 StatusLabel.Text = "✅ Active | " .. currentWeather .. " | Monitoring..."
@@ -1825,6 +1887,15 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     RootPart = char:WaitForChild("HumanoidRootPart")
     task.wait(2) -- Wait for game to load
+end)
+
+-- Anti-AFK Connection
+LocalPlayer.Idled:Connect(function()
+    if getAntiAFK() then
+        local VirtualUser = game:GetService("VirtualUser")
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
 end)
 
 -- Start the script
