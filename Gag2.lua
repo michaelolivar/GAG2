@@ -1214,40 +1214,38 @@ local function TeleportTo(pos)
     end
 end
 
--- Find base/garden plot
-local function FindMyBase()
-    -- Try various common patterns for player plots
+-- Find base/garden plot position
+local function FindMyBasePos()
     local playerName = LocalPlayer.Name
-    
-    -- Search workspace for garden areas
     for _, obj in pairs(Workspace:GetDescendants()) do
-        local name = obj.Name:lower()
-        if (name:find("garden") or name:find("plot") or name:find("base") or name:find("home")) then
-            if name:find(playerName:sub(1, 5):lower()) or name:find("player") then
-                return obj
+        if obj:IsA("Model") or obj:IsA("Folder") then
+            local name = obj.Name:lower()
+            local isMyBase = false
+            
+            if (name:find("garden") or name:find("plot") or name:find("base") or name:find("home")) then
+                if name:find(playerName:sub(1, 5):lower()) or name:find("player") then
+                    isMyBase = true
+                end
+            end
+            if obj:GetAttribute("Owner") == playerName then isMyBase = true end
+            
+            local ownerVal = obj:FindFirstChild("Owner") or obj:FindFirstChild("Player")
+            if ownerVal and ((ownerVal:IsA("StringValue") and ownerVal.Value == playerName) or (ownerVal:IsA("ObjectValue") and ownerVal.Value == LocalPlayer)) then
+                isMyBase = true
+            end
+            
+            if isMyBase then
+                if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart.Position end
+                local part = obj:FindFirstChildWhichIsA("BasePart", true)
+                if part then return part.Position end
             end
         end
     end
-    
-    -- Fallback: look for the "Garden" or "Teleport" button UI
-    for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
-        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-            local txt = gui.Text:lower()
-            if txt:find("garden") or txt:find("home") or txt:find("base") then
-                return gui
-            end
-        end
-    end
-    
     return nil
 end
 
 -- Find thieves in base area
-local function FindThreatsInBase()
-    local base = FindMyBase()
-    if not base then return {} end
-    
-    local basePos = base:IsA("BasePart") and base.Position or (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
+local function FindThreatsInBase(basePos)
     if not basePos then return {} end
     
     local threats = {}
@@ -1260,7 +1258,6 @@ local function FindThreatsInBase()
             end
         end
     end
-    
     return threats
 end
 
@@ -1298,11 +1295,19 @@ local function EquipWeapon(weaponName)
 end
 
 -- Attack a player/thief
-local function AttackThief(thief)
+local function AttackThief(thief, basePos)
     if not thief.Character or not thief.Character:FindFirstChild("Humanoid") then return end
     
     local targetRoot = thief.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
+    
+    -- Prevent chasing outside the base
+    if basePos then
+        local distFromBase = (targetRoot.Position - basePos).Magnitude
+        if distFromBase > Config.DefenseRange then
+            return -- Thief is outside garden, do not chase!
+        end
+    end
     
     -- Face the target
     if RootPart then
@@ -1329,9 +1334,15 @@ local function AttackThief(thief)
             -- If shovel/crowbar, try to hit
             local handle = weapon:FindFirstChild("Handle")
             if handle then
-                -- Move close to target
                 if RootPart then
-                    RootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
+                    local targetDest = targetRoot.CFrame * CFrame.new(0, 0, 3)
+                    -- Ensure destination is still inside base
+                    if basePos and (targetDest.Position - basePos).Magnitude > Config.DefenseRange then
+                        -- Don't teleport out! Just stay put and attack
+                        RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
+                    else
+                        RootPart.CFrame = targetDest
+                    end
                 end
                 weapon:Activate()
             end
@@ -1542,30 +1553,27 @@ local function MainLoop()
                 end
             end
             
+            local basePos = FindMyBasePos()
+
             -- 4. Auto Stay Base at Night
-            if getAutoStay() and currentWeather:find("Night") or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
-                local base = FindMyBase()
-                if base then
-                    local basePos = base:IsA("BasePart") and base.Position or 
-                        (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
-                    
-                    if basePos and RootPart then
-                        local distFromBase = (RootPart.Position - basePos).Magnitude
-                        if distFromBase > 15 then
-                            -- Teleport back to base
-                            TeleportTo(basePos + Vector3.new(0, 3, 0))
-                            StatusLabel.Text = "🌙 Night - Returned to base"
-                        end
+            local isNightEvent = (currentWeather == "Night" or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon")
+            if getAutoStay() and isNightEvent then
+                if basePos and RootPart then
+                    local distFromBase = (RootPart.Position - basePos).Magnitude
+                    if distFromBase > 15 then
+                        -- Teleport back to base
+                        TeleportTo(basePos + Vector3.new(0, 3, 0))
+                        StatusLabel.Text = "🌙 Night - Returned to base"
                     end
                 end
             end
             
             -- 5. Auto Defense
             if getAutoDefense() then
-                local threats = FindThreatsInBase()
+                local threats = FindThreatsInBase(basePos)
                 if #threats > 0 then
                     for _, thief in ipairs(threats) do
-                        AttackThief(thief)
+                        AttackThief(thief, basePos)
                         task.wait(Config.WeaponCooldown)
                     end
                 end
