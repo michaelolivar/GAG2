@@ -1061,7 +1061,13 @@ local videoFrame = Instance.new("VideoFrame")
 videoFrame.Name = "BeksVideo"
 videoFrame.Size = UDim2.new(1, 0, 0, 180)
 videoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-videoFrame.Video = "https://pedanglagenda.com/beks.mp4"
+
+-- Subukan nating ilagay ang external link. 
+-- Naka-pcall ito para hindi mag-crash yung buong script kung sakaling mag-error ang Roblox.
+pcall(function()
+    videoFrame.Video = "https://pedanglagenda.com/beks.mp4"
+end)
+
 videoFrame.Playing = true
 videoFrame.Looped = true
 videoFrame.Volume = 0.8
@@ -1072,8 +1078,8 @@ local vidCorner = Instance.new("UICorner")
 vidCorner.CornerRadius = UDim.new(0, 8)
 vidCorner.Parent = videoFrame
 
-CreateLabel(AndreiTab, "Note: External MP4s may not play", Color3.fromRGB(150, 150, 150))
-CreateLabel(AndreiTab, "depending on executor support.", Color3.fromRGB(150, 150, 150))
+CreateLabel(AndreiTab, "Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
+CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Color3.fromRGB(150, 150, 150))
 
 -- End of Andrei Tab
 
