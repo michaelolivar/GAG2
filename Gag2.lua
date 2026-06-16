@@ -1845,11 +1845,9 @@ local function FindAndBuy(itemName)
             
             if isMatch then
                 if obj:IsA("ProximityPrompt") then
-                    if action:find("buy") or action:find("purchase") or action:find("get") or action:find("claim") or action == "" then
-                        bestPrompt = obj
-                        bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
-                        break
-                    end
+                    bestPrompt = obj
+                    bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
+                    break
                 elseif obj:IsA("ClickDetector") then
                     bestPrompt = obj
                     bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
@@ -1894,20 +1892,34 @@ local function FindAndBuy(itemName)
         end
     end
     
-    -- 3. Fallback: Remotes
+    -- 3. Fallback: Aggressive Remote Brute-Force
+    local bruteForced = false
     pcall(function()
+        local variations = {
+            itemName,
+            itemName:lower(),
+            itemName .. " Seed",
+            itemName:lower() .. " seed",
+            itemName .. "Seed"
+        }
         for _, remote in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
-            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            if remote:IsA("RemoteEvent") then
                 local rName = remote.Name:lower()
-                if rName:find("buy") or rName:find("purchase") or rName:find("shop") then
-                    if remote:IsA("RemoteEvent") then
-                        remote:FireServer(itemName)
-                        remote:FireServer(itemName:lower())
+                if rName:find("buy") or rName:find("purchase") or rName:find("shop") or rName:find("item") then
+                    for _, variant in ipairs(variations) do
+                        pcall(function() remote:FireServer(variant) end)
+                        pcall(function() remote:FireServer(variant, 1) end)
                     end
+                    bruteForced = true
                 end
             end
         end
     end)
+    
+    if bruteForced then
+        StatusLabel.Text = "🛒 Bought (Remote) " .. itemName
+        return true
+    end
     
     return false
 end
