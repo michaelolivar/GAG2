@@ -434,6 +434,11 @@ CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
 
+CreateLabel(MainTab, "=== STEALING CONTROLS ===", Color3.fromRGB(180, 80, 200))
+local _, getAutoSteal = CreateToggle(MainTab, "Auto Steal (Night)", "Steal crops from other bases", false)
+local _, getStealHighValue = CreateToggle(MainTab, "Steal High Value Only", "Only steal rare crops", true)
+local _, getAutoAttackOwner = CreateToggle(MainTab, "Attack Plot Owner", "Attack them while stealing", false)
+
 local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
 StatusLabelTitle.LayoutOrder = 100
 
@@ -1331,6 +1336,69 @@ local function FindMyBasePos()
     return nil
 end
 
+local function FindPlayerNear(pos, radius)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (player.Character.HumanoidRootPart.Position - pos).Magnitude
+            if dist < radius then
+                return player
+            end
+        end
+    end
+    return nil
+end
+
+local function GetOtherPlayersPlants()
+    local plants = {}
+    local myBasePos = FindMyBasePos()
+    
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") then
+            local isPlant = false
+            local name = obj.Name:lower()
+            
+            local interactable = obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("TouchTransmitter") or obj:FindFirstChildWhichIsA("ClickDetector")
+            
+            if interactable then
+                if name:find("plant") or name:find("fruit") or name:find("crop") or name:find("seed") or name:find("tree") then
+                    isPlant = true
+                end
+                
+                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+                if prompt then
+                    local action = prompt.ActionText:lower()
+                    if action:find("harvest") or action:find("steal") or action:find("pick") or action:find("take") then
+                        isPlant = true
+                    end
+                end
+            end
+            
+            if isPlant then
+                local part = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    local isHighValue = false
+                    if name:find("gold") or name:find("rainbow") or name:find("diamond") or name:find("mythic") then
+                        isHighValue = true
+                    end
+                    
+                    local isMine = false
+                    if myBasePos then
+                        local dist = Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(myBasePos.X, myBasePos.Z)
+                        if dist.Magnitude < 60 then
+                            isMine = true
+                        end
+                    end
+                    
+                    if not isMine then
+                        table.insert(plants, {obj = obj, part = part, highValue = isHighValue})
+                    end
+                end
+            end
+        end
+    end
+    return plants
+end
+
 -- Find thieves in base area
 local function FindThreatsInBase(basePos)
     if not basePos then return {} end
@@ -1677,11 +1745,47 @@ local function MainLoop()
             
             local basePos = FindMyBasePos()
 
-            -- 4. Auto Stay Base at Night
             local currentClockTime = Lighting.ClockTime or 12
             local isNightTime = (currentClockTime < 6 or currentClockTime >= 18)
+            local isStealing = false
             
-            if getAutoStay() and isNightTime then
+            -- 3.5 Auto Steal (Night)
+            if isNightTime and getAutoSteal() then
+                local plants = GetOtherPlayersPlants()
+                local targetPlant = nil
+                
+                for _, p in ipairs(plants) do
+                    if p.highValue then
+                        targetPlant = p
+                        break
+                    end
+                end
+                
+                if not targetPlant and not getStealHighValue() then
+                    if #plants > 0 then targetPlant = plants[1] end
+                end
+                
+                if targetPlant and RootPart then
+                    isStealing = true
+                    
+                    if getAutoAttackOwner() then
+                        local owner = FindPlayerNear(targetPlant.part.Position, 40)
+                        if owner then
+                            AttackThief(owner, targetPlant.part.Position)
+                            task.wait(0.2)
+                        end
+                    end
+                    
+                    RootPart.CFrame = targetPlant.part.CFrame
+                    task.wait(0.05)
+                    CollectSeed(targetPlant.obj)
+                    StatusLabel.Text = "🥷 Stealing " .. targetPlant.obj.Name .. "..."
+                    task.wait(0.1)
+                end
+            end
+
+            -- 4. Auto Stay Base at Night
+            if getAutoStay() and isNightTime and not isStealing then
                 if basePos and RootPart then
                     local distFromBase = Vector2.new(RootPart.Position.X, RootPart.Position.Z) - Vector2.new(basePos.X, basePos.Z)
                     if distFromBase.Magnitude > 40 then
