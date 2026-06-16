@@ -45,9 +45,16 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
 -- Cleanup: destroy old UI if script is re-run
-if CoreGui:FindFirstChild("DevoGag2") then
-    CoreGui:FindFirstChild("DevoGag2"):Destroy()
+local guiParent = (gethui and gethui()) or CoreGui
+if guiParent:FindFirstChild("DevoGag2") then
+    guiParent:FindFirstChild("DevoGag2"):Destroy()
 end
+-- Pcall fallback for normal CoreGui just in case
+pcall(function()
+    if CoreGui:FindFirstChild("DevoGag2") then
+        CoreGui:FindFirstChild("DevoGag2"):Destroy()
+    end
+end)
 
 -- Track all connections for cleanup
 local _connections = {}
@@ -56,7 +63,7 @@ local _scriptRunning = true
 -- UI Library
 local Library = Instance.new("ScreenGui")
 Library.Name = "DevoGag2"
-Library.Parent = CoreGui
+Library.Parent = guiParent
 Library.ResetOnSpawn = false
 Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -283,7 +290,7 @@ local function SwitchTab(tabName)
     end
     for _, btn in pairs(TabContainer:GetChildren()) do
         if btn:IsA("TextButton") then
-            btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+            btn.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
             btn.TextColor3 = Color3.fromRGB(140, 140, 150)
         end
     end
@@ -307,7 +314,7 @@ for i, tabName in ipairs(TabNames) do
     local tabBtn = Instance.new("TextButton")
     tabBtn.Name = tabName
     tabBtn.Size = UDim2.new(1, 0, 0, 32)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
     tabBtn.Text = " " .. icon .. "  " .. tabName
     tabBtn.TextColor3 = Color3.fromRGB(140, 140, 150)
     tabBtn.TextSize = 13
@@ -329,6 +336,9 @@ for i, tabName in ipairs(TabNames) do
         SwitchTab(tabName)
     end)
 end
+
+-- Initialize the first tab by default
+SwitchTab("Main")
 
 -- Helper: Create toggle row
 local toggleOrder = 0
