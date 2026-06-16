@@ -253,8 +253,8 @@ ContentFrame.Parent = MainFrame
 
 -- Create tabs
 local Tabs = {}
-local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabNames = {"Main", "Steal", "Defense", "Shop", "AutoBuy", "Weather", "Info"}
+local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🛒", "🌤️", "ℹ️"}
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -318,25 +318,25 @@ local function CreateToggle(tab, name, desc, default)
     toggleOrder = toggleOrder + 1
     local row = Instance.new("Frame")
     row.Name = "Toggle_" .. toggleOrder
-    row.Size = UDim2.new(1, 0, 0, 50)
+    row.Size = UDim2.new(1, 0, 0, 42)
     row.BackgroundTransparency = 1
     row.LayoutOrder = toggleOrder
     row.Parent = tab
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, -5, 0, 22)
+    label.Size = UDim2.new(0.7, -5, 0, 18)
     label.Position = UDim2.new(0, 0, 0, 4)
     label.BackgroundTransparency = 1
     label.Text = name
     label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.TextSize = 14
+    label.TextSize = 13
     label.Font = Enum.Font.GothamSemibold
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = row
     
     local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(0.7, -5, 0, 16)
-    descLabel.Position = UDim2.new(0, 0, 0, 28)
+    descLabel.Size = UDim2.new(0.7, -5, 0, 14)
+    descLabel.Position = UDim2.new(0, 0, 0, 24)
     descLabel.BackgroundTransparency = 1
     descLabel.Text = desc
     descLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
@@ -346,14 +346,14 @@ local function CreateToggle(tab, name, desc, default)
     descLabel.Parent = row
     
     local toggle = Instance.new("Frame")
-    toggle.Size = UDim2.new(0, 50, 0, 24)
-    toggle.Position = UDim2.new(1, -55, 0, 13)
+    toggle.Size = UDim2.new(0, 40, 0, 20)
+    toggle.Position = UDim2.new(1, -45, 0, 11)
     toggle.BackgroundColor3 = default and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
     toggle.BorderSizePixel = 0
     toggle.Parent = row
     
     local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.CornerRadius = UDim.new(0, 10)
     toggleCorner.Parent = toggle
     
     local toggleBtn = Instance.new("TextButton")
@@ -363,14 +363,14 @@ local function CreateToggle(tab, name, desc, default)
     toggleBtn.Parent = toggle
     
     local circle = Instance.new("Frame")
-    circle.Size = UDim2.new(0, 20, 0, 20)
-    circle.Position = default and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+    circle.Size = UDim2.new(0, 16, 0, 16)
+    circle.Position = default and UDim2.new(1, -18, 0, 2) or UDim2.new(0, 2, 0, 2)
     circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     circle.BorderSizePixel = 0
     circle.Parent = toggle
     
     local circleCorner = Instance.new("UICorner")
-    circleCorner.CornerRadius = UDim.new(0, 10)
+    circleCorner.CornerRadius = UDim.new(0, 8)
     circleCorner.Parent = circle
     
     local toggled = default
@@ -378,7 +378,7 @@ local function CreateToggle(tab, name, desc, default)
     toggleBtn.MouseButton1Click:Connect(function()
         toggled = not toggled
         toggle.BackgroundColor3 = toggled and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
-        circle:TweenPosition(UDim2.new(toggled and 1 or 0, toggled and -22 or 2, 0, 2), "Out", "Quad", 0.15, true)
+        circle:TweenPosition(UDim2.new(toggled and 1 or 0, toggled and -18 or 2, 0, 2), "Out", "Quad", 0.15, true)
     end)
     
     return toggleBtn, function() return toggled end
@@ -469,6 +469,86 @@ local function UpdateCanvas()
         end
     end
     ContentFrame.CanvasSize = UDim2.new(0, 0, 0, totalH + 20)
+end
+
+-- Helper: Create dropdown menu
+local function CreateDropdown(tab, name, options, defaultIndex)
+    toggleOrder = toggleOrder + 1
+    local row = Instance.new("Frame")
+    row.Name = "Dropdown_" .. toggleOrder
+    row.Size = UDim2.new(1, 0, 0, 42)
+    row.BackgroundTransparency = 1
+    row.LayoutOrder = toggleOrder
+    row.Parent = tab
+    row.ClipsDescendants = true
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.5, -5, 0, 18)
+    label.Position = UDim2.new(0, 0, 0, 4)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextSize = 13
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = row
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.5, 0, 0, 24)
+    btn.Position = UDim2.new(0.5, 0, 0, 4)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = options[defaultIndex] or options[1] or "Select"
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.Gotham
+    btn.Parent = row
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = btn
+    
+    local dropFrame = Instance.new("ScrollingFrame")
+    dropFrame.Size = UDim2.new(1, 0, 1, -32)
+    dropFrame.Position = UDim2.new(0, 0, 0, 32)
+    dropFrame.BackgroundTransparency = 1
+    dropFrame.ScrollBarThickness = 2
+    dropFrame.Parent = row
+    
+    local dropLayout = Instance.new("UIListLayout")
+    dropLayout.Padding = UDim.new(0, 2)
+    dropLayout.Parent = dropFrame
+    
+    local selectedValue = btn.Text
+    local isOpen = false
+    
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Size = UDim2.new(1, 0, 0, 20)
+        optBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        optBtn.Text = opt
+        optBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+        optBtn.TextSize = 11
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.Parent = dropFrame
+        
+        optBtn.MouseButton1Click:Connect(function()
+            selectedValue = opt
+            btn.Text = opt
+            isOpen = false
+            row.Size = UDim2.new(1, 0, 0, 42)
+            UpdateCanvas()
+        end)
+    end
+    
+    dropFrame.CanvasSize = UDim2.new(0, 0, 0, #options * 22)
+    
+    btn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        row.Size = isOpen and UDim2.new(1, 0, 0, 140) or UDim2.new(1, 0, 0, 42)
+        UpdateCanvas()
+    end)
+    
+    return function() return selectedValue end
 end
 
 -- ==========================================
@@ -687,6 +767,34 @@ for i, seed in ipairs(SeedData) do
     
     seedTimerLabels[i] = {label = timerLabel, data = seed, row = row}
 end
+
+-- ==========================================
+-- TAB: AUTO BUY
+-- ==========================================
+local AutoBuyTab = Instance.new("Frame")
+AutoBuyTab.Name = "AutoBuy"
+AutoBuyTab.Size = UDim2.new(1, 0, 0, 0)
+AutoBuyTab.AutomaticSize = Enum.AutomaticSize.Y
+AutoBuyTab.BackgroundTransparency = 1
+AutoBuyTab.Visible = false
+AutoBuyTab.Parent = ContentFrame
+
+local AutoBuyLayout = Instance.new("UIListLayout")
+AutoBuyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+AutoBuyLayout.Padding = UDim.new(0, 4)
+AutoBuyLayout.Parent = AutoBuyTab
+
+CreateLabel(AutoBuyTab, "=== AUTO BUY SETTINGS ===", Color3.fromRGB(40, 180, 80))
+
+local _, getAutoBuyEnabled = CreateToggle(AutoBuyTab, "Enable Auto Buy", "Automatically buy selected items", false)
+
+local seedList = {"None", "Carrot", "Strawberry", "Blueberry", "Tulip", "Tomato", "Apple", "Bamboo", "Corn", "Cactus", "Pineapple", "Mushroom", "Banana", "Grape", "Dragon Fruit", "Acorn", "Cherry", "Venus Flytrap", "Dragon's Breath"}
+local gearList = {"None", "Shovel", "Crowbar", "Freeze Ray", "Power Hose"}
+local propList = {"None", "Sprinkler", "Advanced Sprinkler", "Scarecrow", "Fence", "Lamp"}
+
+local getSeedDrop = CreateDropdown(AutoBuyTab, "Target Seed", seedList, 1)
+local getGearDrop = CreateDropdown(AutoBuyTab, "Target Gear", gearList, 1)
+local getPropDrop = CreateDropdown(AutoBuyTab, "Target Prop", propList, 1)
 
 -- ==========================================
 -- TAB: WEATHER
