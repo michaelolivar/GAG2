@@ -1221,7 +1221,7 @@ local function FindEventSeeds()
             end
             
             if isTarget then
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
+                if obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("TouchTransmitter", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
                     table.insert(seeds, obj)
                 end
             end
@@ -1234,20 +1234,21 @@ end
 local function CollectSeed(seedObj)
     pcall(function()
         -- 1. Try TouchInterest (Fastest)
-        local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter")
+        local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter", true)
         if touch then
+            local touchPart = touch.Parent
             if firetouchinterest and RootPart then
-                firetouchinterest(RootPart, seedObj, 0)
+                firetouchinterest(RootPart, touchPart, 0)
                 task.wait()
-                firetouchinterest(RootPart, seedObj, 1)
+                firetouchinterest(RootPart, touchPart, 1)
             else
-                RootPart.CFrame = seedObj.CFrame
+                RootPart.CFrame = touchPart.CFrame
             end
             return true
         end
         
         -- 2. Try ProximityPrompt
-        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
+        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt", true)
         if prompt then
             pcall(function() prompt.HoldDuration = 0 end)
             if fireproximityprompt then
@@ -1261,7 +1262,7 @@ local function CollectSeed(seedObj)
         end
         
         -- 3. Try ClickDetector
-        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
+        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector", true)
         if detector and fireclickdetector then
             fireclickdetector(detector)
             return true
@@ -1576,7 +1577,7 @@ Workspace.DescendantAdded:Connect(function(obj)
             
             if isTarget and RootPart then
                 -- Must have an interaction object
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
+                if obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("TouchTransmitter", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
                     local originalPos = RootPart.CFrame
                     RootPart.CFrame = obj.CFrame
                     task.wait(0.05)
