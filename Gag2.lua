@@ -1910,13 +1910,15 @@ local function FindAndBuy(itemName)
             end
             
             if isMatch then
-                if obj:IsA("ProximityPrompt") then
+                if obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
                     bestPrompt = obj
-                    bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
-                    break
-                elseif obj:IsA("ClickDetector") then
-                    bestPrompt = obj
-                    bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
+                    bestTargetPart = obj:FindFirstAncestorWhichIsA("BasePart")
+                    if not bestTargetPart then
+                        local model = obj:FindFirstAncestorWhichIsA("Model")
+                        if model then
+                            bestTargetPart = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+                        end
+                    end
                     break
                 end
             end
