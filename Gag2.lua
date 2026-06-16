@@ -43,6 +43,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
+local manualBasePos = nil
 
 -- Cleanup: destroy old UI if script is re-run
 if CoreGui:FindFirstChild("DevoGag2") then
@@ -421,7 +422,7 @@ MainLayout.Parent = MainTab
 CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
 
 local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, & Packs", true)
-local _, getWeatherNotif = CreateToggle(MainTab, "Weather Notifications", "Alert on weather changes", true)
+local function getWeatherNotif() return true end
 local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
 
 CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
@@ -429,9 +430,43 @@ CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
 
-CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
+local setBaseBtnRow = Instance.new("Frame")
+setBaseBtnRow.Size = UDim2.new(1, 0, 0, 30)
+setBaseBtnRow.BackgroundTransparency = 1
+setBaseBtnRow.LayoutOrder = 99 -- Ensure it appears below toggles
+setBaseBtnRow.Parent = MainTab
+
+local setBaseBtn = Instance.new("TextButton")
+setBaseBtn.Size = UDim2.new(0.9, 0, 0, 24)
+setBaseBtn.Position = UDim2.new(0.05, 0, 0, 3)
+setBaseBtn.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
+setBaseBtn.Text = "📍 Set Current Position as Base"
+setBaseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+setBaseBtn.Font = Enum.Font.GothamBold
+setBaseBtn.TextSize = 12
+setBaseBtn.Parent = setBaseBtnRow
+
+local setBaseCorner = Instance.new("UICorner")
+setBaseCorner.CornerRadius = UDim.new(0, 6)
+setBaseCorner.Parent = setBaseBtn
+
+setBaseBtn.MouseButton1Click:Connect(function()
+    if Character and Character:FindFirstChild("HumanoidRootPart") then
+        manualBasePos = Character.HumanoidRootPart.Position
+        setBaseBtn.Text = "✅ Base Set Successfully!"
+        setBaseBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+        task.delay(2, function()
+            setBaseBtn.Text = "📍 Set Current Position as Base"
+            setBaseBtn.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
+        end)
+    end
+end)
+
+local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
+StatusLabelTitle.LayoutOrder = 100
 
 local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
+StatusLabel.Parent.LayoutOrder = 101
 
 -- Spacer
 local spacer = Instance.new("Frame")
@@ -911,20 +946,20 @@ local weatherStartTime = tick()
 
 -- Accurate durations based on actual GAG2 data
 local weatherDurations = {
-    Day = 480,         -- 8min
-    Night = 120,       -- 2min (normal moon)
-    Rain = 300,        -- 5min
-    Lightning = 300,   -- 5min
-    Rainbow = 300,     -- 5min
-    Snowfall = 150,    -- 2m 30s
+    Day = 160,         -- 2m 40s
+    Night = 80,        -- 1m 20s
+    Rain = 120,        -- 2min
+    Lightning = 120,   -- 2min
+    Rainbow = 120,     -- 2min
+    Snowfall = 120,    -- 2min
     Starfall = 120,    -- 2min
-    BloodMoon = 120,   -- 2min
-    GoldMoon = 120,    -- 2min
-    RainbowMoon = 120, -- 2min
+    BloodMoon = 80,    -- 1m 20s
+    GoldMoon = 80,     -- 1m 20s
+    RainbowMoon = 80,  -- 1m 20s
 }
 
--- Full day-night cycle = Day(480s) + Night(120s) = 600s = 10min
-local FULL_CYCLE = 480 + 120
+-- Full day-night cycle dynamically updated
+local FULL_CYCLE = 160 + 80
 
 local weatherIcons = {
     Day = "☀️",
@@ -1097,25 +1132,64 @@ local function DetectWeather()
     return "Day"
 end
 
+-- Dynamic Clock Speed Tracker for perfect sync
+local dynamicClockData = {
+    lastClockTime = Lighting.ClockTime or 12,
+    lastTick = tick(),
+    secPerDayHour = 160 / 12.0,  -- 13.33s per in-game hour
+    secPerNightHour = 80 / 12.0, -- 6.66s per in-game hour
+}
+
+local function UpdateClockSpeed()
+    local currentClockTime = Lighting.ClockTime or 12
+    local currentTick = tick()
+    local dt = currentTick - dynamicClockData.lastTick
+    
+    if dt >= 1.0 then
+        local dClock = currentClockTime - dynamicClockData.lastClockTime
+        if dClock < -12 then dClock = dClock + 24 end
+        if dClock > 12 then dClock = dClock - 24 end
+        
+        if dClock > 0 and dClock < 2 then
+            local hoursPerSec = dClock / dt
+            if hoursPerSec > 0 then
+                local secPerHour = 1 / hoursPerSec
+                if secPerHour > 2 and secPerHour < 100 then
+                    if currentClockTime >= 6 and currentClockTime < 18 then
+                        dynamicClockData.secPerDayHour = dynamicClockData.secPerDayHour * 0.8 + secPerHour * 0.2
+                    else
+                        dynamicClockData.secPerNightHour = dynamicClockData.secPerNightHour * 0.8 + secPerHour * 0.2
+                    end
+                end
+            end
+        end
+        dynamicClockData.lastClockTime = currentClockTime
+        dynamicClockData.lastTick = currentTick
+        
+        weatherDurations.Day = math.floor(dynamicClockData.secPerDayHour * 12)
+        weatherDurations.Night = math.floor(dynamicClockData.secPerNightHour * 12)
+        weatherDurations.BloodMoon = weatherDurations.Night
+        weatherDurations.GoldMoon = weatherDurations.Night
+        weatherDurations.RainbowMoon = weatherDurations.Night
+    end
+end
+
 -- Calculate time until next occurrence of each weather phase accurately using ClockTime
 local function GetCycleTimeRemaining()
     local clockTime = Lighting.ClockTime or 12
     
     local timeToMoon, timeToDay
-    
-    -- Day is 6.0 to 18.0 (12 hours). Takes 480 seconds (40 seconds per game hour)
-    -- Night is 18.0 to 6.0 (12 hours). Takes 120 seconds (10 seconds per game hour)
-    local SEC_PER_DAY_HOUR = 480 / 12.0
-    local SEC_PER_NIGHT_HOUR = 120 / 12.0
+    local SEC_PER_DAY_HOUR = dynamicClockData.secPerDayHour
+    local SEC_PER_NIGHT_HOUR = dynamicClockData.secPerNightHour
     
     if clockTime >= 6 and clockTime < 18 then
         local hoursLeftDay = 18 - clockTime
         timeToMoon = hoursLeftDay * SEC_PER_DAY_HOUR
-        timeToDay = timeToMoon + 120
+        timeToDay = timeToMoon + (12 * SEC_PER_NIGHT_HOUR)
     else
         local hoursLeftNight = (clockTime >= 18) and (24 - clockTime + 6) or (6 - clockTime)
         timeToDay = hoursLeftNight * SEC_PER_NIGHT_HOUR
-        timeToMoon = 0
+        timeToMoon = timeToDay + (12 * SEC_PER_DAY_HOUR)
     end
     
     return timeToMoon, timeToDay
@@ -1153,37 +1227,46 @@ local function FindEventSeeds()
     return seeds
 end
 
--- Collect seed (simulate click/interact)
+-- Collect seed (simulate click/interact) - Ultra Fast Edition
 local function CollectSeed(seedObj)
     pcall(function()
-        -- Try ClickDetector
-        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
-        if detector then
-            fireclickdetector(detector)
-            return true
-        end
-        
-        -- Try ProximityPrompt
-        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
-        if prompt then
-            fireproximityprompt(prompt)
-            return true
-        end
-        
-        -- Try TouchInterest
+        -- 1. Try TouchInterest (Fastest)
         local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter")
         if touch then
-            -- Move character to touch it
-            if RootPart then
-                RootPart.CFrame = seedObj.CFrame * CFrame.new(0, 2, 0)
-                task.wait(0.1)
+            if firetouchinterest and RootPart then
+                firetouchinterest(RootPart, seedObj, 0)
+                task.wait()
+                firetouchinterest(RootPart, seedObj, 1)
+            else
+                RootPart.CFrame = seedObj.CFrame
             end
             return true
         end
         
-        -- Try RemoteEvent
+        -- 2. Try ProximityPrompt
+        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
+        if prompt then
+            pcall(function() prompt.HoldDuration = 0 end)
+            if fireproximityprompt then
+                fireproximityprompt(prompt, 1, true)
+            else
+                prompt:InputHoldBegin()
+                task.wait()
+                prompt:InputHoldEnd()
+            end
+            return true
+        end
+        
+        -- 3. Try ClickDetector
+        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
+        if detector and fireclickdetector then
+            fireclickdetector(detector)
+            return true
+        end
+        
+        -- 4. Try RemoteEvents directly
         for _, remote in pairs(seedObj:GetDescendants()) do
-            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            if remote:IsA("RemoteEvent") then
                 remote:FireServer(seedObj)
                 return true
             end
@@ -1200,29 +1283,67 @@ local function TeleportTo(pos)
 end
 
 -- Find base/garden plot position
+local myBasePosCache = nil
 local function FindMyBasePos()
+    if manualBasePos then return manualBasePos end
+    if myBasePosCache then return myBasePosCache end
+    
     local playerName = LocalPlayer.Name
+    local display = LocalPlayer.DisplayName
+    local userId = tostring(LocalPlayer.UserId)
+    
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") or obj:IsA("Folder") then
-            local name = obj.Name:lower()
             local isMyBase = false
+            local name = obj.Name
+            local lowerName = name:lower()
             
-            if (name:find("garden") or name:find("plot") or name:find("base") or name:find("home")) then
-                if name:find(playerName:sub(1, 5):lower()) or name:find("player") then
+            if lowerName:find("garden") or lowerName:find("plot") or lowerName:find("base") or lowerName:find("tycoon") or lowerName:find("land") then
+                if lowerName:find(playerName:lower()) or lowerName:find(display:lower()) then
                     isMyBase = true
                 end
-            end
-            if obj:GetAttribute("Owner") == playerName then isMyBase = true end
-            
-            local ownerVal = obj:FindFirstChild("Owner") or obj:FindFirstChild("Player")
-            if ownerVal and ((ownerVal:IsA("StringValue") and ownerVal.Value == playerName) or (ownerVal:IsA("ObjectValue") and ownerVal.Value == LocalPlayer)) then
-                isMyBase = true
-            end
-            
-            if isMyBase then
-                if obj:IsA("Model") and obj.PrimaryPart then return obj.PrimaryPart.Position end
-                local part = obj:FindFirstChildWhichIsA("BasePart", true)
-                if part then return part.Position end
+                
+                if obj:GetAttribute("Owner") == playerName or obj:GetAttribute("Owner") == display or tostring(obj:GetAttribute("Owner")) == userId then 
+                    isMyBase = true 
+                end
+                
+                for _, valName in ipairs({"Owner", "Player", "PlayerName", "owner"}) do
+                    local ownerVal = obj:FindFirstChild(valName)
+                    if ownerVal then
+                        local val = tostring(ownerVal.Value)
+                        if val == playerName or val == display or val == userId then
+                            isMyBase = true
+                        elseif ownerVal:IsA("ObjectValue") and ownerVal.Value == LocalPlayer then
+                            isMyBase = true
+                        end
+                    end
+                end
+                
+                if not isMyBase then
+                    for _, label in ipairs(obj:GetDescendants()) do
+                        if label:IsA("TextLabel") or label:IsA("TextButton") or label:IsA("SurfaceGui") or label:IsA("BillboardGui") then
+                            local text = label:IsA("TextLabel") and label.Text or label:IsA("TextButton") and label.Text or label.Name
+                            if text:find(playerName) or text:find(display) then
+                                isMyBase = true
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                if isMyBase then
+                    local pos = nil
+                    if obj:IsA("Model") and obj.PrimaryPart then 
+                        pos = obj.PrimaryPart.Position 
+                    else
+                        local part = obj:FindFirstChild("Base") or obj:FindFirstChild("Floor") or obj:FindFirstChildWhichIsA("BasePart", true)
+                        if part then pos = part.Position end
+                    end
+                    if pos then
+                        myBasePosCache = pos
+                        return pos
+                    end
+                end
             end
         end
     end
@@ -1339,8 +1460,42 @@ local function AttackThief(thief, basePos)
 end
 
 -- ==========================================
--- MAIN LOOP
+-- MAIN LOOP & EVENT SNATCHER
 -- ==========================================
+
+-- Instant Event Snatcher: Beats other scripters by catching events the millisecond they spawn
+Workspace.DescendantAdded:Connect(function(obj)
+    if not _scriptRunning or not getAutoCollect() then return end
+    
+    task.spawn(function()
+        task.wait(0.1) -- allow children to load
+        if not obj or not obj.Parent then return end
+        
+        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
+            local name = obj.Name:lower()
+            local isTarget = false
+            
+            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget = true
+            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget = true
+            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then isTarget = true
+            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then isTarget = true
+            end
+            
+            if isTarget and RootPart then
+                -- Must have an interaction object
+                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
+                    local originalPos = RootPart.CFrame
+                    RootPart.CFrame = obj.CFrame
+                    task.wait(0.05)
+                    CollectSeed(obj)
+                    if StatusLabel then StatusLabel.Text = "⚡ Instantly Snatched " .. obj.Name end
+                    task.wait(0.1)
+                    RootPart.CFrame = originalPos
+                end
+            end
+        end
+    end)
+end)
 
 -- Helper: format seconds to "H:MM:SS" or "MM:SS" string
 local function FormatTime(seconds)
@@ -1358,18 +1513,22 @@ end
 local function MainLoop()
     while _scriptRunning and task.wait(1) do
         local success, err = pcall(function()
+            UpdateClockSpeed()
+            
             -- 1. Auto-Collect Event Seeds
             if getAutoCollect() then
                 local seeds = FindEventSeeds()
-                for _, seed in ipairs(seeds) do
-                    local dist = (seed.Position - RootPart.Position).Magnitude
-                    if dist < 100 then
-                        TeleportTo(seed.CFrame * CFrame.new(0, 2, 0))
-                        task.wait(0.1)
+                if #seeds > 0 and RootPart then
+                    local originalPos = RootPart.CFrame
+                    for _, seed in ipairs(seeds) do
+                        -- Instant teleport to bypass distance checks
+                        RootPart.CFrame = seed.CFrame
+                        task.wait(0.05)
                         CollectSeed(seed)
                         StatusLabel.Text = "🎯 Collected " .. seed.Name
-                        task.wait(0.5)
                     end
+                    task.wait(0.1)
+                    RootPart.CFrame = originalPos
                 end
             end
             
@@ -1391,7 +1550,7 @@ local function MainLoop()
                 end
                 
                 -- Update current weather remaining timer
-                local duration = weatherDurations[currentWeather] or 300
+                local duration = weatherDurations[currentWeather] or 120
                 local elapsed = tick() - weatherStartTime
                 local remaining = math.max(0, duration - elapsed)
                 local mins = math.floor(remaining / 60)
@@ -1476,7 +1635,7 @@ local function MainLoop()
                 for _, wName in ipairs(randomWeathers) do
                     if weatherCardLabels[wName] then
                         if currentWeather == wName then
-                            local wRemaining = math.max(0, (weatherDurations[wName] or 300) - (tick() - weatherStartTime))
+                            local wRemaining = math.max(0, (weatherDurations[wName] or 120) - (tick() - weatherStartTime))
                             weatherCardLabels[wName].Text = FormatTime(wRemaining) .. " left"
                         else
                             weatherCardLabels[wName].Text = "Random"
