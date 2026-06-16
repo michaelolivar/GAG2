@@ -253,8 +253,8 @@ ContentFrame.Parent = MainFrame
 
 -- Create tabs
 local Tabs = {}
-local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info", "Andrei"}
-local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️", "👤"}
+local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
+local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -1036,77 +1036,6 @@ CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200,
 CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
 -- End of Info Tab
 
--- ==========================================
--- TAB: ANDREI
--- ==========================================
-local AndreiTab = Instance.new("Frame")
-AndreiTab.Name = "Andrei"
-AndreiTab.Size = UDim2.new(1, 0, 0, 0)
-AndreiTab.AutomaticSize = Enum.AutomaticSize.Y
-AndreiTab.BackgroundTransparency = 1
-AndreiTab.Visible = false
-AndreiTab.Parent = ContentFrame
-
-local AndreiLayout = Instance.new("UIListLayout")
-AndreiLayout.SortOrder = Enum.SortOrder.LayoutOrder
-AndreiLayout.Padding = UDim.new(0, 4)
-AndreiLayout.Parent = AndreiTab
-
-CreateLabel(AndreiTab, "=== ANDREI'S SPECIAL TAB ===", Color3.fromRGB(40, 180, 255))
-
-local videoFrame = Instance.new("VideoFrame")
-videoFrame.Name = "BeksVideo"
-videoFrame.Size = UDim2.new(1, 0, 0, 180)
-videoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-
--- Subukan nating ilagay ang external link. 
--- Naka-pcall ito para hindi mag-crash yung buong script kung sakaling mag-error ang Roblox.
-pcall(function()
-    videoFrame.Video = "https://pedanglagenda.com/beks.mp4"
-end)
-
-videoFrame.Playing = false
-videoFrame.Looped = true
-videoFrame.Volume = 0.8
-videoFrame.LayoutOrder = 10
-videoFrame.Parent = AndreiTab
-
-local vidCorner = Instance.new("UICorner")
-vidCorner.CornerRadius = UDim.new(0, 8)
-vidCorner.Parent = videoFrame
-
-local PlayBtn = Instance.new("TextButton")
-PlayBtn.Size = UDim2.new(1, 0, 0, 30)
-PlayBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-PlayBtn.Text = "▶ Play Video"
-PlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-PlayBtn.Font = Enum.Font.GothamBold
-PlayBtn.TextSize = 14
-PlayBtn.LayoutOrder = 11
-PlayBtn.Parent = AndreiTab
-
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 6)
-btnCorner.Parent = PlayBtn
-
-PlayBtn.MouseButton1Click:Connect(function()
-    if videoFrame.Playing then
-        videoFrame.Playing = false
-        PlayBtn.Text = "▶ Play Video"
-        PlayBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-    else
-        pcall(function() videoFrame.Playing = true end)
-        PlayBtn.Text = "⏸ Pause Video"
-        PlayBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
-    end
-end)
-
-local lbl1 = CreateLabel(AndreiTab, " nasaan ang button Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
-lbl1.LayoutOrder = 12
-local lbl2 = CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Color3.fromRGB(150, 150, 150))
-lbl2.LayoutOrder = 13
-
--- End of Andrei Tab
 
 UpdateCanvas()
 
