@@ -1804,7 +1804,7 @@ local function FindAndBuy(itemName)
                         
                         local originalPos = RootPart.CFrame
                         RootPart.CFrame = targetCFrame
-                        task.wait(0.05)
+                        task.wait(0.3) -- Crucial: wait for server to acknowledge new position due to ping
                         
                         if obj:IsA("ProximityPrompt") then
                             if fireproximityprompt then
@@ -1819,7 +1819,7 @@ local function FindAndBuy(itemName)
                         end
                         
                         StatusLabel.Text = "🛒 Bought " .. itemName
-                        task.wait(0.05)
+                        task.wait(0.2) -- Wait for purchase to process
                         
                         RootPart.CFrame = originalPos
                         cam.CameraType = oldCamType
