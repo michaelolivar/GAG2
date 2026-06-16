@@ -1697,14 +1697,20 @@ local function MainLoop()
             local basePos = FindMyBasePos()
 
             -- 4. Auto Stay Base at Night
-            local isNightEvent = (currentWeather == "Night" or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon")
-            if getAutoStay() and isNightEvent then
+            local currentClockTime = Lighting.ClockTime or 12
+            local isNightTime = (currentClockTime < 6 or currentClockTime >= 18)
+            
+            if getAutoStay() and isNightTime then
                 if basePos and RootPart then
-                    local distFromBase = (RootPart.Position - basePos).Magnitude
-                    if distFromBase > 15 then
+                    local distFromBase = Vector2.new(RootPart.Position.X, RootPart.Position.Z) - Vector2.new(basePos.X, basePos.Z)
+                    if distFromBase.Magnitude > 40 then
                         -- Teleport back to base
                         TeleportTo(basePos + Vector3.new(0, 3, 0))
                         StatusLabel.Text = "🌙 Night - Returned to base"
+                    end
+                elseif not basePos then
+                    if not StatusLabel.Text:find("⚠️") then
+                        StatusLabel.Text = "⚠️ Auto-Stay: Click 'Set Current Position as Base'!"
                     end
                 end
             end
