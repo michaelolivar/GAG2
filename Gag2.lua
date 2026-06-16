@@ -97,9 +97,9 @@ MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 local sizeConstraint = Instance.new("UISizeConstraint")
 sizeConstraint.MaxSize = Vector2.new(400, 520)
-sizeConstraint.MinSize = Vector2.new(280, 42)
+sizeConstraint.MinSize = Vector2.new(400, 250)
 sizeConstraint.Parent = MainFrame
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = Library
@@ -133,7 +133,7 @@ shadow.Parent = MainFrame
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 42)
-TitleBar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
@@ -145,7 +145,7 @@ titleCorner.Parent = TitleBar
 local titleFill = Instance.new("Frame")
 titleFill.Size = UDim2.new(1, 0, 0, 12)
 titleFill.Position = UDim2.new(0, 0, 1, -12)
-titleFill.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+titleFill.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 titleFill.BorderSizePixel = 0
 titleFill.Parent = TitleBar
 
@@ -158,9 +158,9 @@ accentLine.Parent = TitleBar
 
 local accentGradient = Instance.new("UIGradient")
 accentGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 200, 120)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 160, 220)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 80, 255))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 80, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 100, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 140, 255))
 })
 accentGradient.Parent = accentLine
 
@@ -223,29 +223,43 @@ end)
 -- Make draggable via title bar (moves MainFrame)
 MakeDraggable(TitleBar, MainFrame)
 
--- Tab system
+-- Tab system (Chiyo Left Sidebar)
 local TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(1, 0, 0, 36)
+TabContainer.Size = UDim2.new(0, 130, 1, -44)
 TabContainer.Position = UDim2.new(0, 0, 0, 44)
-TabContainer.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+TabContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 TabContainer.BorderSizePixel = 0
 TabContainer.ClipsDescendants = true
 TabContainer.Parent = MainFrame
 
+local sidebarLine = Instance.new("Frame")
+sidebarLine.Size = UDim2.new(0, 1, 1, 0)
+sidebarLine.Position = UDim2.new(1, -1, 0, 0)
+sidebarLine.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+sidebarLine.BorderSizePixel = 0
+sidebarLine.Parent = TabContainer
+
 local TabLayout = Instance.new("UIListLayout")
-TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.FillDirection = Enum.FillDirection.Vertical
 TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabLayout.Padding = UDim.new(0, 1)
+TabLayout.Padding = UDim.new(0, 4)
 TabLayout.Parent = TabContainer
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.PaddingTop = UDim.new(0, 8)
+UIPadding.PaddingBottom = UDim.new(0, 8)
+UIPadding.PaddingLeft = UDim.new(0, 8)
+UIPadding.PaddingRight = UDim.new(0, 8)
+UIPadding.Parent = TabContainer
 
 local ContentFrame = Instance.new("ScrollingFrame")
 ContentFrame.Name = "ContentScroll"
-ContentFrame.Size = UDim2.new(1, -20, 1, -100)
-ContentFrame.Position = UDim2.new(0, 10, 0, 84)
+ContentFrame.Size = UDim2.new(1, -145, 1, -54)
+ContentFrame.Position = UDim2.new(0, 135, 0, 49)
 ContentFrame.BackgroundTransparency = 1
 ContentFrame.ScrollBarThickness = 4
-ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 200, 120)
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 80, 255)
 ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ContentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ContentFrame.BorderSizePixel = 0
@@ -269,14 +283,14 @@ local function SwitchTab(tabName)
     end
     for _, btn in pairs(TabContainer:GetChildren()) do
         if btn:IsA("TextButton") then
-            btn.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-            btn.TextColor3 = Color3.fromRGB(120, 120, 130)
+            btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+            btn.TextColor3 = Color3.fromRGB(140, 140, 150)
         end
     end
     local tabBtn = TabContainer:FindFirstChild(tabName)
     if tabBtn then
         tabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-        tabBtn.TextColor3 = Color3.fromRGB(40, 200, 120)
+        tabBtn.TextColor3 = Color3.fromRGB(120, 80, 255)
     end
     
     -- Try to update canvas if function exists (it gets defined later)
@@ -289,22 +303,26 @@ local function SwitchTab(tabName)
 end
 
 for i, tabName in ipairs(TabNames) do
+    local icon = TabIcons[i]
     local tabBtn = Instance.new("TextButton")
     tabBtn.Name = tabName
-    tabBtn.Size = UDim2.new(1 / #TabNames, -1, 1, 0)
-    tabBtn.LayoutOrder = i
-    tabBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-    tabBtn.Text = TabIcons[i] .. " " .. tabName
-    tabBtn.TextColor3 = Color3.fromRGB(120, 120, 130)
-    tabBtn.TextSize = 11
-    tabBtn.Font = Enum.Font.GothamSemibold
+    tabBtn.Size = UDim2.new(1, 0, 0, 32)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    tabBtn.Text = " " .. icon .. "  " .. tabName
+    tabBtn.TextColor3 = Color3.fromRGB(140, 140, 150)
+    tabBtn.TextSize = 13
+    tabBtn.Font = Enum.Font.GothamMedium
+    tabBtn.TextXAlignment = Enum.TextXAlignment.Left
     tabBtn.BorderSizePixel = 0
-    tabBtn.TextTruncate = Enum.TextTruncate.AtEnd
     tabBtn.Parent = TabContainer
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = tabBtn
     
     if i == 1 then
         tabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-        tabBtn.TextColor3 = Color3.fromRGB(40, 200, 120)
+        tabBtn.TextColor3 = Color3.fromRGB(120, 80, 255)
     end
     
     tabBtn.MouseButton1Click:Connect(function()
@@ -348,7 +366,7 @@ local function CreateToggle(tab, name, desc, default)
     local toggle = Instance.new("Frame")
     toggle.Size = UDim2.new(0, 40, 0, 20)
     toggle.Position = UDim2.new(1, -45, 0, 11)
-    toggle.BackgroundColor3 = default and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
+    toggle.BackgroundColor3 = default and Color3.fromRGB(120, 80, 255) or Color3.fromRGB(35, 35, 45)
     toggle.BorderSizePixel = 0
     toggle.Parent = row
     
@@ -377,7 +395,7 @@ local function CreateToggle(tab, name, desc, default)
     
     toggleBtn.MouseButton1Click:Connect(function()
         toggled = not toggled
-        toggle.BackgroundColor3 = toggled and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
+        toggle.BackgroundColor3 = toggled and Color3.fromRGB(120, 80, 255) or Color3.fromRGB(35, 35, 45)
         circle:TweenPosition(UDim2.new(toggled and 1 or 0, toggled and -18 or 2, 0, 2), "Out", "Quad", 0.15, true)
     end)
     
