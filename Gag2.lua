@@ -272,12 +272,7 @@ TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabLayout.Padding = UDim.new(0, 4)
 TabLayout.Parent = TabContainer
 
-local UIPadding = Instance.new("UIPadding")
-UIPadding.PaddingTop = UDim.new(0, 8)
-UIPadding.PaddingBottom = UDim.new(0, 8)
-UIPadding.PaddingLeft = UDim.new(0, 8)
-UIPadding.PaddingRight = UDim.new(0, 8)
-UIPadding.Parent = TabContainer
+
 
 local ContentFrame = Instance.new("ScrollingFrame")
 ContentFrame.Name = "ContentScroll"
