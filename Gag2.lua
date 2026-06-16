@@ -1034,9 +1034,6 @@ CreateLabel(InfoTab, "✅ Auto defense with weapons", Color3.fromRGB(150, 255, 1
 CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
 CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200, 150))
 CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
-
-UpdateCanvas()
-
 -- End of Info Tab
 
 -- ==========================================
@@ -1110,6 +1107,8 @@ local lbl2 = CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Co
 lbl2.LayoutOrder = 13
 
 -- End of Andrei Tab
+
+UpdateCanvas()
 
 -- ==========================================
 -- CORE FEATURES IMPLEMENTATION
