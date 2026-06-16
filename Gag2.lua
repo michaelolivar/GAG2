@@ -254,7 +254,7 @@ local TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
 TabContainer.Size = UDim2.new(0, 130, 1, -44)
 TabContainer.Position = UDim2.new(0, 0, 0, 44)
-TabContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+TabContainer.BackgroundColor3 = Color3.fromRGB(22, 22, 28) -- Distinct sidebar color
 TabContainer.BorderSizePixel = 0
 TabContainer.ClipsDescendants = true
 TabContainer.Parent = MainFrame
@@ -309,7 +309,7 @@ local function SwitchTab(tabName)
     end
     for _, btn in pairs(TabContainer:GetChildren()) do
         if btn:IsA("TextButton") then
-            btn.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
             btn.TextColor3 = Color3.fromRGB(140, 140, 150)
         end
     end
@@ -333,7 +333,7 @@ for i, tabName in ipairs(TabNames) do
     local tabBtn = Instance.new("TextButton")
     tabBtn.Name = tabName
     tabBtn.Size = UDim2.new(1, 0, 0, 32)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
     tabBtn.Text = " " .. icon .. "  " .. tabName
     tabBtn.TextColor3 = Color3.fromRGB(140, 140, 150)
     tabBtn.TextSize = 13
@@ -355,9 +355,6 @@ for i, tabName in ipairs(TabNames) do
         SwitchTab(tabName)
     end)
 end
-
--- Initialize the first tab by default
-SwitchTab("Main")
 
 -- Helper: Create toggle row
 local toggleOrder = 0
@@ -1083,7 +1080,8 @@ CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200,
 CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
 -- End of Info Tab
 
-
+-- Initialize the first tab
+SwitchTab("Main")
 UpdateCanvas()
 
 -- ==========================================
