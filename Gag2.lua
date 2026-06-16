@@ -1287,15 +1287,17 @@ end
 
 -- Find base/garden plot position
 local myBasePosCache = nil
+local lastCacheTime = 0
+
 local function FindMyBasePos()
-    if myBasePosCache then return myBasePosCache end
+    if myBasePosCache and (os.time() - lastCacheTime < 30) then return myBasePosCache end
     
     local playerName = LocalPlayer.Name
     local display = LocalPlayer.DisplayName
     local userId = tostring(LocalPlayer.UserId)
     
     for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") or obj:IsA("Folder") then
+        if (obj:IsA("Model") or obj:IsA("Folder")) and not obj:FindFirstChild("Humanoid") then
             local isMyBase = false
             local name = obj.Name
             
@@ -1354,6 +1356,7 @@ local function FindMyBasePos()
                 
                 if pos then
                     myBasePosCache = pos
+                    lastCacheTime = os.time()
                     return pos
                 end
             end
@@ -1386,14 +1389,29 @@ local function GetOtherPlayersPlants()
             local interactable = obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("TouchTransmitter") or obj:FindFirstChildWhichIsA("ClickDetector")
             
             if interactable then
-                if name:find("plant") or name:find("fruit") or name:find("crop") or name:find("seed") or name:find("tree") then
+                if name:find("plant") or name:find("fruit") or name:find("crop") or name:find("seed") or name:find("tree") or name:find("apple") or name:find("berry") then
                     isPlant = true
                 end
                 
                 local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
                 if prompt then
                     local action = prompt.ActionText:lower()
-                    if action:find("harvest") or action:find("steal") or action:find("pick") or action:find("take") then
+                    local objectText = prompt.ObjectText:lower()
+                    if action:find("harvest") or action:find("steal") or action:find("pick") or action:find("take") or action:find("collect") or action:find("grab") or action:find("claim") or action == "" then
+                        isPlant = true
+                    end
+                    if objectText:find("plant") or objectText:find("crop") or objectText:find("tree") or objectText:find("seed") then
+                        isPlant = true
+                    end
+                    
+                    if not isPlant and not (name:find("door") or name:find("gate") or name:find("buy") or name:find("button") or name:find("upgrade") or name:find("pad") or name:find("spawner")) then
+                        isPlant = true
+                    end
+                end
+                
+                -- Fallback for touch transmitters in other bases (risky, but we restrict it)
+                if not isPlant and not obj:FindFirstChildWhichIsA("ProximityPrompt") then
+                    if not (name:find("door") or name:find("wall") or name:find("spawn") or name:find("pad")) then
                         isPlant = true
                     end
                 end
@@ -1403,7 +1421,7 @@ local function GetOtherPlayersPlants()
                 local part = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                 if part then
                     local isHighValue = false
-                    if name:find("gold") or name:find("rainbow") or name:find("diamond") or name:find("mythic") then
+                    if name:find("gold") or name:find("rainbow") or name:find("diamond") or name:find("mythic") or name:find("rare") or name:find("epic") or name:find("legend") then
                         isHighValue = true
                     end
                     
