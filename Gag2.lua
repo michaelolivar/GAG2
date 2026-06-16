@@ -1960,7 +1960,7 @@ local function FindAndBuy(itemName)
     end
     
     -- 3. Fallback: Aggressive Remote Brute-Force
-    local bruteForced = false
+    local firedAny = false
     pcall(function()
         local variations = {
             itemName,
@@ -1977,15 +1977,15 @@ local function FindAndBuy(itemName)
                         pcall(function() remote:FireServer(variant) end)
                         pcall(function() remote:FireServer(variant, 1) end)
                     end
-                    bruteForced = true
+                    firedAny = true
                 end
             end
         end
     end)
     
-    if bruteForced then
-        StatusLabel.Text = "🛒 Bought (Remote) " .. itemName
-        AddAutoBuyLog("Purchased " .. itemName .. " via Backend")
+    if firedAny then
+        StatusLabel.Text = "🛒 Attempting (Remote) " .. itemName
+        AddAutoBuyLog("Attempted backend purchase for " .. itemName)
         return true
     end
     
