@@ -1763,6 +1763,53 @@ local function FindAndBuy(itemName)
     if not itemName or itemName == "None" or itemName == "Select" or itemName:find("Target") then return false end
     
     local targetNameLower = itemName:lower()
+    local isBought = false
+    
+    -- 1. Try PlayerGui (UI Shops / List Shops)
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, obj in pairs(playerGui:GetDescendants()) do
+            if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                if obj.Visible and obj.Active and obj.AbsoluteSize.X > 0 then
+                    local text = (obj:IsA("TextButton") and obj.Text:lower()) or ""
+                    local name = obj.Name:lower()
+                    local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+                    
+                    local isMatch = false
+                    if text:find(targetNameLower) or name:find(targetNameLower) or parentName:find(targetNameLower) then
+                        isMatch = true
+                    end
+                    
+                    if not isMatch and obj.Parent then
+                        for _, sibling in pairs(obj.Parent:GetChildren()) do
+                            if sibling:IsA("TextLabel") and sibling.Text:lower():find(targetNameLower) then
+                                isMatch = true
+                                break
+                            end
+                        end
+                    end
+                    
+                    if isMatch then
+                        local isBuy = text:find("buy") or text:find("purchase") or text:find("%$") or text:find("price") or name:find("buy") or name:find("purchase") or text == ""
+                        if isBuy then
+                            if getconnections then
+                                for _, conn in pairs(getconnections(obj.MouseButton1Click)) do conn:Fire() end
+                                for _, conn in pairs(getconnections(obj.Activated)) do conn:Fire() end
+                            end
+                            StatusLabel.Text = "🛒 Bought (UI) " .. itemName
+                            isBought = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if isBought then return true end
+
+    -- 2. Try Workspace (Physical Shops)
+    local bestPrompt = nil
+    local bestTargetPart = nil
     
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
@@ -1776,61 +1823,78 @@ local function FindAndBuy(itemName)
             local isMatch = false
             
             if parentName:find(targetNameLower) or modelName:find(targetNameLower) or objName:find(targetNameLower) or objText:find(targetNameLower) then
-                if obj:IsA("ProximityPrompt") then
-                    if action:find("buy") or action:find("purchase") or action:find("get") or action:find("claim") or action == "" then
-                        isMatch = true
+                isMatch = true
+            end
+            
+            -- Broad search in siblings
+            if not isMatch and obj.Parent then
+                for _, sibling in pairs(obj.Parent:GetDescendants()) do
+                    if sibling:IsA("TextLabel") or sibling:IsA("TextButton") then
+                        if sibling.Text:lower():find(targetNameLower) then
+                            isMatch = true
+                            break
+                        end
+                    elseif sibling:IsA("BasePart") then
+                        if sibling.Name:lower():find(targetNameLower) then
+                            isMatch = true
+                            break
+                        end
                     end
-                elseif obj:IsA("ClickDetector") then
-                    isMatch = true
                 end
             end
             
             if isMatch then
-                local RootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if RootPart then
-                    local targetCFrame = nil
-                    if obj.Parent and obj.Parent:IsA("BasePart") then
-                        targetCFrame = obj.Parent.CFrame
+                if obj:IsA("ProximityPrompt") then
+                    if action:find("buy") or action:find("purchase") or action:find("get") or action:find("claim") or action == "" then
+                        bestPrompt = obj
+                        bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
+                        break
                     end
-                    
-                    if targetCFrame then
-                        local cam = Workspace.CurrentCamera
-                        local oldCamType = cam.CameraType
-                        local oldCamCFrame = cam.CFrame
-                        
-                        -- Lock camera to hide teleport
-                        cam.CameraType = Enum.CameraType.Scriptable
-                        cam.CFrame = oldCamCFrame
-                        
-                        local originalPos = RootPart.CFrame
-                        RootPart.CFrame = targetCFrame
-                        task.wait(0.3) -- Crucial: wait for server to acknowledge new position due to ping
-                        
-                        if obj:IsA("ProximityPrompt") then
-                            if fireproximityprompt then
-                                fireproximityprompt(obj, 1, true)
-                            else
-                                obj:InputHoldBegin()
-                                task.wait(0.1)
-                                obj:InputHoldEnd()
-                            end
-                        elseif fireclickdetector then
-                            fireclickdetector(obj)
-                        end
-                        
-                        StatusLabel.Text = "🛒 Bought " .. itemName
-                        task.wait(0.2) -- Wait for purchase to process
-                        
-                        RootPart.CFrame = originalPos
-                        cam.CameraType = oldCamType
-                        return true
-                    end
+                elseif obj:IsA("ClickDetector") then
+                    bestPrompt = obj
+                    bestTargetPart = obj.Parent:IsA("BasePart") and obj.Parent or nil
+                    break
                 end
             end
         end
     end
     
-    -- Fallback: try to fire remote events if physical shop isn't found
+    if bestPrompt and bestTargetPart then
+        local RootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if RootPart then
+            local cam = Workspace.CurrentCamera
+            local oldCamType = cam.CameraType
+            local oldCamCFrame = cam.CFrame
+            
+            cam.CameraType = Enum.CameraType.Scriptable
+            cam.CFrame = oldCamCFrame
+            
+            local originalPos = RootPart.CFrame
+            RootPart.CFrame = bestTargetPart.CFrame
+            task.wait(0.3)
+            
+            if bestPrompt:IsA("ProximityPrompt") then
+                if fireproximityprompt then
+                    fireproximityprompt(bestPrompt, 1, true)
+                else
+                    bestPrompt:InputHoldBegin()
+                    task.wait(0.1)
+                    bestPrompt:InputHoldEnd()
+                end
+            elseif fireclickdetector then
+                fireclickdetector(bestPrompt)
+            end
+            
+            StatusLabel.Text = "🛒 Bought (Map) " .. itemName
+            task.wait(0.2)
+            
+            RootPart.CFrame = originalPos
+            cam.CameraType = oldCamType
+            return true
+        end
+    end
+    
+    -- 3. Fallback: Remotes
     pcall(function()
         for _, remote in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
             if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
@@ -1838,6 +1902,7 @@ local function FindAndBuy(itemName)
                 if rName:find("buy") or rName:find("purchase") or rName:find("shop") then
                     if remote:IsA("RemoteEvent") then
                         remote:FireServer(itemName)
+                        remote:FireServer(itemName:lower())
                     end
                 end
             end
