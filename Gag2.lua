@@ -67,6 +67,22 @@ Library.Parent = guiParent
 Library.ResetOnSpawn = false
 Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+local function CleanupScript()
+    _scriptRunning = false
+    for _, conn in ipairs(_connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    _connections = {}
+    pcall(function()
+        if Library then Library:Destroy() end
+    end)
+    pcall(function()
+        if guiParent:FindFirstChild("DevoGag2") then
+            guiParent:FindFirstChild("DevoGag2"):Destroy()
+        end
+    end)
+end
+
 -- Proper draggable: moves MainFrame from title bar drag
 local function MakeDraggable(dragHandle, targetFrame)
     local dragging = false
@@ -212,6 +228,9 @@ CloseBtn.Parent = TitleBar
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 6)
 closeCorner.Parent = CloseBtn
+
+CloseBtn.MouseButton1Click:Connect(CleanupScript)
+CloseBtn.Activated:Connect(CleanupScript)
 
 -- Minimize toggle
 local isMinimized = false
@@ -2092,31 +2111,6 @@ pcall(function()
 end)
 
 print("🌱 Devo GAG2 v2.0 loaded successfully!")
-
--- ==========================================
--- CLEANUP: Destroy UI when script is removed
--- ==========================================
-
--- Function to fully clean up
-local function CleanupScript()
-    _scriptRunning = false
-    
-    -- Disconnect all tracked connections
-    for _, conn in ipairs(_connections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    _connections = {}
-    
-    -- Destroy the UI
-    if Library and Library.Parent then
-        Library:Destroy()
-    end
-end
-
--- Close button: fully destroys the script UI
-CloseBtn.MouseButton1Click:Connect(function()
-    CleanupScript()
-end)
 
 -- Auto-cleanup when script is destroyed from executor
 -- This catches when user deletes/stops the script
