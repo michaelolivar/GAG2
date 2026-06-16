@@ -1101,7 +1101,7 @@ PlayBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local lbl1 = CreateLabel(AndreiTab, "Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
+local lbl1 = CreateLabel(AndreiTab, " nasaan ang button Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
 lbl1.LayoutOrder = 12
 local lbl2 = CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Color3.fromRGB(150, 150, 150))
 lbl2.LayoutOrder = 13
