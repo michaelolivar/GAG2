@@ -1716,6 +1716,65 @@ local function FormatTime(seconds)
     end
 end
 
+-- Helper: Find and buy an item
+local function FindAndBuy(itemName)
+    if not itemName or itemName == "None" or itemName == "Select" or itemName:find("Target") then return false end
+    
+    local targetNameLower = itemName:lower()
+    
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector") then
+            local action = obj:IsA("ProximityPrompt") and obj.ActionText:lower() or ""
+            local objText = obj:IsA("ProximityPrompt") and obj.ObjectText:lower() or ""
+            local parentName = obj.Parent and obj.Parent.Name:lower() or ""
+            local model = obj:FindFirstAncestorWhichIsA("Model")
+            local modelName = model and model.Name:lower() or ""
+            
+            if (action:find("buy") or action:find("purchase")) and 
+               (objText:find(targetNameLower) or parentName:find(targetNameLower) or modelName:find(targetNameLower) or itemName:lower() == objText) then
+                
+                if obj:IsA("ProximityPrompt") then
+                    local oldDist = obj.MaxActivationDistance
+                    pcall(function() obj.MaxActivationDistance = 9e9 end)
+                    if fireproximityprompt then
+                        fireproximityprompt(obj, 1, true)
+                    else
+                        obj:InputHoldBegin()
+                        task.wait(0.1)
+                        obj:InputHoldEnd()
+                    end
+                    pcall(function() obj.MaxActivationDistance = oldDist end)
+                elseif fireclickdetector then
+                    local oldDist = obj.MaxActivationDistance
+                    pcall(function() obj.MaxActivationDistance = 9e9 end)
+                    fireclickdetector(obj)
+                    pcall(function() obj.MaxActivationDistance = oldDist end)
+                end
+                
+                StatusLabel.Text = "🛒 Bought " .. itemName
+                task.wait(0.3)
+                return true
+            end
+        end
+    end
+    
+    -- Fallback: try to fire remote events if physical shop isn't found
+    pcall(function()
+        for _, remote in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                local rName = remote.Name:lower()
+                if rName:find("buy") or rName:find("purchase") or rName:find("shop") then
+                    if remote:IsA("RemoteEvent") then
+                        remote:FireServer(itemName)
+                    end
+                end
+            end
+        end
+    end)
+    
+    return false
+end
+
 local function MainLoop()
     while _scriptRunning and task.wait(1) do
         local success, err = pcall(function()
@@ -2000,8 +2059,25 @@ local function MainLoop()
                 end)
             end
             
+            -- 7. Auto Buy
+            if getAutoBuyEnabled() then
+                local targetSeed = getSeedDrop()
+                local targetGear = getGearDrop()
+                local targetProp = getPropDrop()
+                
+                if targetSeed and targetSeed ~= "None" and not targetSeed:find("Target") then
+                    FindAndBuy(targetSeed)
+                end
+                if targetGear and targetGear ~= "None" and not targetGear:find("Target") then
+                    FindAndBuy(targetGear)
+                end
+                if targetProp and targetProp ~= "None" and not targetProp:find("Target") then
+                    FindAndBuy(targetProp)
+                end
+            end
+            
             -- Update base status label
-            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") then
+            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") and not StatusLabel.Text:find("🛒") then
                 StatusLabel.Text = "✅ Active | " .. currentWeather .. " | Monitoring..."
             end
         end)
