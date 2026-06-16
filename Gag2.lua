@@ -497,55 +497,97 @@ local function CreateDropdown(tab, name, options, defaultIndex)
     btn.Size = UDim2.new(0.5, 0, 0, 24)
     btn.Position = UDim2.new(0.5, 0, 0, 4)
     btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    btn.Text = options[defaultIndex] or options[1] or "Select"
-    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    btn.TextSize = 11
-    btn.Font = Enum.Font.Gotham
+    btn.Text = ""
     btn.Parent = row
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 4)
     corner.Parent = btn
     
+    local btnText = Instance.new("TextLabel")
+    btnText.Size = UDim2.new(1, -24, 1, 0)
+    btnText.Position = UDim2.new(0, 8, 0, 0)
+    btnText.BackgroundTransparency = 1
+    btnText.Text = options[defaultIndex] or options[1] or "Select"
+    btnText.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btnText.TextSize = 11
+    btnText.Font = Enum.Font.Gotham
+    btnText.TextXAlignment = Enum.TextXAlignment.Left
+    btnText.Parent = btn
+    
+    local arrow = Instance.new("TextLabel")
+    arrow.Size = UDim2.new(0, 20, 1, 0)
+    arrow.Position = UDim2.new(1, -20, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.TextColor3 = Color3.fromRGB(150, 150, 150)
+    arrow.TextSize = 10
+    arrow.Font = Enum.Font.Gotham
+    arrow.Parent = btn
+    
     local dropFrame = Instance.new("ScrollingFrame")
     dropFrame.Size = UDim2.new(1, 0, 1, -32)
     dropFrame.Position = UDim2.new(0, 0, 0, 32)
     dropFrame.BackgroundTransparency = 1
     dropFrame.ScrollBarThickness = 2
+    dropFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 200, 120)
     dropFrame.Parent = row
     
     local dropLayout = Instance.new("UIListLayout")
     dropLayout.Padding = UDim.new(0, 2)
     dropLayout.Parent = dropFrame
     
-    local selectedValue = btn.Text
+    local selectedValue = btnText.Text
     local isOpen = false
     
     for _, opt in ipairs(options) do
         local optBtn = Instance.new("TextButton")
-        optBtn.Size = UDim2.new(1, 0, 0, 20)
+        optBtn.Size = UDim2.new(1, 0, 0, 22)
         optBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-        optBtn.Text = opt
+        optBtn.Text = "  " .. opt
         optBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
         optBtn.TextSize = 11
         optBtn.Font = Enum.Font.Gotham
+        optBtn.TextXAlignment = Enum.TextXAlignment.Left
         optBtn.Parent = dropFrame
+        
+        local optCorner = Instance.new("UICorner")
+        optCorner.CornerRadius = UDim.new(0, 3)
+        optCorner.Parent = optBtn
+        
+        optBtn.MouseEnter:Connect(function()
+            optBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 120)
+            optBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end)
+        optBtn.MouseLeave:Connect(function()
+            optBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+            optBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+        end)
         
         optBtn.MouseButton1Click:Connect(function()
             selectedValue = opt
-            btn.Text = opt
+            btnText.Text = opt
             isOpen = false
-            row.Size = UDim2.new(1, 0, 0, 42)
-            UpdateCanvas()
+            arrow.Text = "▼"
+            row:TweenSize(UDim2.new(1, 0, 0, 42), "Out", "Quad", 0.15, true)
+            task.delay(0.15, UpdateCanvas)
         end)
     end
     
-    dropFrame.CanvasSize = UDim2.new(0, 0, 0, #options * 22)
+    dropFrame.CanvasSize = UDim2.new(0, 0, 0, #options * 24)
     
     btn.MouseButton1Click:Connect(function()
         isOpen = not isOpen
-        row.Size = isOpen and UDim2.new(1, 0, 0, 140) or UDim2.new(1, 0, 0, 42)
-        UpdateCanvas()
+        arrow.Text = isOpen and "▲" or "▼"
+        if isOpen then
+            row:TweenSize(UDim2.new(1, 0, 0, 150), "Out", "Quad", 0.2, true)
+            task.spawn(function()
+                for i = 1, 10 do task.wait(0.02); UpdateCanvas() end
+            end)
+        else
+            row:TweenSize(UDim2.new(1, 0, 0, 42), "Out", "Quad", 0.2, true)
+            task.delay(0.2, UpdateCanvas)
+        end
     end)
     
     return function() return selectedValue end
