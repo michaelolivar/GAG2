@@ -2133,18 +2133,27 @@ local function MainLoop()
             
             -- 7. Auto Buy
             if getAutoBuyEnabled() then
-                local targetSeed = getSeedDrop()
-                local targetGear = getGearDrop()
-                local targetProp = getPropDrop()
-                
-                if targetSeed and targetSeed ~= "None" and not targetSeed:find("Target") then
-                    FindAndBuy(targetSeed)
-                end
-                if targetGear and targetGear ~= "None" and not targetGear:find("Target") then
-                    FindAndBuy(targetGear)
-                end
-                if targetProp and targetProp ~= "None" and not targetProp:find("Target") then
-                    FindAndBuy(targetProp)
+                if not lastAutoBuyTime then lastAutoBuyTime = 0 end
+                if tick() - lastAutoBuyTime > 3 then
+                    local targetSeed = getSeedDrop() and getSeedDrop():match("^%s*(.-)%s*$")
+                    local targetGear = getGearDrop() and getGearDrop():match("^%s*(.-)%s*$")
+                    local targetProp = getPropDrop() and getPropDrop():match("^%s*(.-)%s*$")
+                    
+                    local bought = false
+                    
+                    if targetSeed and targetSeed ~= "None" and not targetSeed:find("Target") then
+                        bought = FindAndBuy(targetSeed)
+                    end
+                    if not bought and targetGear and targetGear ~= "None" and not targetGear:find("Target") then
+                        bought = FindAndBuy(targetGear)
+                    end
+                    if not bought and targetProp and targetProp ~= "None" and not targetProp:find("Target") then
+                        bought = FindAndBuy(targetProp)
+                    end
+                    
+                    if bought then
+                        lastAutoBuyTime = tick()
+                    end
                 end
             end
             
