@@ -1405,14 +1405,18 @@ local function GetOtherPlayersPlants()
                         isPlant = true
                     end
                     
-                    if not isPlant and not (name:find("door") or name:find("gate") or name:find("buy") or name:find("button") or name:find("upgrade") or name:find("pad") or name:find("spawner")) then
+                    if action:find("open") or action:find("read") or action:find("talk") or action:find("buy") or action:find("sell") or action:find("equip") or action:find("sit") then
+                        isPlant = false
+                    end
+                    
+                    if not isPlant and not (name:find("door") or name:find("gate") or name:find("buy") or name:find("button") or name:find("upgrade") or name:find("pad") or name:find("spawner") or name:find("mail") or name:find("box") or name:find("chest") or name:find("storage") or name:find("bank") or name:find("shop") or name:find("sign") or name:find("board")) then
                         isPlant = true
                     end
                 end
                 
                 -- Fallback for touch transmitters in other bases (risky, but we restrict it)
                 if not isPlant and not obj:FindFirstChildWhichIsA("ProximityPrompt") then
-                    if not (name:find("door") or name:find("wall") or name:find("spawn") or name:find("pad")) then
+                    if not (name:find("door") or name:find("wall") or name:find("spawn") or name:find("pad") or name:find("mail") or name:find("box") or name:find("chest") or name:find("storage") or name:find("shop") or name:find("bank")) then
                         isPlant = true
                     end
                 end
