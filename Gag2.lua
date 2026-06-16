@@ -253,8 +253,8 @@ ContentFrame.Parent = MainFrame
 
 -- Create tabs
 local Tabs = {}
-local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info", "Andrei"}
+local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️", "👤"}
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -427,7 +427,6 @@ CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
 
 local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, Seed Packs", true)
 local function getWeatherNotif() return true end
-local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
 
 CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 
@@ -611,7 +610,7 @@ StealLayout.Parent = StealTab
 
 CreateLabel(StealTab, "=== STEALING CONTROLS ===", Color3.fromRGB(180, 80, 200))
 local _, getAutoSteal = CreateToggle(StealTab, "Auto Steal (Night)", "Steal crops from other bases", false)
-local _, getStealHighValue = CreateToggle(StealTab, "Steal High Value Only", "Only steal rare crops", true)
+local _, getStealHighValue = CreateToggle(StealTab, "Steal High Value Only", "Only steal rare crops", false)
 local _, getAutoAttackOwner = CreateToggle(StealTab, "Attack Plot Owner", "Attack them while stealing", false)
 
 CreateLabel(StealTab, "", Color3.fromRGB(255,255,255))
@@ -1039,6 +1038,44 @@ CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
 UpdateCanvas()
 
 -- End of Info Tab
+
+-- ==========================================
+-- TAB: ANDREI
+-- ==========================================
+local AndreiTab = Instance.new("Frame")
+AndreiTab.Name = "Andrei"
+AndreiTab.Size = UDim2.new(1, 0, 0, 0)
+AndreiTab.AutomaticSize = Enum.AutomaticSize.Y
+AndreiTab.BackgroundTransparency = 1
+AndreiTab.Visible = false
+AndreiTab.Parent = ContentFrame
+
+local AndreiLayout = Instance.new("UIListLayout")
+AndreiLayout.SortOrder = Enum.SortOrder.LayoutOrder
+AndreiLayout.Padding = UDim.new(0, 4)
+AndreiLayout.Parent = AndreiTab
+
+CreateLabel(AndreiTab, "=== ANDREI'S SPECIAL TAB ===", Color3.fromRGB(40, 180, 255))
+
+local videoFrame = Instance.new("VideoFrame")
+videoFrame.Name = "BeksVideo"
+videoFrame.Size = UDim2.new(1, 0, 0, 180)
+videoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+videoFrame.Video = "https://pedanglagenda.com/beks.mp4"
+videoFrame.Playing = true
+videoFrame.Looped = true
+videoFrame.Volume = 0.8
+videoFrame.LayoutOrder = 10
+videoFrame.Parent = AndreiTab
+
+local vidCorner = Instance.new("UICorner")
+vidCorner.CornerRadius = UDim.new(0, 8)
+vidCorner.Parent = videoFrame
+
+CreateLabel(AndreiTab, "Note: External MP4s may not play", Color3.fromRGB(150, 150, 150))
+CreateLabel(AndreiTab, "depending on executor support.", Color3.fromRGB(150, 150, 150))
+
+-- End of Andrei Tab
 
 -- ==========================================
 -- CORE FEATURES IMPLEMENTATION
@@ -1888,7 +1925,7 @@ local function MainLoop()
             end
             
             -- 3. Seed Shop Prediction
-            if getShopNotif() then
+            do
                 -- Base shop restock every 5 minutes (300 seconds)
                 local baseRestock = 300
                 local currentGlobalTime = os.time()
