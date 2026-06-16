@@ -1267,18 +1267,19 @@ local function FindMyBasePos()
         if obj:IsA("Model") or obj:IsA("Folder") then
             local isMyBase = false
             local name = obj.Name
-            local lowerName = name:lower()
             
-            if lowerName:find("garden") or lowerName:find("plot") or lowerName:find("base") or lowerName:find("tycoon") or lowerName:find("land") then
-                if lowerName:find(playerName:lower()) or lowerName:find(display:lower()) then
-                    isMyBase = true
-                end
-                
+            if name == playerName or name == display or name == userId then
+                isMyBase = true
+            end
+            
+            if not isMyBase then
                 if obj:GetAttribute("Owner") == playerName or obj:GetAttribute("Owner") == display or tostring(obj:GetAttribute("Owner")) == userId then 
                     isMyBase = true 
                 end
-                
-                for _, valName in ipairs({"Owner", "Player", "PlayerName", "owner"}) do
+            end
+            
+            if not isMyBase then
+                for _, valName in ipairs({"Owner", "Player", "PlayerName", "owner", "PlayerId"}) do
                     local ownerVal = obj:FindFirstChild(valName)
                     if ownerVal then
                         local val = tostring(ownerVal.Value)
@@ -1289,8 +1290,11 @@ local function FindMyBasePos()
                         end
                     end
                 end
-                
-                if not isMyBase then
+            end
+            
+            if not isMyBase then
+                local lowerName = name:lower()
+                if lowerName:find("garden") or lowerName:find("plot") or lowerName:find("base") or lowerName:find("tycoon") or lowerName:find("land") or lowerName:find("farm") then
                     for _, label in ipairs(obj:GetDescendants()) do
                         if label:IsA("TextLabel") or label:IsA("TextButton") or label:IsA("SurfaceGui") or label:IsA("BillboardGui") then
                             local text = label:IsA("TextLabel") and label.Text or label:IsA("TextButton") and label.Text or label.Name
@@ -1301,19 +1305,25 @@ local function FindMyBasePos()
                         end
                     end
                 end
+            end
+            
+            if isMyBase then
+                local pos = nil
+                if obj:IsA("Model") and obj.PrimaryPart then 
+                    pos = obj.PrimaryPart.Position 
+                else
+                    local part = obj:FindFirstChild("Base") or obj:FindFirstChild("Floor") or obj:FindFirstChildWhichIsA("BasePart", true)
+                    if part then pos = part.Position end
+                end
                 
-                if isMyBase then
-                    local pos = nil
-                    if obj:IsA("Model") and obj.PrimaryPart then 
-                        pos = obj.PrimaryPart.Position 
-                    else
-                        local part = obj:FindFirstChild("Base") or obj:FindFirstChild("Floor") or obj:FindFirstChildWhichIsA("BasePart", true)
-                        if part then pos = part.Position end
-                    end
-                    if pos then
-                        myBasePosCache = pos
-                        return pos
-                    end
+                if not pos then
+                    local anyPart = obj:FindFirstChildWhichIsA("BasePart", true)
+                    if anyPart then pos = anyPart.Position end
+                end
+                
+                if pos then
+                    myBasePosCache = pos
+                    return pos
                 end
             end
         end
