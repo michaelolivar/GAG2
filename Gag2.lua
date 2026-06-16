@@ -838,6 +838,71 @@ local getSeedDrop = CreateDropdown(AutoBuyTab, "Target Seed", seedList, 1)
 local getGearDrop = CreateDropdown(AutoBuyTab, "Target Gear", gearList, 1)
 local getPropDrop = CreateDropdown(AutoBuyTab, "Target Prop", propList, 1)
 
+-- Auto Buy Logs UI
+labelOrder = labelOrder + 1
+local LogContainer = Instance.new("Frame")
+LogContainer.Name = "LogContainer"
+LogContainer.Size = UDim2.new(1, 0, 0, 160)
+LogContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+LogContainer.LayoutOrder = 100
+LogContainer.Parent = AutoBuyTab
+local lcCorner = Instance.new("UICorner")
+lcCorner.CornerRadius = UDim.new(0, 6)
+lcCorner.Parent = LogContainer
+
+local LogTitle = Instance.new("TextLabel")
+LogTitle.Size = UDim2.new(1, -10, 0, 20)
+LogTitle.Position = UDim2.new(0, 10, 0, 5)
+LogTitle.BackgroundTransparency = 1
+LogTitle.Text = "📝 Auto Buy Logs"
+LogTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+LogTitle.TextSize = 12
+LogTitle.Font = Enum.Font.GothamBold
+LogTitle.TextXAlignment = Enum.TextXAlignment.Left
+LogTitle.Parent = LogContainer
+
+local LogScroll = Instance.new("ScrollingFrame")
+LogScroll.Size = UDim2.new(1, -10, 1, -30)
+LogScroll.Position = UDim2.new(0, 5, 0, 25)
+LogScroll.BackgroundTransparency = 1
+LogScroll.ScrollBarThickness = 2
+LogScroll.ScrollBarImageColor3 = Color3.fromRGB(40, 200, 120)
+LogScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+LogScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+LogScroll.Parent = LogContainer
+
+local LogLayout = Instance.new("UIListLayout")
+LogLayout.SortOrder = Enum.SortOrder.LayoutOrder
+LogLayout.Padding = UDim.new(0, 2)
+LogLayout.Parent = LogScroll
+
+local function AddAutoBuyLog(message)
+    local logLabel = Instance.new("TextLabel")
+    logLabel.Size = UDim2.new(1, 0, 0, 16)
+    logLabel.BackgroundTransparency = 1
+    logLabel.Text = " [" .. os.date("%X") .. "] " .. message
+    logLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+    logLabel.TextSize = 10
+    logLabel.Font = Enum.Font.Code
+    logLabel.TextXAlignment = Enum.TextXAlignment.Left
+    logLabel.Parent = LogScroll
+    
+    local logs = LogScroll:GetChildren()
+    local logCount = 0
+    for _, l in pairs(logs) do
+        if l:IsA("TextLabel") then logCount = logCount + 1 end
+    end
+    if logCount > 50 then
+        for _, l in pairs(logs) do
+            if l:IsA("TextLabel") then
+                l:Destroy()
+                break
+            end
+        end
+    end
+    LogScroll.CanvasPosition = Vector2.new(0, 9999)
+end
+
 -- ==========================================
 -- TAB: WEATHER
 -- ==========================================
@@ -1797,6 +1862,7 @@ local function FindAndBuy(itemName)
                                 for _, conn in pairs(getconnections(obj.Activated)) do conn:Fire() end
                             end
                             StatusLabel.Text = "🛒 Bought (UI) " .. itemName
+                            AddAutoBuyLog("Purchased " .. itemName .. " via UI Shop")
                             isBought = true
                         end
                     end
@@ -1884,6 +1950,7 @@ local function FindAndBuy(itemName)
             end
             
             StatusLabel.Text = "🛒 Bought (Map) " .. itemName
+            AddAutoBuyLog("Purchased " .. itemName .. " from Map")
             task.wait(0.2)
             
             RootPart.CFrame = originalPos
@@ -1918,6 +1985,7 @@ local function FindAndBuy(itemName)
     
     if bruteForced then
         StatusLabel.Text = "🛒 Bought (Remote) " .. itemName
+        AddAutoBuyLog("Purchased " .. itemName .. " via Backend")
         return true
     end
     
