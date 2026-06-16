@@ -791,7 +791,7 @@ Row1.BackgroundTransparency = 1
 Row1.LayoutOrder = labelOrder
 Row1.Parent = WeatherTab
 
-CreateWeatherCard(Row1, "Sunset", "🌅", 1).Position = UDim2.new(0, 0, 0, 0)
+CreateWeatherCard(Row1, "Day", "☀️", 1).Position = UDim2.new(0, 0, 0, 0)
 CreateWeatherCard(Row1, "Moon", "🌙", 2).Position = UDim2.new(0.52, 0, 0, 0)
 
 -- Row 2: Special moons
@@ -911,8 +911,7 @@ local weatherStartTime = tick()
 
 -- Accurate durations based on actual GAG2 data
 local weatherDurations = {
-    Day = 450,         -- 7m 30s
-    Sunset = 30,       -- 30s
+    Day = 480,         -- 8min
     Night = 120,       -- 2min (normal moon)
     Rain = 300,        -- 5min
     Lightning = 300,   -- 5min
@@ -924,13 +923,12 @@ local weatherDurations = {
     RainbowMoon = 120, -- 2min
 }
 
--- Full day-night cycle = Day(450s) + Sunset(30s) + Night(120s) = 600s = 10min
-local FULL_CYCLE = 450 + 30 + 120
+-- Full day-night cycle = Day(480s) + Night(120s) = 600s = 10min
+local FULL_CYCLE = 480 + 120
 
 local weatherIcons = {
     Day = "☀️",
     Night = "🌙",
-    Sunset = "🌅",
     Rain = "🌧️",
     Lightning = "⚡",
     Rainbow = "🌈",
@@ -1025,7 +1023,6 @@ local function NormalizeWeatherName(text)
     if t == "rain" or t == "rainy" then return "Rain" end
     if t == "snowfall" or t == "snow" or t == "blizzard" then return "Snowfall" end
     if t == "starfall" then return "Starfall" end
-    if t == "sunset" then return "Sunset" end
     if t == "night" or t == "moon" or t == "nighttime" then return "Night" end
     if t == "day" or t == "daytime" or t == "morning" or t == "sunny" then return "Day" end
     return nil
@@ -1042,8 +1039,7 @@ local function DetectWeather()
     local clockTime = Lighting.ClockTime or 12
     
     -- Determine base phase from clock
-    local isNight = (clockTime < 6 or clockTime > 20.5)
-    local isSunset = (clockTime >= 19.5 and clockTime <= 20.5)
+    local isNight = (clockTime < 6 or clockTime >= 18)
     
     -- Priority 3: Only check for active weather PARTICLES (not just any named object)
     -- Only ParticleEmitters that are Enabled count as active weather
@@ -1097,11 +1093,6 @@ local function DetectWeather()
         return "Night"
     end
     
-    -- Sunset transition
-    if isSunset then
-        return "Sunset"
-    end
-    
     -- Default: Day (don't guess weather from fog/brightness - too unreliable)
     return "Day"
 end
@@ -1110,30 +1101,24 @@ end
 local function GetCycleTimeRemaining()
     local clockTime = Lighting.ClockTime or 12
     
-    local timeToSunset, timeToMoon, timeToDay
+    local timeToMoon, timeToDay
     
-    local SEC_PER_DAY_HOUR = 450 / 13.5
-    local SEC_PER_SUNSET_HOUR = 30 / 1.0
-    local SEC_PER_NIGHT_HOUR = 120 / 9.5
+    -- Day is 6.0 to 18.0 (12 hours). Takes 480 seconds (40 seconds per game hour)
+    -- Night is 18.0 to 6.0 (12 hours). Takes 120 seconds (10 seconds per game hour)
+    local SEC_PER_DAY_HOUR = 480 / 12.0
+    local SEC_PER_NIGHT_HOUR = 120 / 12.0
     
-    if clockTime >= 6 and clockTime < 19.5 then
-        local hoursLeftDay = 19.5 - clockTime
-        timeToSunset = hoursLeftDay * SEC_PER_DAY_HOUR
-        timeToMoon = timeToSunset + 30
-        timeToDay = timeToMoon + 120
-    elseif clockTime >= 19.5 and clockTime < 20.5 then
-        local hoursLeftSunset = 20.5 - clockTime
-        timeToSunset = 0
-        timeToMoon = hoursLeftSunset * SEC_PER_SUNSET_HOUR
+    if clockTime >= 6 and clockTime < 18 then
+        local hoursLeftDay = 18 - clockTime
+        timeToMoon = hoursLeftDay * SEC_PER_DAY_HOUR
         timeToDay = timeToMoon + 120
     else
-        local hoursLeftNight = (clockTime >= 20.5) and (24 - clockTime + 6) or (6 - clockTime)
+        local hoursLeftNight = (clockTime >= 18) and (24 - clockTime + 6) or (6 - clockTime)
         timeToDay = hoursLeftNight * SEC_PER_NIGHT_HOUR
-        timeToSunset = timeToDay + 450
         timeToMoon = 0
     end
     
-    return timeToSunset, timeToMoon, timeToDay
+    return timeToMoon, timeToDay
 end
 
 -- Find event drops (Golden/Rainbow Seeds, Birds, Seed Packs) by scanning for pickable objects
@@ -1414,16 +1399,13 @@ local function MainLoop()
                 WeatherTimerLabel.Text = string.format("%02d:%02d left", mins, secs)
                 
                 -- Update weather card countdown timers
-                local timeToSunset, timeToMoon, timeToDay = GetCycleTimeRemaining()
+                local timeToMoon, timeToDay = GetCycleTimeRemaining()
                 
                 local currentClockTime = Lighting.ClockTime or 12
                 local nextWeatherName = "Day"
                 local nextWeatherTime = timeToDay
                 
-                if currentClockTime >= 6 and currentClockTime < 19.5 then
-                    nextWeatherName = "Sunset"
-                    nextWeatherTime = timeToSunset
-                elseif currentClockTime >= 19.5 and currentClockTime < 20.5 then
+                if currentClockTime >= 6 and currentClockTime < 18 then
                     nextWeatherName = "Night"
                     nextWeatherTime = timeToMoon
                 else
@@ -1444,12 +1426,12 @@ local function MainLoop()
                     NextWeatherLabel.Text = string.format("Next: %s %s (%s)", nIcon, nextWeatherName, FormatTime(nextWeatherTime))
                 end
                 
-                -- Sunset card
-                if weatherCardLabels["Sunset"] then
-                    if currentWeather == "Sunset" then
-                        weatherCardLabels["Sunset"].Text = "NOW!"
+                -- Day card
+                if weatherCardLabels["Day"] then
+                    if currentWeather == "Day" then
+                        weatherCardLabels["Day"].Text = "NOW!"
                     else
-                        weatherCardLabels["Sunset"].Text = FormatTime(timeToSunset)
+                        weatherCardLabels["Day"].Text = FormatTime(timeToDay)
                     end
                 end
                 
@@ -1507,7 +1489,7 @@ local function MainLoop()
                     local card = label.Parent
                     if card then
                         local isActive = false
-                        if cardName == "Sunset" and currentWeather == "Sunset" then isActive = true end
+                        if cardName == "Day" and currentWeather == "Day" then isActive = true end
                         if cardName == "Moon" and currentWeather == "Night" then isActive = true end
                         if cardName == "Goldmoon" and currentWeather == "GoldMoon" then isActive = true end
                         if cardName == "Bloodmoon" and currentWeather == "BloodMoon" then isActive = true end
