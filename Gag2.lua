@@ -425,18 +425,18 @@ MainLayout.Parent = MainTab
 
 CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
 
-local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, Seed Packs", true)
+local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, Seed Packs", false)
 local function getWeatherNotif() return true end
 
 CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 
-local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
-local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
+local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", false)
+local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", false)
 
 CreateLabel(MainTab, "=== UTILITIES ===", Color3.fromRGB(200, 180, 80))
-local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", true)
-local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", true)
-local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", true)
+local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", false)
+local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", false)
+local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", false)
 
 local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
 StatusLabelTitle.LayoutOrder = 100
