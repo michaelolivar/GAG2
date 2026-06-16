@@ -1771,31 +1771,61 @@ local function FindAndBuy(itemName)
             local parentName = obj.Parent and obj.Parent.Name:lower() or ""
             local model = obj:FindFirstAncestorWhichIsA("Model")
             local modelName = model and model.Name:lower() or ""
+            local objName = obj.Name:lower()
             
-            if (action:find("buy") or action:find("purchase")) and 
-               (objText:find(targetNameLower) or parentName:find(targetNameLower) or modelName:find(targetNameLower) or itemName:lower() == objText) then
-                
+            local isMatch = false
+            
+            if parentName:find(targetNameLower) or modelName:find(targetNameLower) or objName:find(targetNameLower) or objText:find(targetNameLower) then
                 if obj:IsA("ProximityPrompt") then
-                    local oldDist = obj.MaxActivationDistance
-                    pcall(function() obj.MaxActivationDistance = 9e9 end)
-                    if fireproximityprompt then
-                        fireproximityprompt(obj, 1, true)
-                    else
-                        obj:InputHoldBegin()
-                        task.wait(0.1)
-                        obj:InputHoldEnd()
+                    if action:find("buy") or action:find("purchase") or action:find("get") or action:find("claim") or action == "" then
+                        isMatch = true
                     end
-                    pcall(function() obj.MaxActivationDistance = oldDist end)
-                elseif fireclickdetector then
-                    local oldDist = obj.MaxActivationDistance
-                    pcall(function() obj.MaxActivationDistance = 9e9 end)
-                    fireclickdetector(obj)
-                    pcall(function() obj.MaxActivationDistance = oldDist end)
+                elseif obj:IsA("ClickDetector") then
+                    isMatch = true
                 end
-                
-                StatusLabel.Text = "🛒 Bought " .. itemName
-                task.wait(0.3)
-                return true
+            end
+            
+            if isMatch then
+                local RootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if RootPart then
+                    local targetCFrame = nil
+                    if obj.Parent and obj.Parent:IsA("BasePart") then
+                        targetCFrame = obj.Parent.CFrame
+                    end
+                    
+                    if targetCFrame then
+                        local cam = Workspace.CurrentCamera
+                        local oldCamType = cam.CameraType
+                        local oldCamCFrame = cam.CFrame
+                        
+                        -- Lock camera to hide teleport
+                        cam.CameraType = Enum.CameraType.Scriptable
+                        cam.CFrame = oldCamCFrame
+                        
+                        local originalPos = RootPart.CFrame
+                        RootPart.CFrame = targetCFrame
+                        task.wait(0.05)
+                        
+                        if obj:IsA("ProximityPrompt") then
+                            if fireproximityprompt then
+                                fireproximityprompt(obj, 1, true)
+                            else
+                                obj:InputHoldBegin()
+                                task.wait(0.1)
+                                obj:InputHoldEnd()
+                            end
+                        elseif fireclickdetector then
+                            fireclickdetector(obj)
+                        end
+                        
+                        StatusLabel.Text = "🛒 Bought " .. itemName
+                        task.wait(0.05)
+                        
+                        RootPart.CFrame = originalPos
+                        cam.CameraType = oldCamType
+                        return true
+                    end
+                end
             end
         end
     end
