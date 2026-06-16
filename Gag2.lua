@@ -420,7 +420,7 @@ MainLayout.Parent = MainTab
 
 CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
 
-local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Event Seeds", "Auto-collect Golden & Rainbow seeds", true)
+local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, & Packs", true)
 local _, getWeatherNotif = CreateToggle(MainTab, "Weather Notifications", "Alert on weather changes", true)
 local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
 
@@ -701,6 +701,31 @@ WeatherTimerLabel.Font = Enum.Font.GothamSemibold
 WeatherTimerLabel.TextXAlignment = Enum.TextXAlignment.Right
 WeatherTimerLabel.Parent = CurrentWeatherRow
 
+-- Next Weather display
+labelOrder = labelOrder + 1
+local NextWeatherRow = Instance.new("Frame")
+NextWeatherRow.Name = "NextWeather"
+NextWeatherRow.Size = UDim2.new(1, 0, 0, 28)
+NextWeatherRow.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+NextWeatherRow.BorderSizePixel = 0
+NextWeatherRow.LayoutOrder = labelOrder
+NextWeatherRow.Parent = WeatherTab
+
+local nwCorner = Instance.new("UICorner")
+nwCorner.CornerRadius = UDim.new(0, 6)
+nwCorner.Parent = NextWeatherRow
+
+local NextWeatherLabel = Instance.new("TextLabel")
+NextWeatherLabel.Size = UDim2.new(1, -20, 1, 0)
+NextWeatherLabel.Position = UDim2.new(0, 10, 0, 0)
+NextWeatherLabel.BackgroundTransparency = 1
+NextWeatherLabel.Text = "Next: ⏳ Calculating..."
+NextWeatherLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+NextWeatherLabel.TextSize = 12
+NextWeatherLabel.Font = Enum.Font.GothamSemibold
+NextWeatherLabel.TextXAlignment = Enum.TextXAlignment.Left
+NextWeatherLabel.Parent = NextWeatherRow
+
 -- Weather card builder
 local weatherCardLabels = {}
 
@@ -961,6 +986,32 @@ local function ReadGameWeather()
     return nil
 end
 
+-- Try to read explicit NEXT weather from the game
+local function ReadNextWeather()
+    local result = nil
+    pcall(function()
+        for _, attrName in ipairs({"NextWeather", "UpcomingWeather", "NextEvent"}) do
+            local val = Workspace:GetAttribute(attrName) or Lighting:GetAttribute(attrName)
+            if val and tostring(val) ~= "" then result = tostring(val) return end
+        end
+    end)
+    if result then return result end
+    
+    pcall(function()
+        local rs = game:GetService("ReplicatedStorage")
+        local weatherObj = rs:FindFirstChild("Weather") or rs:FindFirstChild("GameWeather") or rs:FindFirstChild("WeatherSystem")
+        if weatherObj then
+            local nextObj = weatherObj:FindFirstChild("Next") or weatherObj:FindFirstChild("Upcoming")
+            if nextObj and nextObj:IsA("StringValue") then
+                result = nextObj.Value
+            end
+            local val = weatherObj:GetAttribute("Next") or weatherObj:GetAttribute("Upcoming")
+            if val then result = tostring(val) end
+        end
+    end)
+    return result
+end
+
 -- Map game text to our weather names (strict matching)
 local function NormalizeWeatherName(text)
     if not text then return nil end
@@ -1055,62 +1106,59 @@ local function DetectWeather()
     return "Day"
 end
 
--- Calculate time until next occurrence of each weather phase
+-- Calculate time until next occurrence of each weather phase accurately using ClockTime
 local function GetCycleTimeRemaining()
     local clockTime = Lighting.ClockTime or 12
     
-    -- Convert ClockTime to position within the day-night cycle
-    -- Day: ClockTime 6-19.5 (7m30s = 450s)
-    -- Sunset: ClockTime 19.5-20.5 (30s)
-    -- Night: ClockTime 20.5-6 (2min = 120s)
+    local timeToSunset, timeToMoon, timeToDay
     
-    local timeToSunset, timeToMoon
+    local SEC_PER_DAY_HOUR = 450 / 13.5
+    local SEC_PER_SUNSET_HOUR = 30 / 1.0
+    local SEC_PER_NIGHT_HOUR = 120 / 9.5
     
     if clockTime >= 6 and clockTime < 19.5 then
-        -- Currently Day: map 6-19.5 range to 0-450s progress
-        local dayProgress = (clockTime - 6) / (19.5 - 6)
-        local dayElapsed = dayProgress * 450
-        timeToSunset = 450 - dayElapsed
+        local hoursLeftDay = 19.5 - clockTime
+        timeToSunset = hoursLeftDay * SEC_PER_DAY_HOUR
         timeToMoon = timeToSunset + 30
-    elseif clockTime >= 19.5 and clockTime <= 20.5 then
-        -- Currently Sunset
-        local sunsetProgress = (clockTime - 19.5) / (20.5 - 19.5)
-        local sunsetElapsed = sunsetProgress * 30
+        timeToDay = timeToMoon + 120
+    elseif clockTime >= 19.5 and clockTime < 20.5 then
+        local hoursLeftSunset = 20.5 - clockTime
         timeToSunset = 0
-        timeToMoon = 30 - sunsetElapsed
+        timeToMoon = hoursLeftSunset * SEC_PER_SUNSET_HOUR
+        timeToDay = timeToMoon + 120
     else
-        -- Currently Night (20.5 -> 24 -> 6)
-        local nightHours
-        if clockTime > 20.5 then
-            nightHours = (24 - clockTime) + 6
-        else
-            nightHours = 6 - clockTime
-        end
-        local totalNightHours = (24 - 20.5) + 6
-        local nightProgress = 1 - (nightHours / totalNightHours)
-        local nightElapsed = nightProgress * 120
-        local nightRemaining = 120 - nightElapsed
-        timeToSunset = nightRemaining + 450
-        timeToMoon = nightRemaining + 450 + 30
+        local hoursLeftNight = (clockTime >= 20.5) and (24 - clockTime + 6) or (6 - clockTime)
+        timeToDay = hoursLeftNight * SEC_PER_NIGHT_HOUR
+        timeToSunset = timeToDay + 450
+        timeToMoon = 0
     end
     
-    return timeToSunset, timeToMoon
+    return timeToSunset, timeToMoon, timeToDay
 end
 
--- Find event seeds (Golden/Rainbow) by scanning for pickable objects
+-- Find event drops (Golden/Rainbow Seeds, Birds, Seed Packs) by scanning for pickable objects
 local function FindEventSeeds()
     local seeds = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
             local name = obj.Name:lower()
+            local isTarget = false
+            
             -- Golden seed check
             if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
-                    table.insert(seeds, obj)
-                end
-            end
+                isTarget = true
             -- Rainbow seed check
-            if (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
+            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
+                isTarget = true
+            -- Bird check
+            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then
+                isTarget = true
+            -- Seed Pack check
+            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then
+                isTarget = true
+            end
+            
+            if isTarget then
                 if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
                     table.insert(seeds, obj)
                 end
@@ -1355,7 +1403,35 @@ local function MainLoop()
                 WeatherTimerLabel.Text = string.format("%02d:%02d left", mins, secs)
                 
                 -- Update weather card countdown timers
-                local timeToSunset, timeToMoon = GetCycleTimeRemaining()
+                local timeToSunset, timeToMoon, timeToDay = GetCycleTimeRemaining()
+                
+                local currentClockTime = Lighting.ClockTime or 12
+                local nextWeatherName = "Day"
+                local nextWeatherTime = timeToDay
+                
+                if currentClockTime >= 6 and currentClockTime < 19.5 then
+                    nextWeatherName = "Sunset"
+                    nextWeatherTime = timeToSunset
+                elseif currentClockTime >= 19.5 and currentClockTime < 20.5 then
+                    nextWeatherName = "Night"
+                    nextWeatherTime = timeToMoon
+                else
+                    nextWeatherName = "Day"
+                    nextWeatherTime = timeToDay
+                end
+                
+                local explicitNext = ReadNextWeather()
+                if explicitNext then
+                    local normalized = NormalizeWeatherName(explicitNext)
+                    if normalized then
+                        nextWeatherName = normalized
+                    end
+                end
+                
+                if NextWeatherLabel then
+                    local nIcon = weatherIcons[nextWeatherName] or "❓"
+                    NextWeatherLabel.Text = string.format("Next: %s %s (%s)", nIcon, nextWeatherName, FormatTime(nextWeatherTime))
+                end
                 
                 -- Sunset card
                 if weatherCardLabels["Sunset"] then
