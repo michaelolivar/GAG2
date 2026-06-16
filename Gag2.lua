@@ -1068,7 +1068,7 @@ pcall(function()
     videoFrame.Video = "https://pedanglagenda.com/beks.mp4"
 end)
 
-videoFrame.Playing = true
+videoFrame.Playing = false
 videoFrame.Looped = true
 videoFrame.Volume = 0.8
 videoFrame.LayoutOrder = 10
@@ -1078,8 +1078,36 @@ local vidCorner = Instance.new("UICorner")
 vidCorner.CornerRadius = UDim.new(0, 8)
 vidCorner.Parent = videoFrame
 
-CreateLabel(AndreiTab, "Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
-CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Color3.fromRGB(150, 150, 150))
+local PlayBtn = Instance.new("TextButton")
+PlayBtn.Size = UDim2.new(1, 0, 0, 30)
+PlayBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+PlayBtn.Text = "▶ Play Video"
+PlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PlayBtn.Font = Enum.Font.GothamBold
+PlayBtn.TextSize = 14
+PlayBtn.LayoutOrder = 11
+PlayBtn.Parent = AndreiTab
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = PlayBtn
+
+PlayBtn.MouseButton1Click:Connect(function()
+    if videoFrame.Playing then
+        videoFrame.Playing = false
+        PlayBtn.Text = "▶ Play Video"
+        PlayBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+    else
+        pcall(function() videoFrame.Playing = true end)
+        PlayBtn.Text = "⏸ Pause Video"
+        PlayBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+    end
+end)
+
+local lbl1 = CreateLabel(AndreiTab, "Subok lang: Kung itim pa rin ito,", Color3.fromRGB(255, 150, 100))
+lbl1.LayoutOrder = 12
+local lbl2 = CreateLabel(AndreiTab, "ibig sabihin block talaga ng executor.", Color3.fromRGB(150, 150, 150))
+lbl2.LayoutOrder = 13
 
 -- End of Andrei Tab
 
