@@ -43,7 +43,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local RootPart = Character:WaitForChild("HumanoidRootPart")
-local manualBasePos = nil
 
 -- Cleanup: destroy old UI if script is re-run
 if CoreGui:FindFirstChild("DevoGag2") then
@@ -93,8 +92,13 @@ end
 -- BUILD UI - Professional Dark Mode
 -- ==========================================
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 400, 0, 520)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -260)
+MainFrame.Size = UDim2.new(0.9, 0, 0.85, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+local sizeConstraint = Instance.new("UISizeConstraint")
+sizeConstraint.MaxSize = Vector2.new(400, 520)
+sizeConstraint.MinSize = Vector2.new(280, 42)
+sizeConstraint.Parent = MainFrame
 MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -208,11 +212,11 @@ MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     ContentFrame = MainFrame:FindFirstChild("ContentScroll") -- re-reference
     for _, child in pairs(MainFrame:GetChildren()) do
-        if child.Name ~= "TitleBar" and child.Name ~= "Shadow" and not child:IsA("UICorner") and not child:IsA("UIStroke") then
+        if child.Name ~= "TitleBar" and child.Name ~= "Shadow" and not child:IsA("UICorner") and not child:IsA("UIStroke") and not child:IsA("UISizeConstraint") then
             child.Visible = not isMinimized
         end
     end
-    MainFrame.Size = isMinimized and UDim2.new(0, 400, 0, 42) or UDim2.new(0, 400, 0, 520)
+    MainFrame.Size = isMinimized and UDim2.new(0.9, 0, 0, 42) or UDim2.new(0.9, 0, 0.85, 0)
     MinBtn.Text = isMinimized and "+" or "—"
 end)
 
@@ -429,38 +433,6 @@ CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
 
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
-
-local setBaseBtnRow = Instance.new("Frame")
-setBaseBtnRow.Size = UDim2.new(1, 0, 0, 30)
-setBaseBtnRow.BackgroundTransparency = 1
-setBaseBtnRow.LayoutOrder = 99 -- Ensure it appears below toggles
-setBaseBtnRow.Parent = MainTab
-
-local setBaseBtn = Instance.new("TextButton")
-setBaseBtn.Size = UDim2.new(0.9, 0, 0, 24)
-setBaseBtn.Position = UDim2.new(0.05, 0, 0, 3)
-setBaseBtn.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
-setBaseBtn.Text = "📍 Set Current Position as Base"
-setBaseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-setBaseBtn.Font = Enum.Font.GothamBold
-setBaseBtn.TextSize = 12
-setBaseBtn.Parent = setBaseBtnRow
-
-local setBaseCorner = Instance.new("UICorner")
-setBaseCorner.CornerRadius = UDim.new(0, 6)
-setBaseCorner.Parent = setBaseBtn
-
-setBaseBtn.MouseButton1Click:Connect(function()
-    if Character and Character:FindFirstChild("HumanoidRootPart") then
-        manualBasePos = Character.HumanoidRootPart.Position
-        setBaseBtn.Text = "✅ Base Set Successfully!"
-        setBaseBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-        task.delay(2, function()
-            setBaseBtn.Text = "📍 Set Current Position as Base"
-            setBaseBtn.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
-        end)
-    end
-end)
 
 local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
 StatusLabelTitle.LayoutOrder = 100
@@ -1285,7 +1257,6 @@ end
 -- Find base/garden plot position
 local myBasePosCache = nil
 local function FindMyBasePos()
-    if manualBasePos then return manualBasePos end
     if myBasePosCache then return myBasePosCache end
     
     local playerName = LocalPlayer.Name
@@ -1707,10 +1678,6 @@ local function MainLoop()
                         -- Teleport back to base
                         TeleportTo(basePos + Vector3.new(0, 3, 0))
                         StatusLabel.Text = "🌙 Night - Returned to base"
-                    end
-                elseif not basePos then
-                    if not StatusLabel.Text:find("⚠️") then
-                        StatusLabel.Text = "⚠️ Auto-Stay: Click 'Set Current Position as Base'!"
                     end
                 end
             end
