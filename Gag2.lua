@@ -302,4 +302,4 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 
-Notify("✅ v6 Loaded", "WalkSpeed at Dropdown na available!")
+Notify("✅ v6 Loaded beb", "WalkSpeed at Dropdown na available!")
