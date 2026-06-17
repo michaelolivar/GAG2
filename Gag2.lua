@@ -41,8 +41,19 @@ local CoreGui = game:GetService("CoreGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Character
+local RootPart
+
+local function UpdateCharacter(char)
+    Character = char
+    RootPart = char:WaitForChild("HumanoidRootPart")
+end
+
+UpdateCharacter(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())
+
+table.insert(_connections,
+    LocalPlayer.CharacterAdded:Connect(UpdateCharacter)
+)
 
 -- Cleanup: destroy old UI if script is re-run
 local guiParent = (gethui and gethui()) or CoreGui
@@ -88,21 +99,20 @@ local function MakeDraggable(dragHandle, targetFrame)
     local dragging = false
     local dragStart, startPos
     
-    local c1 = dragHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = targetFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+local endConn
+
+endConn = input.Changed:Connect(function()
+    if input.UserInputState == Enum.UserInputState.End then
+        dragging = false
+
+        if endConn then
+            endConn:Disconnect()
+            endConn = nil
         end
-    end)
-    table.insert(_connections, c1)
-    
-    local c2 = UserInputService.InputChanged:Connect(function(input)
+    end
+end)
+
+table.insert(_connections,endConn)hanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
             targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -126,6 +136,52 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = Library
+MainFrame.Size = UDim2.new(
+    0,
+    0,
+    0,
+    0
+)
+
+TweenService:Create(
+    MainFrame,
+    TweenInfo.new(
+        0.35,
+        Enum.EasingStyle.Back,
+        Enum.EasingDirection.Out
+    ),
+    {
+        Size = UDim2.new(
+            0.9,
+            0,
+            0.85,
+            0
+        )
+    }
+):Play()
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = MainFrame
+
+local Camera = workspace.CurrentCamera
+
+local function UpdateUIScale()
+    local size = Camera.ViewportSize
+
+    local scale = math.clamp(
+        size.X / 1920,
+        0.75,
+        1.15
+    )
+
+    uiScale.Scale = scale
+end
+
+UpdateUIScale()
+
+table.insert(
+    _connections,
+    Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateUIScale)
+)
 
 local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 10)
@@ -258,7 +314,26 @@ MakeDraggable(ChatHeadIcon, ChatHeadIcon)
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = true
-    MainFrame.Visible = false
+    TweenService:Create(
+    MainFrame,
+    TweenInfo.new(
+        0.25,
+        Enum.EasingStyle.Quart,
+        Enum.EasingDirection.Out
+    ),
+    {
+        Size = UDim2.new(
+            0,
+            56,
+            0,
+            56
+        )
+    }
+):Play()
+
+task.wait(.25)
+
+MainFrame.Visible = false
     ChatHeadIcon.Visible = true
     -- Spawns the chat head roughly where the window was
     local pos = MainFrame.AbsolutePosition
@@ -269,7 +344,31 @@ end)
 
 ChatHeadIcon.MouseButton1Click:Connect(function()
     isMinimized = false
-    MainFrame.Visible = true
+   MainFrame.Visible = true
+
+MainFrame.Size = UDim2.new(
+    0,
+    56,
+    0,
+    56
+)
+
+TweenService:Create(
+    MainFrame,
+    TweenInfo.new(
+        0.25,
+        Enum.EasingStyle.Quart,
+        Enum.EasingDirection.Out
+    ),
+    {
+        Size = UDim2.new(
+            0.9,
+            0,
+            0.85,
+            0
+        )
+    }
+):Play()
     ChatHeadIcon.Visible = false
 end)
 
@@ -289,6 +388,14 @@ TabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 TabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 TabContainer.Visible = true
 TabContainer.Parent = MainFrame
+local ActiveIndicator = Instance.new("Frame")
+ActiveIndicator.Size = UDim2.new(0,4,0,32)
+ActiveIndicator.BackgroundColor3 =
+Color3.fromRGB(120,80,255)
+ActiveIndicator.BorderSizePixel = 0
+ActiveIndicator.Parent = TabContainer
+
+Instance.new("UICorner",ActiveIndicator)
 
 local sidebarLine = Instance.new("Frame")
 sidebarLine.Size = UDim2.new(0, 1, 1, -44)
@@ -341,13 +448,20 @@ local function SwitchTab(tabName)
     end
     local tabBtn = TabContainer:FindFirstChild(tabName)
     if tabBtn then
+        ActiveIndicator.Position =
+UDim2.new(
+    0,
+    0,
+    0,
+    tabBtn.Position.Y.Offset
+)
         tabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
         tabBtn.TextColor3 = Color3.fromRGB(120, 80, 255)
     end
     
     -- Try to update canvas if function exists (it gets defined later)
     pcall(function()
-        if UpdateCanvas then UpdateCanvas() end
+        if UpdateCanvas then task.defer(UpdateCanvas) end
     end)
     
     -- Reset scroll position to top when switching tabs
@@ -368,6 +482,39 @@ for i, tabName in ipairs(TabNames) do
     tabBtn.TextXAlignment = Enum.TextXAlignment.Left
     tabBtn.BorderSizePixel = 0
     tabBtn.Parent = TabContainer
+    tabBtn.MouseEnter:Connect(function()
+
+    TweenService:Create(
+        tabBtn,
+        TweenInfo.new(.15),
+        {
+            BackgroundColor3 =
+            Color3.fromRGB(
+                35,
+                35,
+                50
+            )
+        }
+    ):Play()
+
+end)
+
+tabBtn.MouseLeave:Connect(function()
+
+    TweenService:Create(
+        tabBtn,
+        TweenInfo.new(.15),
+        {
+            BackgroundColor3 =
+            Color3.fromRGB(
+                22,
+                22,
+                28
+            )
+        }
+    ):Play()
+
+end)
     
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 6)
@@ -1936,6 +2083,9 @@ local function MainLoop()
             
             -- 2. Weather Detection & Prediction
             if getWeatherNotif() then
+                local LastWeatherScan = 0
+local CachedWeather = "Day"
+local WeatherScanCooldown = 3
                 local detectedWeather = DetectWeather()
                 
                 if detectedWeather ~= currentWeather then
