@@ -1504,7 +1504,7 @@ function UI:CreateInventoryPage()
     local invTitle = Instance.new("TextLabel")
     invTitle.Size = UDim2.new(1, -10, 0, 20)
     invTitle.Position = UDim2.new(0, 8, 0, 6)
-    invTitle.BackgroundTransparency =
+    invTitle.BackgroundTransparency = 1
     invTitle.Text = "📦 Seed Inventory"
     invTitle.Font = CONFIG.Font
     invTitle.TextSize = 14
