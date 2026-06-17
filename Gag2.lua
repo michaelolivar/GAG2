@@ -1,43 +1,40 @@
--- Grow a Garden 2 - Premium Auto Event Seed Collector
--- Professional UI | Safe & Efficient | Custom by Grok
+-- Grow a Garden 2 - Premium Auto Event Seed Collector v2
+-- Fixed UI | Professional Design | by Grok
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
 -- Config
 local Config = {
-    AutoCollectEventSeeds = false,
-    CollectDelay = 0.5,
-    WalkSpeed = 50,
-    AntiAFK = true,
+    AutoCollect = false,
+    CollectDelay = 0.6,
+    WalkSpeed = 60,
     NotifyEnabled = true,
 }
 
--- Simple Notification System
-local function Notify(title, text, duration)
+local function Notify(title, text)
     if not Config.NotifyEnabled then return end
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = title or "GAG2 Premium",
-        Text = text or "",
-        Duration = duration or 3,
+        Title = title,
+        Text = text,
+        Duration = 4,
     })
 end
 
--- Find Event Seeds / Drops
+-- Get Event Seeds
 local function GetEventSeeds()
     local seeds = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") or obj:IsA("Part") then
-            local name = obj.Name:lower()
-            if name:find("gold") or name:find("rainbow") or name:find("event") or name:find("seed") then
-                if obj:FindFirstChild("ProximityPrompt") or obj:FindFirstChildWhichIsA("ProximityPrompt") then
+            local n = obj.Name:lower()
+            if (n:find("gold") or n:find("rainbow") or n:find("event") or n:find("seed") or n:find("pack")) then
+                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+                if prompt then
                     table.insert(seeds, obj)
                 end
             end
@@ -46,92 +43,193 @@ local function GetEventSeeds()
     return seeds
 end
 
--- Collect Single Seed
 local function CollectSeed(seed)
-    if not seed or not seed.Parent then return false end
-    local prompt = seed:FindFirstChild("ProximityPrompt") or seed:FindFirstChildWhichIsA("ProximityPrompt")
-    if prompt then
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if root then
-            -- Smooth teleport approach
-            local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad)
-            local tween = TweenService:Create(root, tweenInfo, {CFrame = seed:GetPivot()})
-            tween:Play()
-            tween.Completed:Wait()
-            fireproximityprompt(prompt)
-            wait(Config.CollectDelay)
-            return true
-        end
+    if not seed or not seed.Parent then return end
+    local prompt = seed:FindFirstChildWhichIsA("ProximityPrompt")
+    if not prompt then return end
+
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root then
+        local tween = TweenService:Create(root, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {CFrame = seed:GetPivot()})
+        tween:Play()
+        tween.Completed:Wait()
+        fireproximityprompt(prompt)
+        task.wait(Config.CollectDelay)
     end
-    return false
 end
 
--- Main Auto Collect Loop
-local collectConnection
-local function StartAutoCollect()
-    if collectConnection then return end
-    Notify("Auto Collect", "Event Seed Collector Started!", 4)
-    collectConnection = RunService.Heartbeat:Connect(function()
-        if not Config.AutoCollectEventSeeds then return end
-        local seeds = GetEventSeeds()
-        for _, seed in ipairs(seeds) do
-            if Config.AutoCollectEventSeeds and seed.Parent then
-                pcall(function()
-                    CollectSeed(seed)
-                end)
+-- Auto Collect Loop
+local connection
+local function ToggleAutoCollect(state)
+    Config.AutoCollect = state
+    if state then
+        Notify("Auto Collect", "✅ Event Seeds Collector Started")
+        connection = RunService.Heartbeat:Connect(function()
+            if not Config.AutoCollect then return end
+            local seeds = GetEventSeeds()
+            for _, seed in ipairs(seeds) do
+                pcall(CollectSeed, seed)
             end
-        end
-    end)
-end
-
-local function StopAutoCollect()
-    if collectConnection then
-        collectConnection:Disconnect()
-        collectConnection = nil
-        Notify("Auto Collect", "Event Seed Collector Stopped.", 3)
+        end)
+    else
+        if connection then connection:Disconnect() end
+        Notify("Auto Collect", "⛔ Collector Stopped")
     end
 end
 
--- Premium UI (Fluent-inspired simple implementation)
+-- ==================== PREMIUM UI ====================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "GAG2_Premium_UI"
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.Name = "GAG2_Premium"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 420, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Parent = ScreenGui
+local Main = Instance.new("Frame")
+Main.Size = UDim2.new(0, 460, 0, 520)
+Main.Position = UDim2.new(0.5, -230, 0.5, -260)
+Main.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
-UICorner.Parent = MainFrame
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 60)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+TitleBar.Parent = Main
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 50)
+Title.Size = UDim2.new(1, -60, 1, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "🌱 Grow a Garden 2 - Premium Collector"
-Title.TextColor3 = Color3.fromRGB(100, 255, 150)
+Title.Text = "🌱 Grow a Garden 2 - Premium"
+Title.TextColor3 = Color3.fromRGB(80, 255, 140)
 Title.TextScaled = true
 Title.Font = Enum.Font.GothamBold
-Title.Parent = MainFrame
+Title.Parent = TitleBar
 
--- Draggable
-local dragging, dragInput, dragStart
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        dragInput = input
+-- Close Button
+local Close = Instance.new("TextButton")
+Close.Size = UDim2.new(0, 50, 0, 50)
+Close.Position = UDim2.new(1, -55, 0, 5)
+Close.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+Close.Text = "✕"
+Close.TextColor3 = Color3.new(1,1,1)
+Close.TextScaled = true
+Close.Font = Enum.Font.GothamBold
+Close.Parent = TitleBar
+Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 10)
+Close.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+-- Scrolling Content
+local Scrolling = Instance.new("ScrollingFrame")
+Scrolling.Size = UDim2.new(1, -20, 1, -80)
+Scrolling.Position = UDim2.new(0, 10, 0, 70)
+Scrolling.BackgroundTransparency = 1
+Scrolling.ScrollBarThickness = 6
+Scrolling.Parent = Main
+
+local UIList = Instance.new("UIListLayout")
+UIList.Padding = UDim.new(0, 12)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.Parent = Scrolling
+
+-- Toggle Auto Collect
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(1, -20, 0, 65)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+ToggleBtn.Text = "🔄 Auto Collect Event Seeds\nOFF"
+ToggleBtn.TextColor3 = Color3.new(1,1,1)
+ToggleBtn.TextScaled = true
+ToggleBtn.Font = Enum.Font.GothamSemibold
+ToggleBtn.Parent = Scrolling
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 12)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    local newState = not Config.AutoCollect
+    ToggleAutoCollect(newState)
+    ToggleBtn.Text = "🔄 Auto Collect Event Seeds\n" .. (newState and "✅ ON" or "⛔ OFF")
+    ToggleBtn.BackgroundColor3 = newState and Color3.fromRGB(0, 170, 80) or Color3.fromRGB(40, 40, 55)
+end)
+
+-- Delay Slider (Simple)
+local DelayLabel = Instance.new("TextLabel")
+DelayLabel.Size = UDim2.new(1, -20, 0, 40)
+DelayLabel.BackgroundTransparency = 1
+DelayLabel.Text = "Collect Delay: 0.6s"
+DelayLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
+DelayLabel.TextScaled = true
+DelayLabel.Font = Enum.Font.Gotham
+DelayLabel.Parent = Scrolling
+
+local function UpdateDelay(val)
+    Config.CollectDelay = math.clamp(val, 0.1, 2)
+    DelayLabel.Text = "Collect Delay: " .. string.format("%.1f", Config.CollectDelay) .. "s"
+end
+
+-- Buttons for delay
+local DelayFrame = Instance.new("Frame")
+DelayFrame.Size = UDim2.new(1, -20, 0, 50)
+DelayFrame.BackgroundTransparency = 1
+DelayFrame.Parent = Scrolling
+
+local Minus = Instance.new("TextButton")
+Minus.Size = UDim2.new(0.45, 0, 1, 0)
+Minus.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+Minus.Text = "- 0.1s"
+Minus.TextScaled = true
+Minus.Parent = DelayFrame
+Instance.new("UICorner", Minus).CornerRadius = UDim.new(0, 10)
+Minus.MouseButton1Click:Connect(function() UpdateDelay(Config.CollectDelay - 0.1) end)
+
+local Plus = Instance.new("TextButton")
+Plus.Size = UDim2.new(0.45, 0, 1, 0)
+Plus.Position = UDim2.new(0.55, 0, 0, 0)
+Plus.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+Plus.Text = "+ 0.1s"
+Plus.TextScaled = true
+Plus.Parent = DelayFrame
+Instance.new("UICorner", Plus).CornerRadius = UDim.new(0, 10)
+Plus.MouseButton1Click:Connect(function() UpdateDelay(Config.CollectDelay + 0.1) end)
+
+-- WalkSpeed
+local WSBtn = Instance.new("TextButton")
+WSBtn.Size = UDim2.new(1, -20, 0, 60)
+WSBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+WSBtn.Text = "⚡ WalkSpeed Boost (60)\nOFF"
+WSBtn.TextColor3 = Color3.new(1,1,1)
+WSBtn.TextScaled = true
+WSBtn.Parent = Scrolling
+Instance.new("UICorner", WSBtn).CornerRadius = UDim.new(0, 12)
+
+WSBtn.MouseButton1Click:Connect(function()
+    local hum = character:FindFirstChild("Humanoid")
+    if hum then
+        if hum.WalkSpeed > 20 then
+            hum.WalkSpeed = 16
+            WSBtn.Text = "⚡ WalkSpeed Boost (60)\nOFF"
+        else
+            hum.WalkSpeed = Config.WalkSpeed
+            WSBtn.Text = "⚡ WalkSpeed Boost (60)\n✅ ON"
+        end
     end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset + delta.X, MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + delta.Y)
+Scrolling.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 50)
+
+-- Draggable
+local dragging
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        local mousePos = input.Position
+        local framePos = Main.Position
+        local conn
+        conn = game:GetService("RunService").RenderStepped:Connect(function()
+            if not dragging then conn:Disconnect() return end
+            local delta = game:GetService("UserInputService"):GetMouseLocation() - mousePos
+            Main.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
+        end)
     end
 end)
 
@@ -141,118 +239,4 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- Tabs Container
-local TabFrame = Instance.new("Frame")
-TabFrame.Size = UDim2.new(1, -20, 1, -70)
-TabFrame.Position = UDim2.new(0, 10, 0, 60)
-TabFrame.BackgroundTransparency = 1
-TabFrame.Parent = MainFrame
-
--- Auto Collect Section
-local ToggleCollect = Instance.new("TextButton")
-ToggleCollect.Size = UDim2.new(0.9, 0, 0, 50)
-ToggleCollect.Position = UDim2.new(0.05, 0, 0, 20)
-ToggleCollect.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-ToggleCollect.Text = "Auto Collect Event Seeds: OFF"
-ToggleCollect.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleCollect.TextScaled = true
-ToggleCollect.Parent = TabFrame
-
-local collectCorner = Instance.new("UICorner")
-collectCorner.CornerRadius = UDim.new(0, 8)
-collectCorner.Parent = ToggleCollect
-
-ToggleCollect.MouseButton1Click:Connect(function()
-    Config.AutoCollectEventSeeds = not Config.AutoCollectEventSeeds
-    ToggleCollect.Text = "Auto Collect Event Seeds: " .. (Config.AutoCollectEventSeeds and "ON" or "OFF")
-    ToggleCollect.BackgroundColor3 = Config.AutoCollectEventSeeds and Color3.fromRGB(0, 170, 100) or Color3.fromRGB(40, 40, 50)
-    
-    if Config.AutoCollectEventSeeds then
-        StartAutoCollect()
-    else
-        StopAutoCollect()
-    end
-end)
-
--- Sliders & Other Toggles
-local DelaySlider = Instance.new("TextLabel")
-DelaySlider.Size = UDim2.new(0.9, 0, 0, 40)
-DelaySlider.Position = UDim2.new(0.05, 0, 0, 90)
-DelaySlider.BackgroundTransparency = 1
-DelaySlider.Text = "Collect Delay: " .. Config.CollectDelay .. "s"
-DelaySlider.TextColor3 = Color3.fromRGB(200, 200, 200)
-DelaySlider.Parent = TabFrame
-
--- Simple delay adjust buttons
-local BtnMinus = Instance.new("TextButton")
-BtnMinus.Size = UDim2.new(0.2, 0, 0, 30)
-BtnMinus.Position = UDim2.new(0.05, 0, 0, 140)
-BtnMinus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-BtnMinus.Text = "-0.1s"
-BtnMinus.Parent = TabFrame
-BtnMinus.MouseButton1Click:Connect(function()
-    Config.CollectDelay = math.max(0.1, Config.CollectDelay - 0.1)
-    DelaySlider.Text = "Collect Delay: " .. string.format("%.1f", Config.CollectDelay) .. "s"
-end)
-
-local BtnPlus = Instance.new("TextButton")
-BtnPlus.Size = UDim2.new(0.2, 0, 0, 30)
-BtnPlus.Position = UDim2.new(0.3, 0, 0, 140)
-BtnPlus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-BtnPlus.Text = "+0.1s"
-BtnPlus.Parent = TabFrame
-BtnPlus.MouseButton1Click:Connect(function()
-    Config.CollectDelay = Config.CollectDelay + 0.1
-    DelaySlider.Text = "Collect Delay: " .. string.format("%.1f", Config.CollectDelay) .. "s"
-end)
-
--- WalkSpeed Toggle
-local ToggleWS = Instance.new("TextButton")
-ToggleWS.Size = UDim2.new(0.9, 0, 0, 50)
-ToggleWS.Position = UDim2.new(0.05, 0, 0, 190)
-ToggleWS.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-ToggleWS.Text = "WalkSpeed Boost: OFF"
-ToggleWS.Parent = TabFrame
-ToggleWS.MouseButton1Click:Connect(function()
-    local enabled = character:FindFirstChild("Humanoid")
-    if enabled then
-        enabled.WalkSpeed = (enabled.WalkSpeed > 16 and 16 or Config.WalkSpeed)
-        ToggleWS.Text = "WalkSpeed Boost: " .. (enabled.WalkSpeed > 16 and "ON" or "OFF")
-    end
-end)
-
--- Anti-AFK
-local AntiAFKConn
-local function EnableAntiAFK()
-    if AntiAFKConn then return end
-    AntiAFKConn = RunService.RenderStepped:Connect(function()
-        if Config.AntiAFK then
-            pcall(function()
-                local vu = game:GetService("VirtualUser")
-                vu:CaptureController()
-                vu:ClickButton2(Vector2.new())
-            end)
-        end
-    end)
-end
-EnableAntiAFK()
-
--- Close Button
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 40, 0, 40)
-CloseBtn.Position = UDim2.new(1, -45, 0, 5)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.new(1,1,1)
-CloseBtn.Parent = MainFrame
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-    StopAutoCollect()
-end)
-
-Notify("Premium Script Loaded", "Auto Event Seed Collector Ready! Toggle in GUI.", 5)
-
--- Cleanup on leave
-player.CharacterRemoving:Connect(function()
-    StopAutoCollect()
-end)
+Notify("Premium UI Loaded", "UI should now be visible and functional!")
