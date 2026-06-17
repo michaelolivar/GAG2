@@ -319,8 +319,8 @@ ContentFrame.Parent = MainFrame
 
 -- Create tabs
 local Tabs = {}
-local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabNames = {"Main", "Steal", "Defense", "Shop", "Teleports", "Visuals", "Weather", "Info"}
+local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "⚡", "👁️", "🌤️", "ℹ️"}
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -493,6 +493,12 @@ local MainLayout = Instance.new("UIListLayout")
 MainLayout.SortOrder = Enum.SortOrder.LayoutOrder
 MainLayout.Padding = UDim.new(0, 4)
 MainLayout.Parent = MainTab
+
+CreateLabel(MainTab, "=== AUTO FARM ===", Color3.fromRGB(80, 200, 120))
+local _, getAutoPlant = CreateToggle(MainTab, "Auto Plant", "Automatically plant seeds", false)
+local getPlantSeed = CreateDropdown(MainTab, "Seed to Plant", {"Carrot", "Strawberry", "Tomato", "Apple", "Bamboo", "Corn", "Mushroom", "Dragon Fruit"}, 1)
+local _, getAutoWater = CreateToggle(MainTab, "Auto Water", "Water dry plants", false)
+local _, getAutoHarvest = CreateToggle(MainTab, "Auto Harvest", "Harvest fully grown crops", false)
 
 CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
 
@@ -732,6 +738,11 @@ ShopLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ShopLayout.Padding = UDim.new(0, 3)
 ShopLayout.Parent = ShopTab
 
+CreateLabel(ShopTab, "=== AUTO BUY ===", Color3.fromRGB(80, 200, 120))
+local _, getAutoBuy = CreateToggle(ShopTab, "Auto Buy Seeds", "Buy selected seeds when in stock", false)
+local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", {"None", "Cactus", "Pineapple", "Mushroom", "Banana", "Dragon Fruit", "Moon Bloom"}, 1)
+
+
 -- Restock timer header
 labelOrder = labelOrder + 1
 local RestockHeader = Instance.new("Frame")
@@ -879,6 +890,84 @@ for i, seed in ipairs(SeedData) do
     
     seedTimerLabels[i] = {label = timerLabel, data = seed, row = row}
 end
+
+-- ==========================================
+-- TAB: TELEPORTS
+-- ==========================================
+local TeleportsTab = Instance.new("Frame")
+TeleportsTab.Name = "Teleports"
+TeleportsTab.Size = UDim2.new(1, 0, 0, 0)
+TeleportsTab.AutomaticSize = Enum.AutomaticSize.Y
+TeleportsTab.BackgroundTransparency = 1
+TeleportsTab.Visible = false
+TeleportsTab.Parent = ContentFrame
+
+local TeleportsLayout = Instance.new("UIListLayout")
+TeleportsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TeleportsLayout.Padding = UDim.new(0, 4)
+TeleportsLayout.Parent = TeleportsTab
+
+CreateLabel(TeleportsTab, "=== LOCATIONS ===", Color3.fromRGB(200, 180, 80))
+local getTeleportLocation = CreateDropdown(TeleportsTab, "Teleport To", {"Select", "Spawn", "Shop", "Bank", "Random Plot"}, 1)
+
+CreateLabel(TeleportsTab, "=== PLAYERS ===", Color3.fromRGB(80, 180, 255))
+local getTeleportPlayer = CreateDropdown(TeleportsTab, "Teleport To Player", {"Select", "Nearest Player", "Random Player"}, 1)
+
+local teleportBtnRow = Instance.new("Frame")
+teleportBtnRow.Size = UDim2.new(1, 0, 0, 32)
+teleportBtnRow.BackgroundTransparency = 1
+teleportBtnRow.LayoutOrder = 100
+teleportBtnRow.Parent = TeleportsTab
+
+local goBtn = Instance.new("TextButton")
+goBtn.Size = UDim2.new(1, 0, 1, 0)
+goBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 255)
+goBtn.Text = "⚡ TELEPORT NOW"
+goBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+goBtn.Font = Enum.Font.GothamBold
+goBtn.TextSize = 14
+goBtn.Parent = teleportBtnRow
+local goCorner = Instance.new("UICorner")
+goCorner.CornerRadius = UDim.new(0, 6)
+goCorner.Parent = goBtn
+
+local doTeleportSignal = false
+local teleportTarget = nil
+local teleportType = nil
+goBtn.MouseButton1Click:Connect(function()
+    local loc = getTeleportLocation()
+    local ply = getTeleportPlayer()
+    if loc ~= "Select" then
+        doTeleportSignal = true
+        teleportTarget = loc
+        teleportType = "Location"
+    elseif ply ~= "Select" then
+        doTeleportSignal = true
+        teleportTarget = ply
+        teleportType = "Player"
+    end
+end)
+
+-- ==========================================
+-- TAB: VISUALS
+-- ==========================================
+local VisualsTab = Instance.new("Frame")
+VisualsTab.Name = "Visuals"
+VisualsTab.Size = UDim2.new(1, 0, 0, 0)
+VisualsTab.AutomaticSize = Enum.AutomaticSize.Y
+VisualsTab.BackgroundTransparency = 1
+VisualsTab.Visible = false
+VisualsTab.Parent = ContentFrame
+
+local VisualsLayout = Instance.new("UIListLayout")
+VisualsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+VisualsLayout.Padding = UDim.new(0, 4)
+VisualsLayout.Parent = VisualsTab
+
+CreateLabel(VisualsTab, "=== ESP SETTINGS ===", Color3.fromRGB(180, 80, 255))
+local _, getPlayerESP = CreateToggle(VisualsTab, "Player ESP", "Show players through walls", false)
+local _, getCropESP = CreateToggle(VisualsTab, "Crop ESP", "Highlight high-value crops", false)
+local _, getEventESP = CreateToggle(VisualsTab, "Event ESP", "Highlight dropped seeds/birds", false)
 
 -- ==========================================
 -- TAB: WEATHER
@@ -1418,6 +1507,20 @@ local function FindEventSeeds()
                     table.insert(seeds, obj)
                 end
             end
+            
+            -- Event ESP
+            if isTarget and getEventESP and getEventESP() then
+                if not obj:FindFirstChild("EventESP") then
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "EventESP"
+                    hl.FillColor = Color3.fromRGB(255, 255, 0)
+                    hl.OutlineColor = Color3.fromRGB(255, 200, 0)
+                    hl.Parent = obj
+                end
+            elseif isTarget and (not getEventESP or not getEventESP()) then
+                local hl = obj:FindFirstChild("EventESP")
+                if hl then hl:Destroy() end
+            end
         end
     end
     return seeds
@@ -1653,6 +1756,20 @@ local function GetOtherPlayersPlants()
                     
                     if not isMine then
                         table.insert(plants, {obj = obj, part = part, highValue = isHighValue})
+                    end
+                    
+                    -- Crop ESP
+                    if isHighValue and getCropESP and getCropESP() then
+                        if not obj:FindFirstChild("CropESP") then
+                            local hl = Instance.new("Highlight")
+                            hl.Name = "CropESP"
+                            hl.FillColor = Color3.fromRGB(0, 255, 100)
+                            hl.OutlineColor = Color3.fromRGB(0, 200, 50)
+                            hl.Parent = obj
+                        end
+                    elseif isHighValue and (not getCropESP or not getCropESP()) then
+                        local hl = obj:FindFirstChild("CropESP")
+                        if hl then hl:Destroy() end
                     end
                 end
             end
@@ -2067,6 +2184,164 @@ local function MainLoop()
                     for _, thief in ipairs(threats) do
                         AttackThief(thief, basePos)
                         task.wait(Config.WeaponCooldown)
+                    end
+                end
+            end
+            
+            -- 5.1 Auto Farm (Plant, Water, Harvest)
+            local isFarming = false
+            if getAutoHarvest() and basePos and RootPart then
+                -- logic to find harvestable crops in base
+                local plants = GetOtherPlayersPlants() -- we can use a similar function for our own plants
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
+                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
+                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt and prompt.ActionText:lower():find("harvest") then
+                                isFarming = true
+                                RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                task.wait(0.1)
+                                CollectSeed(obj)
+                                StatusLabel.Text = "🚜 Harvested " .. obj.Name
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if getAutoWater() and basePos and RootPart and not isFarming then
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
+                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
+                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt and prompt.ActionText:lower():find("water") then
+                                isFarming = true
+                                RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                EquipWeapon("Watering Can")
+                                task.wait(0.1)
+                                CollectSeed(obj)
+                                StatusLabel.Text = "💧 Watered Plant"
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if getAutoPlant() and basePos and RootPart and not isFarming then
+                local seedToPlant = getPlantSeed()
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj.Name:lower():find("plot") or obj.Name:lower():find("soil") then
+                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
+                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
+                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt and prompt.ActionText:lower():find("plant") then
+                                isFarming = true
+                                RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                                EquipWeapon(seedToPlant)
+                                task.wait(0.1)
+                                CollectSeed(obj)
+                                StatusLabel.Text = "🌱 Planted " .. seedToPlant
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- 5.2 Auto Buy Seeds
+            if getAutoBuy() then
+                local targetSeed = getBuySeed()
+                if targetSeed ~= "None" then
+                    for _, entry in ipairs(seedTimerLabels) do
+                        if entry.data.name == targetSeed and entry.label.Text == "⚡ SOON!" then
+                            -- Simulate buy logic or fire remote
+                            StatusLabel.Text = "🏪 Attempting to Auto-Buy " .. targetSeed
+                            -- In a real scenario we'd fire the shop remote here
+                            local shopRemote = ReplicatedStorage:FindFirstChild("BuySeed", true) or ReplicatedStorage:FindFirstChild("Shop", true)
+                            if shopRemote and shopRemote:IsA("RemoteEvent") then
+                                shopRemote:FireServer(targetSeed, 1)
+                            elseif shopRemote and shopRemote:IsA("RemoteFunction") then
+                                shopRemote:InvokeServer(targetSeed, 1)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- 5.3 Teleports
+            if doTeleportSignal and teleportTarget and RootPart then
+                doTeleportSignal = false
+                if teleportType == "Location" then
+                    if teleportTarget == "Spawn" then
+                        TeleportTo(Vector3.new(0, 10, 0)) -- Example spawn
+                    elseif teleportTarget == "Shop" then
+                        local shopObj = Workspace:FindFirstChild("Shop") or Workspace:FindFirstChild("SeedShop", true)
+                        if shopObj and shopObj:IsA("Model") and shopObj.PrimaryPart then
+                            TeleportTo(shopObj.PrimaryPart.Position)
+                        end
+                    elseif teleportTarget == "Bank" then
+                        local bankObj = Workspace:FindFirstChild("Bank", true)
+                        if bankObj and bankObj:IsA("Model") and bankObj.PrimaryPart then
+                            TeleportTo(bankObj.PrimaryPart.Position)
+                        end
+                    elseif teleportTarget == "Random Plot" then
+                        local plots = {}
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj.Name:lower():find("plot") or obj.Name:lower():find("garden") then
+                                table.insert(plots, obj)
+                            end
+                        end
+                        if #plots > 0 then
+                            local rPlot = plots[math.random(1, #plots)]
+                            local pPart = rPlot:IsA("BasePart") and rPlot or rPlot.PrimaryPart
+                            if pPart then TeleportTo(pPart.Position) end
+                        end
+                    end
+                    StatusLabel.Text = "⚡ Teleported to " .. teleportTarget
+                elseif teleportType == "Player" then
+                    if teleportTarget == "Nearest Player" then
+                        local ply = FindPlayerNear(RootPart.Position, 9999)
+                        if ply and ply.Character and ply.Character:FindFirstChild("HumanoidRootPart") then
+                            TeleportTo(ply.Character.HumanoidRootPart.Position - Vector3.new(0,0,3))
+                            StatusLabel.Text = "⚡ Teleported to " .. ply.Name
+                        end
+                    elseif teleportTarget == "Random Player" then
+                        local plys = Players:GetPlayers()
+                        if #plys > 1 then
+                            local p = plys[math.random(1, #plys)]
+                            while p == LocalPlayer do p = plys[math.random(1, #plys)] end
+                            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                                TeleportTo(p.Character.HumanoidRootPart.Position - Vector3.new(0,0,3))
+                                StatusLabel.Text = "⚡ Teleported to " .. p.Name
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- 5.4 Player ESP
+            if getPlayerESP() then
+                for _, ply in pairs(Players:GetPlayers()) do
+                    if ply ~= LocalPlayer and ply.Character then
+                        local hl = ply.Character:FindFirstChild("PlayerESP")
+                        if not hl then
+                            hl = Instance.new("Highlight")
+                            hl.Name = "PlayerESP"
+                            hl.FillColor = Color3.fromRGB(255, 50, 50)
+                            hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                            hl.Parent = ply.Character
+                        end
+                    end
+                end
+            else
+                for _, ply in pairs(Players:GetPlayers()) do
+                    if ply ~= LocalPlayer and ply.Character then
+                        local hl = ply.Character:FindFirstChild("PlayerESP")
+                        if hl then hl:Destroy() end
                     end
                 end
             end
