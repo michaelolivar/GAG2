@@ -1,302 +1,258 @@
---[[
-████████████████████████████████████████████████████████████████████████████
-█                                                                          █
-█   GROW A GARDEN 2 — Premium Auto Collect & Farm Script                  █
-█   Version: 2.1.1 (UI Fixed)                                              █
-█   Compatibility: All major executors                                     █
-█                                                                          █
-████████████████████████████████████████████████████████████████████████████
---]]
+-- Grow a Garden 2 - Premium Auto Event Seed Collector
+-- Professional UI | Safe & Efficient | Custom by Grok
 
--- ============================================================
--- SECTION 1: CONFIGURATION
--- ============================================================
-local CONFIG = {
-    AutoCollectEventSeeds = true,
-    AutoBuyEventSeeds = true,
-    AutoFarm = true,
-    AutoPlant = true,
-    AutoHarvest = true,
-    AutoSell = true,
-    AutoWater = true,
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Config
+local Config = {
+    AutoCollectEventSeeds = false,
+    CollectDelay = 0.5,
+    WalkSpeed = 50,
     AntiAFK = true,
-    AutoSteal = false,
-
-    EventSeeds = {
-        ["Delphinium"] = { Priority = 1, MaxPrice = 50000, AutoBuy = true },
-        ["Traveler's Fruit"] = { Priority = 2, MaxPrice = 100000, AutoBuy = true },
-        ["Lily of the Valley"] = { Priority = 3, MaxPrice = 75000, AutoBuy = true },
-        ["Ember Lily"] = { Priority = 4, MaxPrice = 150000, AutoBuy = true },
-        ["Parasol Flower"] = { Priority = 5, MaxPrice = 60000, AutoBuy = true },
-        ["Prickly Pear"] = { Priority = 6, MaxPrice = 45000, AutoBuy = true },
-        ["Cauliflower"] = { Priority = 7, MaxPrice = 25000, AutoBuy = true },
-        ["Pear"] = { Priority = 8, MaxPrice = 30000, AutoBuy = true },
-        ["Cantaloupe"] = { Priority = 9, MaxPrice = 55000, AutoBuy = true },
-        ["Rosy Delight"] = { Priority = 10, MaxPrice = 80000, AutoBuy = true },
-    },
-
-    MinShecklesToKeep = 1000,
-    HarvestRadius = 50,
-    PlantRadius = 30,
-    MaxPlants = 100,
-    PreferredSeeds = {"Moon Bloom", "Dragon's Breath", "Ghost Pepper", "Glow Mushroom"},
-
-    Theme = {
-        Primary = Color3.fromRGB(30, 200, 80),
-        Secondary = Color3.fromRGB(20, 150, 60),
-        Accent = Color3.fromRGB(255, 215, 0),
-        Background = Color3.fromRGB(15, 15, 25),
-        Surface = Color3.fromRGB(25, 25, 40),
-        Text = Color3.fromRGB(230, 230, 240),
-        Danger = Color3.fromRGB(255, 70, 70),
-        Warning = Color3.fromRGB(255, 180, 50),
-    },
-    Opacity = 0.92,
-    Font = Enum.Font.GothamBold,
-    Title = "🌱 HARVEST ELITE  •  v2.1.1"
+    NotifyEnabled = true,
 }
 
--- ============================================================
--- SECTION 2: SERVICES
--- ============================================================
-local Services = setmetatable({}, { __index = function(_, key) return game:GetService(key) end })
-local Players = Services.Players
-local RunService = Services.RunService
-local UserInputService = Services.UserInputService
-local TweenService = Services.TweenService
-local VirtualInputManager = Services.VirtualInputManager
-
-local LocalPlayer = Players.LocalPlayer
-while not LocalPlayer do task.wait() LocalPlayer = Players.LocalPlayer end
-
--- ============================================================
--- LOG SYSTEM
--- ============================================================
-local Log = { Messages = {}, MaxMessages = 100, LogLevel = 3 }
-
-function Log:Add(level, message, color)
-    local entry = {
-        Level = level,
-        Message = message,
-        Color = color or Color3.fromRGB(200, 200, 200),
-        Timestamp = os.date("%H:%M:%S")
-    }
-    table.insert(self.Messages, entry)
-    if #self.Messages > self.MaxMessages then table.remove(self.Messages, 1) end
-    print(string.format("[%s] [%s] %s", entry.Timestamp, level, message))
-end
-
-function Log:Error(m) self:Add("ERROR", m, Color3.fromRGB(255,70,70)) end
-function Log:Warn(m) self:Add("WARN", m, Color3.fromRGB(255,180,50)) end
-function Log:Info(m) self:Add("INFO", m, Color3.fromRGB(100,200,255)) end
-function Log:Success(m) self:Add("SUCCESS", m, Color3.fromRGB(50,255,100)) end
-function Log:Debug(m) if self.LogLevel >= 4 then self:Add("DEBUG", m) end end
-
--- ============================================================
--- UTILITIES (shortened for space, keep original if you want full)
--- ============================================================
-local Utilities = {}
-
-function Utilities.GetPlayerBalance()
-    local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-    if leaderstats then
-        for _, v in ipairs(leaderstats:GetChildren()) do
-            if v:IsA("NumberValue") then
-                return v.Value
-            end
-        end
-    end
-    return 0
-end
-
--- ============================================================
--- UI SYSTEM (FIXED & IMPROVED)
--- ============================================================
-local UI = {
-    ScreenGui = nil,
-    Instance = nil,
-    Elements = {},
-    Tabs = {},
-    ActiveTab = "Main",
-    Dragging = false
-}
-
-function UI:Initialize()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "HarvestEliteGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.DisplayOrder = 9999
-
-    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
-    screenGui.Parent = playerGui
-
-    self.ScreenGui = screenGui
-    self.Instance = screenGui
-
-    self:CreateMainFrame()
-    self:CreateTitleBar()
-    self:CreateTabBar()
-    self:CreateContentArea()
-
-    self:MakeDraggable()
-    self:AnimateEntrance()
-
-    Log:Success("✅ UI Initialized Successfully on PlayerGui")
-end
-
-function UI:CreateMainFrame()
-    local main = Instance.new("Frame")
-    main.Name = "MainFrame"
-    main.Size = UDim2.new(0, 420, 0, 540)
-    main.Position = UDim2.new(0.5, -210, 0.5, -270)
-    main.BackgroundColor3 = CONFIG.Theme.Background
-    main.BackgroundTransparency = 1 - CONFIG.Opacity
-    main.BorderSizePixel = 0
-    main.Parent = self.ScreenGui
-
-    self.Elements.MainFrame = main
-    self.Instance = main
-end
-
-function UI:CreateTitleBar()
-    local theme = CONFIG.Theme
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 42)
-    titleBar.BackgroundColor3 = theme.Surface
-    titleBar.Parent = self.Instance
-
-    local titleText = Instance.new("TextLabel")
-    titleText.Size = UDim2.new(1, -100, 1, 0)
-    titleText.Position = UDim2.new(0, 12, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.Text = CONFIG.Title
-    titleText.Font = CONFIG.Font
-    titleText.TextSize = 16
-    titleText.TextColor3 = theme.Text
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-
-    -- Close Button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -35, 0, 6)
-    closeBtn.BackgroundTransparency = 1
-    closeBtn.Text = "✕"
-    closeBtn.TextColor3 = theme.Danger
-    closeBtn.TextSize = 20
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = titleBar
-    closeBtn.MouseButton1Click:Connect(function() self:Destroy() end)
-
-    self.Elements.TitleBar = titleBar
-end
-
-function UI:CreateTabBar()
-    -- Simple tab bar (you can expand later)
-    local tabBar = Instance.new("Frame")
-    tabBar.Name = "TabBar"
-    tabBar.Size = UDim2.new(1, 0, 0, 40)
-    tabBar.Position = UDim2.new(0, 0, 0, 42)
-    tabBar.BackgroundColor3 = Color3.fromRGB(20,20,35)
-    tabBar.Parent = self.Instance
-
-    local mainTab = Instance.new("TextButton")
-    mainTab.Size = UDim2.new(0.5, 0, 1, 0)
-    mainTab.Text = "Main"
-    mainTab.BackgroundColor3 = CONFIG.Theme.Primary
-    mainTab.Parent = tabBar
-end
-
-function UI:CreateContentArea()
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, -20, 1, -100)
-    content.Position = UDim2.new(0, 10, 0, 90)
-    content.BackgroundColor3 = CONFIG.Theme.Surface
-    content.BackgroundTransparency = 0.3
-    content.Parent = self.Instance
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1,0,1,0)
-    label.BackgroundTransparency = 1
-    label.Text = "🌱 Farm Script Running Successfully!\n\nUI is now fixed."
-    label.TextColor3 = CONFIG.Theme.Text
-    label.TextSize = 18
-    label.Font = CONFIG.Font
-    label.Parent = content
-end
-
-function UI:MakeDraggable()
-    local titleBar = self.Elements.TitleBar
-    if not titleBar then return end
-
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self.Dragging = true
-            local mouse = input.Position
-            local framePos = self.Instance.Position
-            game:GetService("RunService").RenderStepped:Connect(function()
-                if self.Dragging then
-                    local delta = Vector2.new(game.Players.LocalPlayer:GetMouse().X, game.Players.LocalPlayer:GetMouse().Y) - mouse
-                    self.Instance.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
-                end
-            end)
-        end
-    end)
-
-    titleBar.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self.Dragging = false
-        end
-    end)
-end
-
-function UI:AnimateEntrance()
-    self.Instance.Position = UDim2.new(0.5, -210, 0, -100)
-    TweenService:Create(self.Instance, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
-        Position = UDim2.new(0.5, -210, 0.5, -270)
-    }):Play()
-end
-
-function UI:Destroy()
-    if self.ScreenGui then
-        self.ScreenGui:Destroy()
-    end
-end
-
--- ============================================================
--- MAIN EXECUTION
--- ============================================================
-local function StartScript()
-    Log:Success("🌱 Harvest Elite v2.1.1 loading...")
-
-    local success, err = pcall(function()
-        UI:Initialize()
-    end)
-
-    if not success then
-        Log:Error("UI Failed: " .. tostring(err))
-        warn("UI Error:", err)
-    end
-
-    Log:Success("✅ Script Fully Loaded! UI should be visible.")
-    
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Harvest Elite",
-        Text = "UI Fixed & Loaded Successfully!\nPress Right Ctrl to toggle.",
-        Duration = 10
+-- Simple Notification System
+local function Notify(title, text, duration)
+    if not Config.NotifyEnabled then return end
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title or "GAG2 Premium",
+        Text = text or "",
+        Duration = duration or 3,
     })
 end
 
-pcall(StartScript)
-
--- Right Ctrl to toggle UI
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.RightControl then
-        if UI.ScreenGui then
-            UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
+-- Find Event Seeds / Drops
+local function GetEventSeeds()
+    local seeds = {}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("Part") then
+            local name = obj.Name:lower()
+            if name:find("gold") or name:find("rainbow") or name:find("event") or name:find("seed") then
+                if obj:FindFirstChild("ProximityPrompt") or obj:FindFirstChildWhichIsA("ProximityPrompt") then
+                    table.insert(seeds, obj)
+                end
+            end
         end
     end
+    return seeds
+end
+
+-- Collect Single Seed
+local function CollectSeed(seed)
+    if not seed or not seed.Parent then return false end
+    local prompt = seed:FindFirstChild("ProximityPrompt") or seed:FindFirstChildWhichIsA("ProximityPrompt")
+    if prompt then
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- Smooth teleport approach
+            local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad)
+            local tween = TweenService:Create(root, tweenInfo, {CFrame = seed:GetPivot()})
+            tween:Play()
+            tween.Completed:Wait()
+            fireproximityprompt(prompt)
+            wait(Config.CollectDelay)
+            return true
+        end
+    end
+    return false
+end
+
+-- Main Auto Collect Loop
+local collectConnection
+local function StartAutoCollect()
+    if collectConnection then return end
+    Notify("Auto Collect", "Event Seed Collector Started!", 4)
+    collectConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoCollectEventSeeds then return end
+        local seeds = GetEventSeeds()
+        for _, seed in ipairs(seeds) do
+            if Config.AutoCollectEventSeeds and seed.Parent then
+                pcall(function()
+                    CollectSeed(seed)
+                end)
+            end
+        end
+    end)
+end
+
+local function StopAutoCollect()
+    if collectConnection then
+        collectConnection:Disconnect()
+        collectConnection = nil
+        Notify("Auto Collect", "Event Seed Collector Stopped.", 3)
+    end
+end
+
+-- Premium UI (Fluent-inspired simple implementation)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GAG2_Premium_UI"
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 420, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -250)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.BackgroundTransparency = 1
+Title.Text = "🌱 Grow a Garden 2 - Premium Collector"
+Title.TextColor3 = Color3.fromRGB(100, 255, 150)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+-- Draggable
+local dragging, dragInput, dragStart
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset + delta.X, MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- Tabs Container
+local TabFrame = Instance.new("Frame")
+TabFrame.Size = UDim2.new(1, -20, 1, -70)
+TabFrame.Position = UDim2.new(0, 10, 0, 60)
+TabFrame.BackgroundTransparency = 1
+TabFrame.Parent = MainFrame
+
+-- Auto Collect Section
+local ToggleCollect = Instance.new("TextButton")
+ToggleCollect.Size = UDim2.new(0.9, 0, 0, 50)
+ToggleCollect.Position = UDim2.new(0.05, 0, 0, 20)
+ToggleCollect.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+ToggleCollect.Text = "Auto Collect Event Seeds: OFF"
+ToggleCollect.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleCollect.TextScaled = true
+ToggleCollect.Parent = TabFrame
+
+local collectCorner = Instance.new("UICorner")
+collectCorner.CornerRadius = UDim.new(0, 8)
+collectCorner.Parent = ToggleCollect
+
+ToggleCollect.MouseButton1Click:Connect(function()
+    Config.AutoCollectEventSeeds = not Config.AutoCollectEventSeeds
+    ToggleCollect.Text = "Auto Collect Event Seeds: " .. (Config.AutoCollectEventSeeds and "ON" or "OFF")
+    ToggleCollect.BackgroundColor3 = Config.AutoCollectEventSeeds and Color3.fromRGB(0, 170, 100) or Color3.fromRGB(40, 40, 50)
+    
+    if Config.AutoCollectEventSeeds then
+        StartAutoCollect()
+    else
+        StopAutoCollect()
+    end
+end)
+
+-- Sliders & Other Toggles
+local DelaySlider = Instance.new("TextLabel")
+DelaySlider.Size = UDim2.new(0.9, 0, 0, 40)
+DelaySlider.Position = UDim2.new(0.05, 0, 0, 90)
+DelaySlider.BackgroundTransparency = 1
+DelaySlider.Text = "Collect Delay: " .. Config.CollectDelay .. "s"
+DelaySlider.TextColor3 = Color3.fromRGB(200, 200, 200)
+DelaySlider.Parent = TabFrame
+
+-- Simple delay adjust buttons
+local BtnMinus = Instance.new("TextButton")
+BtnMinus.Size = UDim2.new(0.2, 0, 0, 30)
+BtnMinus.Position = UDim2.new(0.05, 0, 0, 140)
+BtnMinus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+BtnMinus.Text = "-0.1s"
+BtnMinus.Parent = TabFrame
+BtnMinus.MouseButton1Click:Connect(function()
+    Config.CollectDelay = math.max(0.1, Config.CollectDelay - 0.1)
+    DelaySlider.Text = "Collect Delay: " .. string.format("%.1f", Config.CollectDelay) .. "s"
+end)
+
+local BtnPlus = Instance.new("TextButton")
+BtnPlus.Size = UDim2.new(0.2, 0, 0, 30)
+BtnPlus.Position = UDim2.new(0.3, 0, 0, 140)
+BtnPlus.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+BtnPlus.Text = "+0.1s"
+BtnPlus.Parent = TabFrame
+BtnPlus.MouseButton1Click:Connect(function()
+    Config.CollectDelay = Config.CollectDelay + 0.1
+    DelaySlider.Text = "Collect Delay: " .. string.format("%.1f", Config.CollectDelay) .. "s"
+end)
+
+-- WalkSpeed Toggle
+local ToggleWS = Instance.new("TextButton")
+ToggleWS.Size = UDim2.new(0.9, 0, 0, 50)
+ToggleWS.Position = UDim2.new(0.05, 0, 0, 190)
+ToggleWS.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+ToggleWS.Text = "WalkSpeed Boost: OFF"
+ToggleWS.Parent = TabFrame
+ToggleWS.MouseButton1Click:Connect(function()
+    local enabled = character:FindFirstChild("Humanoid")
+    if enabled then
+        enabled.WalkSpeed = (enabled.WalkSpeed > 16 and 16 or Config.WalkSpeed)
+        ToggleWS.Text = "WalkSpeed Boost: " .. (enabled.WalkSpeed > 16 and "ON" or "OFF")
+    end
+end)
+
+-- Anti-AFK
+local AntiAFKConn
+local function EnableAntiAFK()
+    if AntiAFKConn then return end
+    AntiAFKConn = RunService.RenderStepped:Connect(function()
+        if Config.AntiAFK then
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new())
+            end)
+        end
+    end)
+end
+EnableAntiAFK()
+
+-- Close Button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+CloseBtn.Position = UDim2.new(1, -45, 0, 5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+CloseBtn.Parent = MainFrame
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    StopAutoCollect()
+end)
+
+Notify("Premium Script Loaded", "Auto Event Seed Collector Ready! Toggle in GUI.", 5)
+
+-- Cleanup on leave
+player.CharacterRemoving:Connect(function()
+    StopAutoCollect()
 end)
