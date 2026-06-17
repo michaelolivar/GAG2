@@ -1507,20 +1507,6 @@ local function FindEventSeeds()
                     table.insert(seeds, obj)
                 end
             end
-            
-            -- Event ESP
-            if isTarget and getEventESP and getEventESP() then
-                if not obj:FindFirstChild("EventESP") then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "EventESP"
-                    hl.FillColor = Color3.fromRGB(255, 255, 0)
-                    hl.OutlineColor = Color3.fromRGB(255, 200, 0)
-                    hl.Parent = obj
-                end
-            elseif isTarget and (not getEventESP or not getEventESP()) then
-                local hl = obj:FindFirstChild("EventESP")
-                if hl then hl:Destroy() end
-            end
         end
     end
     return seeds
@@ -1756,20 +1742,6 @@ local function GetOtherPlayersPlants()
                     
                     if not isMine then
                         table.insert(plants, {obj = obj, part = part, highValue = isHighValue})
-                    end
-                    
-                    -- Crop ESP
-                    if isHighValue and getCropESP and getCropESP() then
-                        if not obj:FindFirstChild("CropESP") then
-                            local hl = Instance.new("Highlight")
-                            hl.Name = "CropESP"
-                            hl.FillColor = Color3.fromRGB(0, 255, 100)
-                            hl.OutlineColor = Color3.fromRGB(0, 200, 50)
-                            hl.Parent = obj
-                        end
-                    elseif isHighValue and (not getCropESP or not getCropESP()) then
-                        local hl = obj:FindFirstChild("CropESP")
-                        if hl then hl:Destroy() end
                     end
                 end
             end
@@ -2191,70 +2163,62 @@ local function MainLoop()
             -- 5.1 Auto Farm (Plant, Water, Harvest)
             local isFarming = false
             if getAutoHarvest() and basePos and RootPart then
-                -- logic to find harvestable crops in base
-                local plants = GetOtherPlayersPlants() -- we can use a similar function for our own plants
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") or obj:IsA("Model") then
-                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
-                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
-                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            if prompt and prompt.ActionText:lower():find("harvest") then
+                for _, prompt in pairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("harvest") then
+                        local part = prompt.Parent
+                        if part and part:IsA("BasePart") then
+                            if (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
                                 isFarming = true
                                 RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                                 task.wait(0.1)
-                                CollectSeed(obj)
-                                StatusLabel.Text = "🚜 Harvested " .. obj.Name
+                                CollectSeed(part)
+                                StatusLabel.Text = "🚜 Harvested Crop"
                                 task.wait(0.2)
                                 break
                             end
                         end
                     end
-                    if isFarming then break end
                 end
             end
             
             if getAutoWater() and basePos and RootPart and not isFarming then
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") or obj:IsA("Model") then
-                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
-                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
-                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            if prompt and prompt.ActionText:lower():find("water") then
+                for _, prompt in pairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("water") then
+                        local part = prompt.Parent
+                        if part and part:IsA("BasePart") then
+                            if (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
                                 isFarming = true
                                 RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                                 EquipWeapon("Watering Can")
                                 task.wait(0.1)
-                                CollectSeed(obj)
+                                CollectSeed(part)
                                 StatusLabel.Text = "💧 Watered Plant"
                                 task.wait(0.2)
                                 break
                             end
                         end
                     end
-                    if isFarming then break end
                 end
             end
             
             if getAutoPlant() and basePos and RootPart and not isFarming then
                 local seedToPlant = getPlantSeed()
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj.Name:lower():find("plot") or obj.Name:lower():find("soil") then
-                        local part = obj:IsA("BasePart") and obj or obj.PrimaryPart
-                        if part and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
-                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                            if prompt and prompt.ActionText:lower():find("plant") then
+                for _, prompt in pairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("plant") then
+                        local part = prompt.Parent
+                        if part and part:IsA("BasePart") then
+                            if (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(basePos.X, basePos.Z)).Magnitude < 60 then
                                 isFarming = true
                                 RootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
                                 EquipWeapon(seedToPlant)
                                 task.wait(0.1)
-                                CollectSeed(obj)
+                                CollectSeed(part)
                                 StatusLabel.Text = "🌱 Planted " .. seedToPlant
                                 task.wait(0.2)
                                 break
                             end
                         end
                     end
-                    if isFarming then break end
                 end
             end
             
@@ -2264,14 +2228,28 @@ local function MainLoop()
                 if targetSeed ~= "None" then
                     for _, entry in ipairs(seedTimerLabels) do
                         if entry.data.name == targetSeed and entry.label.Text == "⚡ SOON!" then
-                            -- Simulate buy logic or fire remote
                             StatusLabel.Text = "🏪 Attempting to Auto-Buy " .. targetSeed
-                            -- In a real scenario we'd fire the shop remote here
-                            local shopRemote = ReplicatedStorage:FindFirstChild("BuySeed", true) or ReplicatedStorage:FindFirstChild("Shop", true)
-                            if shopRemote and shopRemote:IsA("RemoteEvent") then
-                                shopRemote:FireServer(targetSeed, 1)
-                            elseif shopRemote and shopRemote:IsA("RemoteFunction") then
-                                shopRemote:InvokeServer(targetSeed, 1)
+                            local bought = false
+                            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                                if remote:IsA("RemoteEvent") and (remote.Name:lower():find("buy") or remote.Name:lower():find("shop") or remote.Name:lower():find("purchase")) then
+                                    pcall(function() remote:FireServer(targetSeed, 1) end)
+                                    bought = true
+                                elseif remote:IsA("RemoteFunction") and (remote.Name:lower():find("buy") or remote.Name:lower():find("shop") or remote.Name:lower():find("purchase")) then
+                                    task.spawn(function() pcall(function() remote:InvokeServer(targetSeed, 1) end) end)
+                                    bought = true
+                                end
+                            end
+                            if not bought then
+                                for _, prompt in pairs(Workspace:GetDescendants()) do
+                                    if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("buy") and prompt.Parent and prompt.Parent.Name:lower():find(targetSeed:lower()) then
+                                        if RootPart then
+                                            RootPart.CFrame = prompt.Parent.CFrame
+                                            task.wait(0.1)
+                                            if fireproximityprompt then fireproximityprompt(prompt, 1, true) end
+                                        end
+                                        break
+                                    end
+                                end
                             end
                         end
                     end
@@ -2285,15 +2263,25 @@ local function MainLoop()
                     if teleportTarget == "Spawn" then
                         TeleportTo(Vector3.new(0, 10, 0)) -- Example spawn
                     elseif teleportTarget == "Shop" then
-                        local shopObj = Workspace:FindFirstChild("Shop") or Workspace:FindFirstChild("SeedShop", true)
-                        if shopObj and shopObj:IsA("Model") and shopObj.PrimaryPart then
-                            TeleportTo(shopObj.PrimaryPart.Position)
+                        local found = false
+                        for _, obj in pairs(Workspace:GetChildren()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("shop") or obj.Name:lower():find("store")) then
+                                if obj.PrimaryPart then TeleportTo(obj.PrimaryPart.Position); found = true; break end
+                                local part = obj:FindFirstChildWhichIsA("BasePart", true)
+                                if part then TeleportTo(part.Position); found = true; break end
+                            end
                         end
+                        if not found then StatusLabel.Text = "Shop not found" end
                     elseif teleportTarget == "Bank" then
-                        local bankObj = Workspace:FindFirstChild("Bank", true)
-                        if bankObj and bankObj:IsA("Model") and bankObj.PrimaryPart then
-                            TeleportTo(bankObj.PrimaryPart.Position)
+                        local found = false
+                        for _, obj in pairs(Workspace:GetChildren()) do
+                            if obj:IsA("Model") and (obj.Name:lower():find("bank") or obj.Name:lower():find("vault")) then
+                                if obj.PrimaryPart then TeleportTo(obj.PrimaryPart.Position); found = true; break end
+                                local part = obj:FindFirstChildWhichIsA("BasePart", true)
+                                if part then TeleportTo(part.Position); found = true; break end
+                            end
                         end
+                        if not found then StatusLabel.Text = "Bank not found" end
                     elseif teleportTarget == "Random Plot" then
                         local plots = {}
                         for _, obj in pairs(Workspace:GetDescendants()) do
@@ -2329,7 +2317,7 @@ local function MainLoop()
                 end
             end
             
-            -- 5.4 Player ESP
+            -- 5.4 Standalone ESP Updater
             if getPlayerESP() then
                 for _, ply in pairs(Players:GetPlayers()) do
                     if ply ~= LocalPlayer and ply.Character then
@@ -2339,6 +2327,7 @@ local function MainLoop()
                             hl.Name = "PlayerESP"
                             hl.FillColor = Color3.fromRGB(255, 50, 50)
                             hl.OutlineColor = Color3.fromRGB(255, 0, 0)
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             hl.Parent = ply.Character
                         end
                     end
@@ -2349,6 +2338,65 @@ local function MainLoop()
                         local hl = ply.Character:FindFirstChild("PlayerESP")
                         if hl then hl:Destroy() end
                     end
+                end
+            end
+            
+            if getEventESP() or getCropESP() then
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("Model") or obj:IsA("BasePart") then
+                        local name = obj.Name:lower()
+                        -- Event check
+                        if getEventESP() then
+                            local isEvent = false
+                            if (name:find("gold") or name:find("golden") or name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isEvent = true
+                            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then isEvent = true
+                            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then isEvent = true end
+                            
+                            if isEvent and (obj:FindFirstChildWhichIsA("ProximityPrompt", true) or obj:FindFirstChildWhichIsA("TouchTransmitter", true) or obj:FindFirstChildWhichIsA("ClickDetector", true)) then
+                                if not obj:FindFirstChild("EventESP") then
+                                    local hl = Instance.new("Highlight")
+                                    hl.Name = "EventESP"
+                                    hl.FillColor = Color3.fromRGB(255, 255, 0)
+                                    hl.OutlineColor = Color3.fromRGB(255, 200, 0)
+                                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                    hl.Parent = obj
+                                end
+                            end
+                        end
+                        
+                        -- Crop check (High value crops)
+                        if getCropESP() then
+                            local isHighValue = false
+                            if name:find("dragon") or name:find("moon") or name:find("flytrap") or name:find("pomegranate") or name:find("acorn") or name:find("cherry") or name:find("sunflower") then
+                                isHighValue = true
+                            end
+                            
+                            if isHighValue and obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
+                                if not obj:FindFirstChild("CropESP") then
+                                    local hl = Instance.new("Highlight")
+                                    hl.Name = "CropESP"
+                                    hl.FillColor = Color3.fromRGB(0, 255, 100)
+                                    hl.OutlineColor = Color3.fromRGB(0, 200, 50)
+                                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                                    hl.Parent = obj
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if not getEventESP() then
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    local hl = obj:FindFirstChild("EventESP")
+                    if hl then hl:Destroy() end
+                end
+            end
+            
+            if not getCropESP() then
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    local hl = obj:FindFirstChild("CropESP")
+                    if hl then hl:Destroy() end
                 end
             end
             
