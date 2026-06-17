@@ -85,59 +85,7 @@ local MarketplaceService = Services.MarketplaceService
 local HttpService = Services.HttpService
 
 local LocalPlayer = Players.LocalPlayer
-while not LocalPlayer do
-    task.wait()
-    LocalPlayer = Players.LocalPlayer
-end
 local Mouse = LocalPlayer:GetMouse()
-
--- ============================================================
--- FORWARD DECLARATIONS (needed before engines reference them)
--- ============================================================
-local Log = {
-    Messages = {},
-    MaxMessages = 100,
-    LogLevel = 3,  -- 1=Error, 2=Warn, 3=Info, 4=Debug
-}
-
-function Log:Add(level, message, color)
-    local entry = {
-        Level = level,
-        Message = message,
-        Color = color or Color3.fromRGB(200, 200, 200),
-        Time = os.time(),
-        Timestamp = os.date("%H:%M:%S"),
-    }
-    table.insert(self.Messages, entry)
-    if #self.Messages > self.MaxMessages then
-        table.remove(self.Messages, 1)
-    end
-    local prefix = os.date("[%H:%M:%S]")
-    local icons = {["ERROR"] = "\226\156\150", ["WARN"] = "\226\154\160", ["INFO"] = "\226\132\185", ["DEBUG"] = "\226\151\143", ["SUCCESS"] = "\226\156\148"}
-    local icon = icons[level] or "●"
-    print(string.format("%s %s %s", prefix, icon, message))
-end
-
-function Log:Error(message) self:Add("ERROR", message, Color3.fromRGB(255, 70, 70)) end
-function Log:Warn(message) self:Add("WARN", message, Color3.fromRGB(255, 180, 50)) end
-function Log:Info(message) self:Add("INFO", message, Color3.fromRGB(100, 200, 255)) end
-function Log:Debug(message)
-    if self.LogLevel >= 4 then
-        self:Add("DEBUG", message, Color3.fromRGB(150, 150, 150))
-    end
-end
-function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
-
-local UI = {
-    ScreenGui = nil,
-    Instance = nil,
-    Elements = {},
-    Dragging = false,
-    DragOffset = Vector2.new(0, 0),
-    Minimized = false,
-    Tabs = {},
-    ActiveTab = "Main",
-}
 
 -- ============================================================
 -- SECTION 3: UTILITY FUNCTIONS
@@ -156,7 +104,7 @@ function Utilities.FindRemote(remoteName)
     for _, container in ipairs(searchPaths) do
         if not container then continue end
         local found = container:FindFirstChild(remoteName, true)
-        if found and (found:IsA("RemoteEvent") or found:IsA("RemoteFunction") or found:IsA("UnreliableRemoteEvent")) then
+        if found and (found:IsA("RemoteEvent") or found:IsA("RemoteFunction") or found:IsA("Un replicated")) then
             return found
         end
     end
@@ -759,21 +707,61 @@ function AntiAFK:Stop()
 end
 
 -- ============================================================
--- SECTION 7: LOG UI UPDATE (now that UI is available)
+// SECTION 7: ADVANCED LOGGING SYSTEM
 -- ============================================================
--- Override Log:Add to include UI update
-local _origLogAdd = Log.Add
+local Log = {
+    Messages = {},
+    MaxMessages = 100,
+    LogLevel = 3,  -- 1=Error, 2=Warn, 3=Info, 4=Debug
+}
+
 function Log:Add(level, message, color)
-    _origLogAdd(self, level, message, color)
-    -- Update UI log list if available
+    local entry = {
+        Level = level,
+        Message = message,
+        Color = color or Color3.fromRGB(200, 200, 200),
+        Time = os.time(),
+        Timestamp = os.date("%H:%M:%S"),
+    }
+    table.insert(self.Messages, entry)
+    if #self.Messages > self.MaxMessages then
+        table.remove(self.Messages, 1)
+    end
+
+    -- Console output
+    local prefix = os.date("[%H:%M:%S]")
+    local icons = {["ERROR"] = "✖", ["WARN"] = "⚠", ["INFO"] = "ℹ", ["DEBUG"] = "●", ["SUCCESS"] = "✔"}
+    local icon = icons[level] or "●"
+    print(string.format("%s %s %s", prefix, icon, message))
+
+    -- Update UI if available
     if UI and UI.Elements and UI.Elements.LogList then
-        pcall(function() UI:UpdateLogList() end)
+        UI:UpdateLogList()
     end
 end
 
+function Log:Error(message) self:Add("ERROR", message, Color3.fromRGB(255, 70, 70)) end
+function Log:Warn(message) self:Add("WARN", message, Color3.fromRGB(255, 180, 50)) end
+function Log:Info(message) self:Add("INFO", message, Color3.fromRGB(100, 200, 255)) end
+function Log:Debug(message)
+    if self.LogLevel >= 4 then
+        self:Add("DEBUG", message, Color3.fromRGB(150, 150, 150))
+    end
+end
+function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
+
 -- ============================================================
--- SECTION 8: PREMIUM PROFESSIONAL UI
+// SECTION 8: PREMIUM PROFESSIONAL UI
 -- ============================================================
+local UI = {
+    Instance = nil,
+    Elements = {},
+    Dragging = false,
+    DragOffset = Vector2.new(0, 0),
+    Minimized = false,
+    Tabs = {},
+    ActiveTab = "Main",
+}
 
 function UI:Initialize()
     -- Create ScreenGui
@@ -783,24 +771,20 @@ function UI:Initialize()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.DisplayOrder = 999
 
-    -- Add to CoreGui or PlayerGui (Executor Safe)
-    local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    local targetParent = success and coreGui or LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChild("PlayerGui")
-    
-    if not targetParent then
-        targetParent = Instance.new("PlayerGui")
-        targetParent.Parent = LocalPlayer
+    -- Add to LocalPlayer's PlayerGui
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then
+        playerGui = Instance.new("PlayerGui")
+        playerGui.Parent = LocalPlayer
     end
-    
-    screenGui.Parent = targetParent
-    screenGui.Enabled = true
+    screenGui.Parent = playerGui
 
-    self.ScreenGui = screenGui
     self.Instance = screenGui
     self:CreateMainFrame()
     self:CreateTitleBar()
     self:CreateTabBar()
     self:CreateContentArea()
+    self:CreateStatusBar()
 
     -- Make draggable
     self:MakeDraggable()
@@ -808,7 +792,7 @@ function UI:Initialize()
     -- Animate entrance
     self:AnimateEntrance()
 
-    Log:Success("UI Initialized successfully")
+    Log:Success("🌐 UI Initialized")
 end
 
 function UI:CreateMainFrame()
@@ -857,7 +841,7 @@ function UI:CreateMainFrame()
     gradient.Parent = border
 
     self.Elements.MainFrame = main
-    self.Instance = main  -- Switch context to MainFrame for child UI elements
+    self.Instance = main
 end
 
 function UI:CreateTitleBar()
@@ -1857,15 +1841,12 @@ function UI:AnimateEntrance()
 end
 
 function UI:Destroy()
-    if self.ScreenGui then
-        self.ScreenGui:Destroy()
-    end
-    self.ScreenGui = nil
-    self.Instance = nil
+    self.Instance:Destroy()
+    UI.Instance = nil
 end
 
 -- ============================================================
--- SECTION 10: INITIALIZATION & CONTROL FUNCTIONS
+// SECTION 10: INITIALIZATION & CONTROL FUNCTIONS
 -- ============================================================
 
 function ToggleAll(enabled)
@@ -1890,55 +1871,55 @@ function ToggleAll(enabled)
 end
 
 -- ============================================================
--- MAIN EXECUTION WITH ERROR CATCHER
+// SECTION 11: MAIN EXECUTION
 -- ============================================================
-local function StartScript()
-    Log:Success("🌱 Harvest Elite v2.1.0 loading...")
-    task.wait(1)
-    
-    UI:Initialize()
-    
-    if CONFIG.AutoFarm then FarmEngine:Start() end
-    if CONFIG.AutoCollectEventSeeds or CONFIG.AutoBuyEventSeeds then EventSeedCollector:Start() end
-    if CONFIG.AntiAFK then AntiAFK:Start() end
-    
-    Log:Success("✅ Harvest Elite v2.1.0 fully loaded and operational")
-    Log:Info("📌 Press [Right Ctrl] to toggle UI visibility")
-    
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
-            if UI.ScreenGui then
-                UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
+
+Log:Success("🌱 Harvest Elite v2.1.0 loading...")
+
+-- Delay to let game load
+task.wait(1)
+
+-- Initialize UI
+UI:Initialize()
+
+-- Start core engines based on config
+if CONFIG.AutoFarm then FarmEngine:Start() end
+if CONFIG.AutoCollectEventSeeds or CONFIG.AutoBuyEventSeeds then EventSeedCollector:Start() end
+if CONFIG.AntiAFK then AntiAFK:Start() end
+
+Log:Success("✅ Harvest Elite v2.1.0 fully loaded and operational")
+Log:Info("📌 Press [Right Ctrl] to toggle UI visibility")
+Log:Info("📌 Report bugs: https://help.hackerai.co")
+
+-- UI Toggle Hotkey
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+        if UI.Instance then
+            UI.Instance.Parent.Enabled = not UI.Instance.Parent.Enabled
+        end
+    end
+end)
+
+-- Auto-save collected seeds count tracking
+local startTime = os.time()
+task.spawn(function()
+    while task.wait(10) do
+        if FarmEngine.Running then
+            local balance = Utilities.GetPlayerBalance()
+            local uptime = math.floor((os.time() - startTime) / 60)
+            -- Update UI stats if page exists
+            local mainPage = UI.Elements.ContentPages and UI.Elements.ContentPages["Main"]
+            if mainPage then
+                for _, child in ipairs(mainPage:GetDescendants()) do
+                    if child:IsA("TextLabel") and child.Name == "Value" then
+                        -- Update dynamically (simplified)
+                    end
+                end
             end
         end
-    end)
-    
-    local startTime = os.time()
-    task.spawn(function()
-        while task.wait(10) do
-            if FarmEngine.Running then
-                local balance = Utilities.GetPlayerBalance()
-            end
-        end
-    end)
-end
-
-local success, err = pcall(StartScript)
-if not success then
-    warn("HARVEST ELITE FATAL ERROR: " .. tostring(err))
-    local sg = Instance.new("ScreenGui")
-    local successCore, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    sg.Parent = (successCore and coreGui) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    local tl = Instance.new("TextLabel")
-    tl.Size = UDim2.new(1, 0, 0, 150)
-    tl.Position = UDim2.new(0, 0, 0, 0)
-    tl.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-    tl.TextColor3 = Color3.fromRGB(255, 255, 255)
-    tl.TextScaled = true
-    tl.Text = "🚨 HARVEST ELITE CRASHED 🚨\nError: " .. tostring(err)
-    tl.Parent = sg
-end
+    end
+end)
 
 -- ============================================================
--- END OF SCRIPT
+// END OF SCRIPT
 -- ============================================================
