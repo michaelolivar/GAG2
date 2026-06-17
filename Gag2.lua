@@ -479,54 +479,6 @@ local function CreateLabel(tab, text, color)
     return label
 end
 
--- ==========================================
--- TAB: MAIN
--- ==========================================
-local MainTab = Instance.new("Frame")
-MainTab.Name = "Main"
-MainTab.Size = UDim2.new(1, 0, 0, 0)
-MainTab.AutomaticSize = Enum.AutomaticSize.Y
-MainTab.BackgroundTransparency = 1
-MainTab.Parent = ContentFrame
-
-local MainLayout = Instance.new("UIListLayout")
-MainLayout.SortOrder = Enum.SortOrder.LayoutOrder
-MainLayout.Padding = UDim.new(0, 4)
-MainLayout.Parent = MainTab
-
-CreateLabel(MainTab, "=== AUTO FARM ===", Color3.fromRGB(80, 200, 120))
-local _, getAutoPlant = CreateToggle(MainTab, "Auto Plant", "Automatically plant seeds", false)
-local getPlantSeed = CreateDropdown(MainTab, "Seed to Plant", {"Carrot", "Strawberry", "Tomato", "Apple", "Bamboo", "Corn", "Mushroom", "Dragon Fruit"}, 1)
-local _, getAutoWater = CreateToggle(MainTab, "Auto Water", "Water dry plants", false)
-local _, getAutoHarvest = CreateToggle(MainTab, "Auto Harvest", "Harvest fully grown crops", false)
-
-CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
-
-local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, Seed Packs", false)
-local function getWeatherNotif() return true end
-
-CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
-
-local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", false)
-local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", false)
-
-CreateLabel(MainTab, "=== UTILITIES ===", Color3.fromRGB(200, 180, 80))
-local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", false)
-local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", false)
-local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", false)
-
-local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
-StatusLabelTitle.LayoutOrder = 100
-
-local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
-StatusLabel.Parent.LayoutOrder = 101
-
--- Spacer
-local spacer = Instance.new("Frame")
-spacer.Size = UDim2.new(1, 0, 0, 20)
-spacer.BackgroundTransparency = 1
-spacer.Parent = MainTab
-
 -- Reset canvas size
 local function UpdateCanvas()
     local totalH = 0
@@ -668,6 +620,54 @@ local function CreateDropdown(tab, name, options, defaultIndex)
     
     return function() return selectedValue end
 end
+
+-- ==========================================
+-- TAB: MAIN
+-- ==========================================
+local MainTab = Instance.new("Frame")
+MainTab.Name = "Main"
+MainTab.Size = UDim2.new(1, 0, 0, 0)
+MainTab.AutomaticSize = Enum.AutomaticSize.Y
+MainTab.BackgroundTransparency = 1
+MainTab.Parent = ContentFrame
+
+local MainLayout = Instance.new("UIListLayout")
+MainLayout.SortOrder = Enum.SortOrder.LayoutOrder
+MainLayout.Padding = UDim.new(0, 4)
+MainLayout.Parent = MainTab
+
+CreateLabel(MainTab, "=== AUTO FARM ===", Color3.fromRGB(80, 200, 120))
+local _, getAutoPlant = CreateToggle(MainTab, "Auto Plant", "Automatically plant seeds", false)
+local getPlantSeed = CreateDropdown(MainTab, "Seed to Plant", {"Carrot", "Strawberry", "Tomato", "Apple", "Bamboo", "Corn", "Mushroom", "Dragon Fruit"}, 1)
+local _, getAutoWater = CreateToggle(MainTab, "Auto Water", "Water dry plants", false)
+local _, getAutoHarvest = CreateToggle(MainTab, "Auto Harvest", "Harvest fully grown crops", false)
+
+CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
+
+local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, Seed Packs", false)
+local function getWeatherNotif() return true end
+
+CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
+
+local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", false)
+local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", false)
+
+CreateLabel(MainTab, "=== UTILITIES ===", Color3.fromRGB(200, 180, 80))
+local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", false)
+local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", false)
+local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", false)
+
+local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
+StatusLabelTitle.LayoutOrder = 100
+
+local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
+StatusLabel.Parent.LayoutOrder = 101
+
+-- Spacer
+local spacer = Instance.new("Frame")
+spacer.Size = UDim2.new(1, 0, 0, 20)
+spacer.BackgroundTransparency = 1
+spacer.Parent = MainTab
 
 -- ==========================================
 -- TAB: STEAL
