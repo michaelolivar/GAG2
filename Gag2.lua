@@ -707,7 +707,7 @@ function AntiAFK:Stop()
 end
 
 -- ============================================================
-// SECTION 7: ADVANCED LOGGING SYSTEM
+-- SECTION 7: ADVANCED LOGGING SYSTEM
 -- ============================================================
 local Log = {
     Messages = {},
@@ -751,7 +751,7 @@ end
 function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
 
 -- ============================================================
-// SECTION 8: PREMIUM PROFESSIONAL UI
+-- SECTION 8: PREMIUM PROFESSIONAL UI
 -- ============================================================
 local UI = {
     Instance = nil,
