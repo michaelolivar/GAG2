@@ -813,6 +813,13 @@ end
 -- ============================================================
 -- SECTION 8: UI HELPERS
 -- ============================================================
+function UI:FormatNumber(num)
+    if not num then return "0" end
+    if num >= 1000000 then return string.format("%.1fM", num/1000000)
+    elseif num >= 1000 then return string.format("%.1fK", num/1000) end
+    return tostring(num)
+end
+
 function UI:CreateCard(parent, size, position)
     local card = Instance.new("Frame")
     card.Size = size; card.Position = position; card.BackgroundColor3 = CONFIG.Theme.Surface; card.BackgroundTransparency = 0.4; card.BorderSizePixel = 0; card.Parent = parent
