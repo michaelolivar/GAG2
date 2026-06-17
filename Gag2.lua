@@ -808,6 +808,17 @@ function UI:Initialize()
     -- Animate entrance
     self:AnimateEntrance()
 
+    -- Verify UI is visible
+    if self.ScreenGui then
+        self.ScreenGui.Enabled = true
+    end
+    if self.Elements.MainFrame then
+        self.Elements.MainFrame.Visible = true
+    end
+    if self.Elements.Content then
+        self.Elements.Content.Visible = true
+    end
+    
     Log:Success("UI Initialized successfully")
 end
 
@@ -823,6 +834,7 @@ function UI:CreateMainFrame()
     main.BackgroundTransparency = 1 - CONFIG.Opacity
     main.BorderSizePixel = 0
     main.ClipsDescendants = false
+    main.Visible = true
     main.Parent = self.Instance
 
     -- Add shadow/glow effect
@@ -1235,6 +1247,7 @@ function UI:CreateMainPage()
     yOffset = yOffset + 110
 
     page.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
+    page.Visible = true
     self.Elements.ContentPages["Main"] = page
 end
 
@@ -1830,10 +1843,15 @@ end
 
 function UI:SwitchTab(tabName)
     self.ActiveTab = tabName
+    if not self.Elements.ContentPages then return end
     for name, page in pairs(self.Elements.ContentPages) do
-        if page then
+        if page and page:IsA("ScrollingFrame") then
             page.Visible = (name == tabName)
         end
+    end
+    -- Make sure at least Main is visible if tab doesn't exist
+    if not self.Elements.ContentPages[tabName] and self.Elements.ContentPages["Main"] then
+        self.Elements.ContentPages["Main"].Visible = true
     end
 end
 
