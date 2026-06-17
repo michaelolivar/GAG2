@@ -12,8 +12,12 @@
 -- ============================================================
 -- GUARD: Wait for game to fully load
 -- ============================================================
-repeat task.wait() until game:GetService("Players").LocalPlayer
-repeat task.wait() until game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+local Players = game:GetService("Players")
+repeat task.wait() until Players.LocalPlayer
+local lp = Players.LocalPlayer
+local hasCoreGui = false
+pcall(function() hasCoreGui = game:GetService("CoreGui") ~= nil end)
+repeat task.wait() until lp:FindFirstChild("PlayerGui") or hasCoreGui
 
 -- ============================================================
 -- SECTION 1: CONFIGURATION
