@@ -11,6 +11,9 @@ Features:
   5. Auto Defense (Shovel, Crowbar, Freeze Ray, Power Hose)
 --]]
 
+print("🌱 Devo GAG2 script starting...")
+print("📍 Executor: Delta")
+
 -- Configuration
 local Config = {
     AutoCollectSeeds = true,
@@ -66,8 +69,12 @@ table.insert(_connections,
 )
 
 local function GetGuiParent()
-    if PlayerGui then return PlayerGui end
+    -- Try PlayerGui first (most reliable for Delta executor)
+    if PlayerGui then 
+        return PlayerGui 
+    end
 
+    -- Try gethui() for other executors
     local parent
     pcall(function()
         if gethui then
@@ -76,17 +83,30 @@ local function GetGuiParent()
     end)
     if parent then return parent end
 
+    -- Try CoreGui as fallback
     pcall(function()
-        CoreGui:GetChildren()
+        local _ = CoreGui:GetChildren()
         parent = CoreGui
     end)
-    return parent
+    if parent then return parent end
+    
+    -- Last resort: Wait for PlayerGui to load
+    return nil
 end
 
 local guiParent = GetGuiParent()
 if not guiParent then
-    PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 3)
-    guiParent = GetGuiParent()
+    -- Wait up to 5 seconds for PlayerGui to be available
+    for i = 1, 50 do
+        task.wait(0.1)
+        PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:FindFirstChild("PlayerGui")
+        guiParent = PlayerGui
+        if guiParent then break end
+    end
+end
+
+if not guiParent then
+    error("DevoGag2: Could not find PlayerGui or valid UI parent", 0)
 end
 
 local function DestroyExistingGui(parent)
@@ -101,8 +121,8 @@ end
 
 -- Cleanup: destroy old UI if script is re-run
 DestroyExistingGui(guiParent)
-DestroyExistingGui(CoreGui)
-DestroyExistingGui(PlayerGui)
+if PlayerGui then DestroyExistingGui(PlayerGui) end
+if CoreGui then DestroyExistingGui(CoreGui) end
 
 -- UI Library
 local Library = Instance.new("ScreenGui")
@@ -113,18 +133,42 @@ Library.DisplayOrder = 999999
 Library.IgnoreGuiInset = true
 Library.Enabled = true
 Library.Visible = true
+
+-- Try to parent the Library to the correct location
 local parented = false
 if guiParent then
     parented = pcall(function()
         Library.Parent = guiParent
     end)
 end
+
+-- If parenting to guiParent failed, try PlayerGui directly
 if not parented and PlayerGui then
-    Library.Parent = PlayerGui
+    parented = pcall(function()
+        Library.Parent = PlayerGui
+    end)
 end
+
+-- If still not parented, try CoreGui
+if not parented and CoreGui then
+    parented = pcall(function()
+        Library.Parent = CoreGui
+    end)
+end
+
 if not Library.Parent then
-    error("DevoGag2: could not find a valid UI parent", 0)
+    error("DevoGag2: Could not parent UI to any location!", 0)
 end
+
+print("✅ DevoGag2: UI created successfully!")
+print("📍 UI Parent:", Library.Parent.Name)
+print("📦 UI Location:", Library.Parent:GetFullName())
+print("📺 Library AbsoluteSize:", Library.AbsoluteSize)
+print("📊 Library Visible:", Library.Visible)
+print("🔧 Library Enabled:", Library.Enabled)
+
+-- Wait a tiny bit for rendering
+task.wait(0.05)
 
 local function CleanupScript()
     _scriptRunning = false
@@ -180,6 +224,7 @@ end
 -- ==========================================
 -- BUILD UI - Professional Dark Mode
 -- ==========================================
+print("📦 Creating MainFrame...")
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0.9, 0, 0.85, 0)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -190,10 +235,23 @@ MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = Library
 
+print("📏 MainFrame Size:", MainFrame.Size)
+print("📍 MainFrame Position:", MainFrame.Position)
+print("👁️ MainFrame Visible:", MainFrame.Visible)
+
 local sizeConstraint = Instance.new("UISizeConstraint")
 sizeConstraint.MaxSize = Vector2.new(400, 520)
 sizeConstraint.MinSize = Vector2.new(400, 250)
 sizeConstraint.Parent = MainFrame
+
+-- Ensure MainFrame has absolute minimum size for visibility
+task.spawn(function()
+    task.wait(0.05)
+    if MainFrame.AbsoluteSize.X < 100 or MainFrame.AbsoluteSize.Y < 100 then
+        MainFrame.Size = UDim2.new(0, 400, 0, 520)
+        print("⚠️  Adjusted MainFrame to absolute size")
+    end
+end)
 
 pcall(function()
     TweenService:Create(
@@ -1512,8 +1570,19 @@ CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
 -- End of Info Tab
 
 -- Initialize the first tab
+print("🎨 Initializing UI tabs...")
 SwitchTab("Main")
 UpdateCanvas()
+
+-- Force visibility
+task.wait(0.1)
+Library.Visible = true
+MainFrame.Visible = true
+ContentFrame.Visible = true
+print("✅ UI tabs initialized and ready!")
+print("👁️ Library Visible:", Library.Visible)
+print("👁️ MainFrame Visible:", MainFrame.Visible)
+print("👁️ ContentFrame Visible:", ContentFrame.Visible)
 
 -- ==========================================
 -- CORE FEATURES IMPLEMENTATION
