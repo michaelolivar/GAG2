@@ -286,6 +286,7 @@ TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 42)
 TitleBar.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 TitleBar.BorderSizePixel = 0
+TitleBar.Visible = true
 TitleBar.Parent = MainFrame
 
 local titleCorner = Instance.new("UICorner")
@@ -485,6 +486,7 @@ ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(120, 80, 255)
 ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ContentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ContentFrame.BorderSizePixel = 0
+ContentFrame.Visible = true
 ContentFrame.Parent = MainFrame
 
 -- Create tabs
@@ -839,6 +841,7 @@ MainTab.Name = "Main"
 MainTab.Size = UDim2.new(1, 0, 0, 0)
 MainTab.AutomaticSize = Enum.AutomaticSize.Y
 MainTab.BackgroundTransparency = 1
+MainTab.Visible = true
 MainTab.Parent = ContentFrame
 
 local MainLayout = Instance.new("UIListLayout")
