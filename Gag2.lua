@@ -2477,9 +2477,12 @@ local WeatherScanCooldown = 3
                 local currentGlobalTime = os.time()
                 local shopCycle = currentGlobalTime % baseRestock
                 local nextRestock = baseRestock - shopCycle
-                local restockMins = math.floor(nextRestock / 60)
+                local restockHours = math.floor(nextRestock / 3600)
+                local restockMins = math.floor((nextRestock % 3600) / 60)
                 local restockSecs = math.floor(nextRestock % 60)
-                ShopPredictLabel.Text = string.format("🔄 Next Restock: %02d:%02d", restockMins, restockSecs)
+                if ShopPredictLabel then
+                    ShopPredictLabel.Text = string.format("🔄 Next Restock: %02d:%02d:%02d", restockHours, restockMins, restockSecs)
+                end
                 
                 -- Update per-seed timers
                 for _, entry in ipairs(seedTimerLabels) do
