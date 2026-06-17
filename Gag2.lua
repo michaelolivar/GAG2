@@ -291,11 +291,11 @@ TabContainer.Visible = true
 TabContainer.Parent = MainFrame
 
 local sidebarLine = Instance.new("Frame")
-sidebarLine.Size = UDim2.new(0, 1, 1, 0)
-sidebarLine.Position = UDim2.new(1, -1, 0, 0)
+sidebarLine.Size = UDim2.new(0, 1, 1, -44)
+sidebarLine.Position = UDim2.new(0, 129, 0, 44)
 sidebarLine.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 sidebarLine.BorderSizePixel = 0
-sidebarLine.Parent = TabContainer
+sidebarLine.Parent = MainFrame
 
 local TabLayout = Instance.new("UIListLayout")
 TabLayout.FillDirection = Enum.FillDirection.Vertical
