@@ -709,25 +709,86 @@ end
     PART 3: MAIN ENTRY POINT & EXECUTION
 ════════════════════════════════════════════════════════════════════════]]--
 
--- Auto-run the interactive demo
+-- Manual function to start the game
+function startGame()
+    print("\n" .. string.rep("=", 70))
+    print("HARVEST ELITE v2.1.0 - STARTING...")
+    print(string.rep("=", 70) .. "\n")
+    
+    UIRenderer.interactiveDemo()
+    
+    print("\n" .. string.rep("=", 70))
+    print("HARVEST ELITE - EXECUTION COMPLETE")
+    print(string.rep("=", 70) .. "\n")
+end
+
+-- Simple UI display without colors (for executors)
+function showUI()
+    HarvestElite.init()
+    HarvestElite.refresh()
+    local data = HarvestElite.getMainTabData()
+    
+    print("\n=== HARVEST ELITE v2.1.0 ===")
+    print("Status: ACTIVE\n")
+    print("--- SYSTEM STATUS ---")
+    print("Script Status: " .. data.systemStatus.scriptStatus)
+    print("Balance: B" .. data.systemStatus.balance)
+    print("Plants Active: " .. data.systemStatus.plantsActive)
+    print("Seeds Owned: " .. data.systemStatus.seedsOwned)
+    print("\n--- SESSION STATISTICS ---")
+    print("Farm Score: " .. data.sessionStatistics.farmScore)
+    print("Active Plants: " .. data.sessionStatistics.planttPlants)
+    print("Farminite: " .. data.sessionStatistics.farminiteActive)
+    print("Seed Rate: " .. data.sessionStatistics.seedsSeedRate)
+    print("\n")
+end
+
+-- Quick demo function
+function quickDemo()
+    print("\n>>> QUICK DEMO START <<<\n")
+    HarvestElite.init()
+    
+    print("Buying seeds...")
+    HarvestElite.buySeed("Tomato Seed", 3)
+    
+    print("Planting crops...")
+    HarvestElite.plantSeed(1, "Tomato Seed", 3)
+    
+    print("Using Fertilizer...")
+    HarvestElite.useItem("Fertilizer", 1)
+    
+    HarvestElite.refresh()
+    
+    print("\nGame state after actions:")
+    local data = HarvestElite.getMainTabData()
+    print("Balance: B" .. data.systemStatus.balance)
+    print("Plants Active: " .. data.systemStatus.plantsActive)
+    print("Farm Score: " .. data.sessionStatistics.farmScore)
+    
+    print("\n>>> DEMO COMPLETE <<<\n")
+end
+
+-- Default: Show simple UI
 print("\n" .. string.rep("=", 70))
-print("🌱 HARVEST ELITE v2.1.0 - STARTING...")
+print("HARVEST ELITE v2.1.0 - LOADED")
 print(string.rep("=", 70) .. "\n")
 
--- Run the demo automatically
-UIRenderer.interactiveDemo()
+print("Available Commands:")
+print("  showUI()           - Show current game state")
+print("  startGame()        - Run full interactive demo with colors")
+print("  quickDemo()        - Run quick demo (no colors)")
+print("  HarvestElite.printState()  - Print detailed state")
+print("\nGame Functions:")
+print("  HarvestElite.init()")
+print("  HarvestElite.buySeed(type, qty)")
+print("  HarvestElite.plantSeed(farmId, type, qty)")
+print("  HarvestElite.harvestPlants(farmId)")
+print("  HarvestElite.useItem(name, qty)")
+print("  HarvestElite.refresh()")
+print("  HarvestElite.getMainTabData()")
+print("  UIRenderer.renderAllTabs()")
+print("\nTip: Type 'quickDemo()' to see the game in action!\n")
 
-print("\n" .. string.rep("=", 70))
-print("✅ HARVEST ELITE - EXECUTION COMPLETE")
-print(string.rep("=", 70) .. "\n")
-
--- Make functions available for continued use
-print("📝 You can now use these functions:")
-print("   • HarvestElite.buySeed(type, qty)")
-print("   • HarvestElite.plantSeed(farmId, type, qty)")
-print("   • HarvestElite.harvestPlants(farmId)")
-print("   • HarvestElite.useItem(name, qty)")
-print("   • HarvestElite.refresh()")
-print("   • HarvestElite.getMainTabData()")
-print("   • UIRenderer.renderAllTabs()")
-print("\n")
+-- Auto-initialize game
+HarvestElite.init()
+print("✓ Game initialized. Ready to play!\n")
