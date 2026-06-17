@@ -427,8 +427,7 @@ function UI:Initialize()
     local sg = Instance.new("ScreenGui")
     sg.Name = "HarvestEliteGUI"; sg.ResetOnSpawn = false; sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     sg.DisplayOrder = 999; sg.Enabled = true
-    local ok, cg = pcall(function() return GS("CoreGui") end)
-    sg.Parent = (ok and cg) or LocalPlayer:FindFirstChild("PlayerGui") or (function() local p = Instance.new("PlayerGui"); p.Parent = LocalPlayer; return p end)()
+    sg.Parent = LocalPlayer:WaitForChild("PlayerGui", 10) or (function() local p = Instance.new("PlayerGui"); p.Parent = LocalPlayer; return p end)()
     
     self.ScreenGui = sg
     self.Instance = sg  -- ROOT = ScreenGui (NEVER OVERRIDE)
@@ -952,8 +951,7 @@ if not ok then
     warn("HARVEST ELITE ERROR: " .. tostring(err))
     local sg = Instance.new("ScreenGui")
     sg.Name = "HarvestEliteError"
-    local tgt, _ = pcall(function() return game:GetService("CoreGui") end)
-    sg.Parent = tgt and game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+    sg.Parent = LocalPlayer:WaitForChild("PlayerGui", 10)
     local tb = Instance.new("TextButton")
     tb.Size = UDim2.new(0, 400, 0, 100)
     tb.Position = UDim2.new(0.5, -200, 0.5, -50)
