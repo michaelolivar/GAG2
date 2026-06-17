@@ -112,6 +112,7 @@ Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 Library.DisplayOrder = 999999
 Library.IgnoreGuiInset = true
 Library.Enabled = true
+Library.Visible = true
 local parented = false
 if guiParent then
     parented = pcall(function()
@@ -183,20 +184,16 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0.9, 0, 0.85, 0)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-local sizeConstraint = Instance.new("UISizeConstraint")
-sizeConstraint.MaxSize = Vector2.new(400, 520)
-sizeConstraint.MinSize = Vector2.new(400, 250)
-sizeConstraint.Parent = MainFrame
+MainFrame.Visible = true
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = Library
-MainFrame.Size = UDim2.new(
-    0.9,
-    0,
-    0.85,
-    0
-)
+
+local sizeConstraint = Instance.new("UISizeConstraint")
+sizeConstraint.MaxSize = Vector2.new(400, 520)
+sizeConstraint.MinSize = Vector2.new(400, 250)
+sizeConstraint.Parent = MainFrame
 
 pcall(function()
     TweenService:Create(
@@ -212,6 +209,7 @@ pcall(function()
     ):Play()
 end)
 local uiScale = Instance.new("UIScale")
+uiScale.Scale = 1
 uiScale.Parent = MainFrame
 
 local Camera = workspace.CurrentCamera
@@ -418,31 +416,22 @@ end)
 
 ChatHeadIcon.MouseButton1Click:Connect(function()
     isMinimized = false
-   MainFrame.Visible = true
-
-MainFrame.Size = UDim2.new(
-    0,
-    56,
-    0,
-    56
-)
-
-TweenService:Create(
-    MainFrame,
-    TweenInfo.new(
-        0.25,
-        Enum.EasingStyle.Quart,
-        Enum.EasingDirection.Out
-    ),
-    {
-        Size = UDim2.new(
-            0.9,
-            0,
-            0.85,
-            0
-        )
-    }
-):Play()
+    MainFrame.Visible = true
+    MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    MainFrame.Size = UDim2.new(0, 56, 0, 56)
+    
+    TweenService:Create(
+        MainFrame,
+        TweenInfo.new(
+            0.25,
+            Enum.EasingStyle.Quart,
+            Enum.EasingDirection.Out
+        ),
+        {
+            Size = UDim2.new(0.9, 0, 0.85, 0)
+        }
+    ):Play()
+    
     ChatHeadIcon.Visible = false
 end)
 
@@ -961,7 +950,14 @@ ShopLayout.Parent = ShopTab
 
 CreateLabel(ShopTab, "=== AUTO BUY ===", Color3.fromRGB(80, 200, 120))
 local _, getAutoBuy = CreateToggle(ShopTab, "Auto Buy Seeds", "Buy selected seeds when in stock", false)
-local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", {"None", "Carrot", "Strawberry", "Blueberry", "Tulip", "Tomato", "Apple", "Bamboo", "Corn", "Cactus", "Pineapple", "Mushroom", "Banana", "Grape", "Coconut", "Mango", "Green Bean", "Dragon Fruit", "Acorn", "Cherry", "Sunflower", "Venus Flytrap", "Pomegranate", "Moon Bloom", "Dragon's Breath"}, 1)
+
+-- Build seed list from SeedData
+local AllSeedOptions = {"None"}
+for _, seed in ipairs(SeedData) do
+    table.insert(AllSeedOptions, seed.name)
+end
+
+local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", AllSeedOptions, 1)
 
 
 -- Restock timer header
@@ -1111,6 +1107,101 @@ for i, seed in ipairs(SeedData) do
     
     seedTimerLabels[i] = {label = timerLabel, data = seed, row = row}
 end
+
+-- Buy Now button
+labelOrder = labelOrder + 1
+local buyNowRow = Instance.new("Frame")
+buyNowRow.Size = UDim2.new(1, 0, 0, 36)
+buyNowRow.BackgroundTransparency = 1
+buyNowRow.LayoutOrder = labelOrder
+buyNowRow.Parent = ShopTab
+
+local buyNowBtn = Instance.new("TextButton")
+buyNowBtn.Size = UDim2.new(1, 0, 1, 0)
+buyNowBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 120)
+buyNowBtn.Text = "🛒 BUY NOW"
+buyNowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+buyNowBtn.Font = Enum.Font.GothamBold
+buyNowBtn.TextSize = 14
+buyNowBtn.BorderSizePixel = 0
+buyNowBtn.Parent = buyNowRow
+local buyNowCorner = Instance.new("UICorner")
+buyNowCorner.CornerRadius = UDim.new(0, 6)
+buyNowCorner.Parent = buyNowBtn
+
+local function PerformBuy()
+    local targetSeed = getBuySeed()
+    if targetSeed == "None" or targetSeed == "" then
+        StatusLabel.Text = "⚠️ Select a seed first!"
+        return
+    end
+    
+    StatusLabel.Text = "🏪 Attempting to buy " .. targetSeed .. "..."
+    local bought = false
+    
+    -- Try RemoteEvents/Functions first
+    for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+            pcall(function()
+                if remote:IsA("RemoteEvent") then
+                    remote:FireServer(targetSeed, 1)
+                else
+                    remote:InvokeServer(targetSeed, 1)
+                end
+                bought = true
+            end)
+        end
+    end
+    
+    -- Try shop interaction
+    if not bought and RootPart then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("Model") or obj:IsA("BasePart") then
+                local objName = obj.Name:lower()
+                if objName:find("shop") or objName:find("merchant") or objName:find("vendor") then
+                    local targetPart = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true))
+                    if targetPart then
+                        RootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 5)
+                        task.wait(0.15)
+                        
+                        for _, prompt in pairs(obj:GetDescendants()) do
+                            if prompt:IsA("ProximityPrompt") then
+                                pcall(function()
+                                    if fireproximityprompt then
+                                        fireproximityprompt(prompt, 1, true)
+                                    end
+                                end)
+                            end
+                        end
+                        
+                        task.wait(0.1)
+                        
+                        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                            pcall(function()
+                                if remote:IsA("RemoteEvent") then
+                                    remote:FireServer(targetSeed, 1)
+                                elseif remote:IsA("RemoteFunction") then
+                                    remote:InvokeServer(targetSeed, 1)
+                                end
+                                bought = true
+                            end)
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    if bought then
+        StatusLabel.Text = "✅ Bought " .. targetSeed .. "!"
+    else
+        StatusLabel.Text = "❌ Buy failed - find the shop NPC"
+    end
+end
+
+buyNowBtn.MouseButton1Click:Connect(PerformBuy)
+buyNowBtn.Activated:Connect(PerformBuy)
 
 -- ==========================================
 -- TAB: TELEPORTS
@@ -2468,36 +2559,106 @@ local WeatherScanCooldown = 3
             -- 5.2 Auto Buy Seeds
             if getAutoBuy() then
                 local targetSeed = getBuySeed()
-                if targetSeed ~= "None" then
-                    for _, entry in ipairs(seedTimerLabels) do
-                        if entry.data.name == targetSeed and entry.label.Text == "⚡ SOON!" then
-                            StatusLabel.Text = "🏪 Attempting to Auto-Buy " .. targetSeed
-                            local bought = false
-                            for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
-                                if remote:IsA("RemoteEvent") and (remote.Name:lower():find("buy") or remote.Name:lower():find("shop") or remote.Name:lower():find("purchase")) then
-                                    pcall(function() remote:FireServer(targetSeed, 1) end)
-                                    bought = true
-                                elseif remote:IsA("RemoteFunction") and (remote.Name:lower():find("buy") or remote.Name:lower():find("shop") or remote.Name:lower():find("purchase")) then
-                                    task.spawn(function() pcall(function() remote:InvokeServer(targetSeed, 1) end) end)
-                                    bought = true
-                                end
+                if targetSeed ~= "None" and targetSeed ~= "" then
+                    -- Find the shop NPC or buying system
+                    local shopFound = false
+                    
+                    -- Try to find shop via RemoteEvents/Functions
+                    for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                        if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                            local rName = remote.Name:lower()
+                            if rName:find("buy") or rName:find("shop") or rName:find("purchase") or rName:find("purchase") or rName:find("sell") then
+                                pcall(function()
+                                    if remote:IsA("RemoteEvent") then
+                                        remote:FireServer(targetSeed, 1)
+                                    else
+                                        remote:InvokeServer(targetSeed, 1)
+                                    end
+                                    StatusLabel.Text = "🏪 Buying " .. targetSeed .. "..."
+                                    shopFound = true
+                                end)
+                                if shopFound then break end
                             end
-                            if not bought then
-                                for _, prompt in pairs(Workspace:GetDescendants()) do
-                                    if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("buy") and prompt.Parent and prompt.Parent.Name:lower():find(targetSeed:lower()) then
-                                        if RootPart then
-                                            local promptPart = GetObjectPart(prompt.Parent)
-                                            if promptPart then
-                                                RootPart.CFrame = promptPart.CFrame
-                                                task.wait(0.1)
-                                                if fireproximityprompt then fireproximityprompt(prompt, 1, true) end
+                        end
+                    end
+                    
+                    -- Try to find shop NPC in workspace and interact
+                    if not shopFound then
+                        for _, obj in pairs(Workspace:GetDescendants()) do
+                            if obj:IsA("Model") or obj:IsA("BasePart") then
+                                local objName = obj.Name:lower()
+                                if objName:find("shop") or objName:find("merchant") or objName:find("vendor") or objName:find("seller") then
+                                    -- Try to find buy prompts
+                                    for _, prompt in pairs(obj:GetDescendants()) do
+                                        if prompt:IsA("ProximityPrompt") then
+                                            local actionLower = prompt.ActionText:lower()
+                                            if actionLower:find("buy") or actionLower:find("shop") or actionLower:find("trade") then
+                                                if RootPart then
+                                                    local targetPart = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true))
+                                                    if targetPart then
+                                                        -- Move near shop
+                                                        RootPart.CFrame = targetPart.CFrame + Vector3.new(0, 3, 5)
+                                                        task.wait(0.2)
+                                                        
+                                                        -- Trigger the prompt
+                                                        pcall(function()
+                                                            if fireproximityprompt then
+                                                                fireproximityprompt(prompt, 1, true)
+                                                            end
+                                                        end)
+                                                        
+                                                        task.wait(0.1)
+                                                        
+                                                        -- Now try to buy the seed
+                                                        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                                                            if (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+                                                                pcall(function()
+                                                                    if remote:IsA("RemoteEvent") then
+                                                                        remote:FireServer(targetSeed, 1)
+                                                                    else
+                                                                        remote:InvokeServer(targetSeed, 1)
+                                                                    end
+                                                                end)
+                                                            end
+                                                        end
+                                                        
+                                                        StatusLabel.Text = "🏪 Bought " .. targetSeed .. "!"
+                                                        shopFound = true
+                                                        break
+                                                    end
+                                                end
                                             end
                                         end
-                                        break
                                     end
+                                    if shopFound then break end
                                 end
                             end
                         end
+                    end
+                    
+                    if not shopFound then
+                        -- Fallback: Try direct button clicks in GUI
+                        pcall(function()
+                            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                            if playerGui then
+                                for _, btn in pairs(playerGui:GetDescendants()) do
+                                    if btn:IsA("TextButton") or btn:IsA("ImageButton") then
+                                        local btnText = (btn:IsA("TextButton") and btn.Text:lower()) or btn.Name:lower()
+                                        if btnText:find(targetSeed:lower()) or btnText:find("buy") then
+                                            if btn.Visible and btn.AbsoluteSize.X > 0 then
+                                                if getconnections then
+                                                    for _, conn in pairs(getconnections(btn.MouseButton1Click)) do
+                                                        conn:Fire()
+                                                    end
+                                                end
+                                                StatusLabel.Text = "🏪 Auto-bought " .. targetSeed
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end)
                     end
                 end
             end
