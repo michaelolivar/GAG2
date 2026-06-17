@@ -1853,7 +1853,7 @@ function UI:Destroy()
 end
 
 -- ============================================================
-// SECTION 10: INITIALIZATION & CONTROL FUNCTIONS
+-- SECTION 10: INITIALIZATION & CONTROL FUNCTIONS
 -- ============================================================
 
 function ToggleAll(enabled)
@@ -1878,7 +1878,7 @@ function ToggleAll(enabled)
 end
 
 -- ============================================================
-// SECTION 11: MAIN EXECUTION
+-- SECTION 11: MAIN EXECUTION
 -- ============================================================
 
 Log:Success("🌱 Harvest Elite v2.1.0 loading...")
@@ -1928,5 +1928,5 @@ task.spawn(function()
 end)
 
 -- ============================================================
-// END OF SCRIPT
+-- END OF SCRIPT
 -- ============================================================
