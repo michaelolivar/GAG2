@@ -771,13 +771,20 @@ function UI:Initialize()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.DisplayOrder = 999
 
-    -- Add to LocalPlayer's PlayerGui
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then
-        playerGui = Instance.new("PlayerGui")
-        playerGui.Parent = LocalPlayer
+    -- Add to CoreGui or PlayerGui (Executor Safe)
+    local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    if gethui then
+        screenGui.Parent = gethui()
+    elseif success and coreGui then
+        screenGui.Parent = coreGui
+    else
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then
+            playerGui = Instance.new("PlayerGui")
+            playerGui.Parent = LocalPlayer
+        end
+        screenGui.Parent = playerGui
     end
-    screenGui.Parent = playerGui
 
     self.Instance = screenGui
     self:CreateMainFrame()
