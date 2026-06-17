@@ -1009,39 +1009,6 @@ ShopLayout.Parent = ShopTab
 CreateLabel(ShopTab, "=== AUTO BUY ===", Color3.fromRGB(80, 200, 120))
 local _, getAutoBuy = CreateToggle(ShopTab, "Auto Buy Seeds", "Buy selected seeds when in stock", false)
 
--- Build seed list from SeedData
-local AllSeedOptions = {"None"}
-for _, seed in ipairs(SeedData) do
-    table.insert(AllSeedOptions, seed.name)
-end
-
-local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", AllSeedOptions, 1)
-
-
--- Restock timer header
-labelOrder = labelOrder + 1
-local RestockHeader = Instance.new("Frame")
-RestockHeader.Name = "RestockHeader"
-RestockHeader.Size = UDim2.new(1, 0, 0, 36)
-RestockHeader.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-RestockHeader.BorderSizePixel = 0
-RestockHeader.LayoutOrder = labelOrder
-RestockHeader.Parent = ShopTab
-local rhCorner = Instance.new("UICorner")
-rhCorner.CornerRadius = UDim.new(0, 6)
-rhCorner.Parent = RestockHeader
-
-local ShopPredictLabel = Instance.new("TextLabel")
-ShopPredictLabel.Size = UDim2.new(1, -16, 1, 0)
-ShopPredictLabel.Position = UDim2.new(0, 8, 0, 0)
-ShopPredictLabel.BackgroundTransparency = 1
-ShopPredictLabel.Text = "🔄 Next Restock: --:--"
-ShopPredictLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
-ShopPredictLabel.TextSize = 14
-ShopPredictLabel.Font = Enum.Font.GothamBold
-ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Left
-ShopPredictLabel.Parent = RestockHeader
-
 -- Seed data: {name, emoji, rarity, restockMinutes (estimated avg cycle)}
 local SeedData = {
     -- Common (always available, restock every 5 min)
@@ -1097,6 +1064,39 @@ local RarityBG = {
     Mythic = Color3.fromRGB(55, 20, 25),
     Super = Color3.fromRGB(20, 55, 60),
 }
+
+-- Build seed list from SeedData
+local AllSeedOptions = {"None"}
+for _, seed in ipairs(SeedData) do
+    table.insert(AllSeedOptions, seed.name)
+end
+
+local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", AllSeedOptions, 1)
+
+
+-- Restock timer header
+labelOrder = labelOrder + 1
+local RestockHeader = Instance.new("Frame")
+RestockHeader.Name = "RestockHeader"
+RestockHeader.Size = UDim2.new(1, 0, 0, 36)
+RestockHeader.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+RestockHeader.BorderSizePixel = 0
+RestockHeader.LayoutOrder = labelOrder
+RestockHeader.Parent = ShopTab
+local rhCorner = Instance.new("UICorner")
+rhCorner.CornerRadius = UDim.new(0, 6)
+rhCorner.Parent = RestockHeader
+
+local ShopPredictLabel = Instance.new("TextLabel")
+ShopPredictLabel.Size = UDim2.new(1, -16, 1, 0)
+ShopPredictLabel.Position = UDim2.new(0, 8, 0, 0)
+ShopPredictLabel.BackgroundTransparency = 1
+ShopPredictLabel.Text = "🔄 Next Restock: --:--"
+ShopPredictLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+ShopPredictLabel.TextSize = 14
+ShopPredictLabel.Font = Enum.Font.GothamBold
+ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Left
+ShopPredictLabel.Parent = RestockHeader
 
 -- Create seed rows
 local seedTimerLabels = {}
