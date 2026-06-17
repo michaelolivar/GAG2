@@ -1,75 +1,126 @@
 --[[
 ╔══════════════════════════════════════════════════════════════╗
-║             GROW A GARDEN 2 - Devo                           ║
-║              bebe Ed sheeran                                 ║
+║          🌱 GROW A GARDEN 2 — Devo v2.1 (Fixed)             ║
+║          Premium UI Edition · by: bebe Ed Sheeran            ║
+╠══════════════════════════════════════════════════════════════╣
+║  BUGS FIXED IN THIS VERSION:                                 ║
+║  [FIX 1] getWeatherNotif was hardcoded true — now a real     ║
+║          toggle (line ~429 original: replaced w/ CreateToggle)║
+║  [FIX 2] MinBtn re-assigns ContentFrame via FindFirstChild   ║
+║          which could nil it out — removed bad re-assignment  ║
+║  [FIX 3] TouchTransmitter check was wrong type — corrected  ║
+║          to TouchInterest (actual child name in Roblox)      ║
+║  [FIX 4] DescendantAdded obj validity check before acting    ║
+║          Added IsDescendantOf(Workspace) guard               ║
+║  [FIX 5] StatusLabel.Parent.LayoutOrder = 101 conflicted     ║
+║          with auto toggleOrder — removed manual override     ║
+║  [FIX 6] Weather cards clip on narrow screens — switched     ║
+║          to UIGridLayout-based rows                          ║
+║  [FIX 7] CreateLabel missing TextXAlignment — added Left     ║
+║                                                              ║
+║  UI IMPROVEMENTS:                                            ║
+║  • Glassy frosted-panel aesthetic with layered depth          ║
+║  • Animated gradient accent bar on title                     ║
+║  • Tab indicator underline instead of just color swap        ║
+║  • Toggle has smooth spring-style tween                      ║
+║  • Section dividers with inline icon badges                  ║
+║  • Status bar always visible at bottom (outside scroll)      ║
+║  • Weather cards use grid — no clipping on small screens     ║
 ╚══════════════════════════════════════════════════════════════╝
-Features:
-  1. Event Seeds Auto Collect (Golden Seed, Rainbow Seed)
-  2. Weather Prediction
-  3. Seed Shop Prediction
-  4. Auto Stay Base at Night
-  5. Auto Defense (Shovel, Crowbar, Freeze Ray, Power Hose)
 --]]
+
+-- ==========================================
+-- SERVICES
+-- ==========================================
+local Players             = game:GetService("Players")
+local RunService          = game:GetService("RunService")
+local Lighting            = game:GetService("Lighting")
+local UserInputService    = game:GetService("UserInputService")
+local TweenService        = game:GetService("TweenService")
+local CoreGui             = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Workspace           = game:GetService("Workspace")
+local ReplicatedStorage   = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local Character   = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local RootPart    = Character:WaitForChild("HumanoidRootPart")
 
 -- Configuration
 local Config = {
-    AutoCollectSeeds = true,
-    AutoDefense = true,
-    AutoStayBase = true,
-    NotifyWeather = true,
-    NotifyShop = true,
-    
-    -- Defense weapons priority (1=highest)
-    DefenseWeapons = {
-        "Freeze Ray",   -- Freezes thieves
-        "Power Hose",   -- Blasts thieves away
-        "Crowbar",      -- Melee weapon
-        "Shovel"        -- Default melee
-    },
-    
-    DefenseRange = 30,  -- Studs to detect thieves
-    WeaponCooldown = 2, -- Seconds between weapon uses
+    DefenseWeapons = {"Freeze Ray", "Power Hose", "Crowbar", "Shovel"},
+    DefenseRange   = 30,
+    WeaponCooldown = 2,
 }
 
--- Services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local RootPart = Character:WaitForChild("HumanoidRootPart")
-
--- Cleanup: destroy old UI if script is re-run
+-- ==========================================
+-- CLEANUP
+-- ==========================================
 if CoreGui:FindFirstChild("DevoGag2") then
     CoreGui:FindFirstChild("DevoGag2"):Destroy()
 end
 
--- Track all connections for cleanup
-local _connections = {}
+local _connections  = {}
 local _scriptRunning = true
 
--- UI Library
-local Library = Instance.new("ScreenGui")
-Library.Name = "DevoGag2"
-Library.Parent = CoreGui
+-- ==========================================
+-- THEME TOKENS
+-- ==========================================
+local T = {
+    -- Base surfaces
+    bg0        = Color3.fromRGB(12,  12,  18),   -- deepest bg
+    bg1        = Color3.fromRGB(18,  18,  26),   -- main panel
+    bg2        = Color3.fromRGB(24,  24,  36),   -- title bar
+    bg3        = Color3.fromRGB(30,  30,  44),   -- section/card bg
+    bg4        = Color3.fromRGB(36,  36,  52),   -- hover/active tab
+
+    -- Accent palette  (green → cyan → violet gradient)
+    accent1    = Color3.fromRGB(32,  210, 110),  -- primary green
+    accent2    = Color3.fromRGB(20,  165, 230),  -- cyan mid
+    accent3    = Color3.fromRGB(110,  70, 255),  -- violet end
+
+    -- Text
+    textPrimary   = Color3.fromRGB(235, 235, 245),
+    textSecondary = Color3.fromRGB(155, 155, 170),
+    textMuted     = Color3.fromRGB(90,   90, 110),
+    textAccent    = Color3.fromRGB(32,  210, 110),
+
+    -- Semantic
+    danger  = Color3.fromRGB(210,  50,  50),
+    warning = Color3.fromRGB(240, 170,  40),
+    info    = Color3.fromRGB(60,  150, 255),
+    success = Color3.fromRGB(32,  210, 110),
+
+    -- Borders
+    stroke  = Color3.fromRGB(42,  42,  60),
+    strokeHi = Color3.fromRGB(60, 60, 88),
+
+    -- Toggle
+    toggleOff = Color3.fromRGB(38,  38,  54),
+    toggleOn  = Color3.fromRGB(32,  210, 110),
+}
+
+-- ==========================================
+-- SCREEN GUI
+-- ==========================================
+local Library        = Instance.new("ScreenGui")
+Library.Name         = "DevoGag2"
+Library.Parent       = CoreGui
 Library.ResetOnSpawn = false
 Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Proper draggable: moves MainFrame from title bar drag
+-- ==========================================
+-- DRAGGABLE HELPER
+-- ==========================================
 local function MakeDraggable(dragHandle, targetFrame)
-    local dragging = false
-    local dragStart, startPos
-    
+    local dragging, dragStart, startPos = false, nil, nil
+
     local c1 = dragHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging  = true
             dragStart = input.Position
-            startPos = targetFrame.Position
+            startPos  = targetFrame.Position
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -78,1163 +129,1315 @@ local function MakeDraggable(dragHandle, targetFrame)
         end
     end)
     table.insert(_connections, c1)
-    
+
     local c2 = UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            targetFrame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y
+            )
         end
     end)
     table.insert(_connections, c2)
 end
 
 -- ==========================================
--- BUILD UI - Professional Dark Mode
+-- MAIN FRAME  (glass panel)
 -- ==========================================
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.9, 0, 0.85, 0)
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-local sizeConstraint = Instance.new("UISizeConstraint")
-sizeConstraint.MaxSize = Vector2.new(400, 520)
-sizeConstraint.MinSize = Vector2.new(280, 42)
-sizeConstraint.Parent = MainFrame
-MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+MainFrame.Name            = "MainFrame"
+MainFrame.Size            = UDim2.new(0.9, 0, 0.85, 0)
+MainFrame.AnchorPoint     = Vector2.new(0.5, 0.5)
+MainFrame.Position        = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = T.bg1
 MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Parent = Library
+MainFrame.Active          = true
+MainFrame.ClipsDescendants = true
+MainFrame.Parent          = Library
 
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 10)
-mainCorner.Parent = MainFrame
+local _sizeC = Instance.new("UISizeConstraint")
+_sizeC.MaxSize = Vector2.new(410, 560)
+_sizeC.MinSize = Vector2.new(280, 44)
+_sizeC.Parent  = MainFrame
 
--- Subtle border stroke
-local mainStroke = Instance.new("UIStroke")
-mainStroke.Color = Color3.fromRGB(45, 45, 60)
-mainStroke.Thickness = 1.5
-mainStroke.Parent = MainFrame
+local _mainCorner = Instance.new("UICorner")
+_mainCorner.CornerRadius = UDim.new(0, 12)
+_mainCorner.Parent       = MainFrame
 
--- Drop shadow (outer glow)
-local shadow = Instance.new("ImageLabel")
-shadow.Name = "Shadow"
-shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-shadow.BackgroundTransparency = 1
-shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
-shadow.Size = UDim2.new(1, 30, 1, 30)
-shadow.ZIndex = -1
-shadow.Image = "rbxassetid://6015897843"
-shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-shadow.ImageTransparency = 0.5
-shadow.ScaleType = Enum.ScaleType.Slice
-shadow.SliceCenter = Rect.new(49, 49, 450, 450)
-shadow.Parent = MainFrame
+local _mainStroke = Instance.new("UIStroke")
+_mainStroke.Color     = T.stroke
+_mainStroke.Thickness = 1.2
+_mainStroke.Parent    = MainFrame
 
--- Title Bar with gradient
+-- Soft drop-shadow
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name               = "Shadow"
+Shadow.AnchorPoint        = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position           = UDim2.new(0.5, 0, 0.5, 6)
+Shadow.Size               = UDim2.new(1, 40, 1, 40)
+Shadow.ZIndex             = -1
+Shadow.Image              = "rbxassetid://6015897843"
+Shadow.ImageColor3        = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency  = 0.45
+Shadow.ScaleType          = Enum.ScaleType.Slice
+Shadow.SliceCenter        = Rect.new(49, 49, 450, 450)
+Shadow.Parent             = MainFrame
+
+-- ==========================================
+-- TITLE BAR
+-- ==========================================
 local TitleBar = Instance.new("Frame")
-TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 42)
-TitleBar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
+TitleBar.Name             = "TitleBar"
+TitleBar.Size             = UDim2.new(1, 0, 0, 44)
+TitleBar.BackgroundColor3 = T.bg2
+TitleBar.BorderSizePixel  = 0
+TitleBar.ZIndex           = 3
+TitleBar.Parent           = MainFrame
 
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 10)
-titleCorner.Parent = TitleBar
+-- Only top corners rounded — fill bottom gap
+local _tbCorner = Instance.new("UICorner")
+_tbCorner.CornerRadius = UDim.new(0, 12)
+_tbCorner.Parent       = TitleBar
 
--- Bottom corner fill (so only top corners are rounded)
-local titleFill = Instance.new("Frame")
-titleFill.Size = UDim2.new(1, 0, 0, 12)
-titleFill.Position = UDim2.new(0, 0, 1, -12)
-titleFill.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
-titleFill.BorderSizePixel = 0
-titleFill.Parent = TitleBar
+local _tbFill = Instance.new("Frame")
+_tbFill.Size             = UDim2.new(1, 0, 0, 14)
+_tbFill.Position         = UDim2.new(0, 0, 1, -14)
+_tbFill.BackgroundColor3 = T.bg2
+_tbFill.BorderSizePixel  = 0
+_tbFill.Parent           = TitleBar
 
--- Accent line under title bar
-local accentLine = Instance.new("Frame")
-accentLine.Size = UDim2.new(1, 0, 0, 2)
-accentLine.Position = UDim2.new(0, 0, 1, -2)
-accentLine.BorderSizePixel = 0
-accentLine.Parent = TitleBar
+-- Animated gradient accent line
+local AccentLine = Instance.new("Frame")
+AccentLine.Name           = "AccentLine"
+AccentLine.Size           = UDim2.new(1, 0, 0, 2)
+AccentLine.Position       = UDim2.new(0, 0, 1, -2)
+AccentLine.BorderSizePixel = 0
+AccentLine.Parent         = TitleBar
 
-local accentGradient = Instance.new("UIGradient")
-accentGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 200, 120)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 160, 220)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 80, 255))
+local _accentGrad = Instance.new("UIGradient")
+_accentGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   T.accent1),
+    ColorSequenceKeypoint.new(0.5, T.accent2),
+    ColorSequenceKeypoint.new(1,   T.accent3),
 })
-accentGradient.Parent = accentLine
+_accentGrad.Parent = AccentLine
 
--- Title text
+-- Animate gradient offset for shimmer effect
+task.spawn(function()
+    local t = 0
+    while _scriptRunning and AccentLine.Parent do
+        t = t + 0.015
+        _accentGrad.Offset = Vector2.new(math.sin(t) * 0.5, 0)
+        task.wait(0.05)
+    end
+end)
+
+-- Title icon + text
+local TitleIcon = Instance.new("TextLabel")
+TitleIcon.Size               = UDim2.new(0, 28, 1, 0)
+TitleIcon.Position           = UDim2.new(0, 10, 0, 0)
+TitleIcon.BackgroundTransparency = 1
+TitleIcon.Text               = "🌱"
+TitleIcon.TextSize           = 18
+TitleIcon.Font               = Enum.Font.GothamBold
+TitleIcon.ZIndex             = 4
+TitleIcon.Parent             = TitleBar
+
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -80, 1, 0)
-TitleLabel.Position = UDim2.new(0, 14, 0, 0)
+TitleLabel.Size              = UDim2.new(1, -120, 1, 0)
+TitleLabel.Position          = UDim2.new(0, 42, 0, 0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "🌱 Devo GAG2 by:bebe Ed⁠"
-TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
-TitleLabel.TextSize = 16
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Parent = TitleBar
+TitleLabel.Text              = "Devo GAG2  ·  by bebe Ed"
+TitleLabel.TextColor3        = T.textPrimary
+TitleLabel.TextSize          = 14
+TitleLabel.Font              = Enum.Font.GothamBold
+TitleLabel.TextXAlignment    = Enum.TextXAlignment.Left
+TitleLabel.ZIndex            = 4
+TitleLabel.Parent            = TitleBar
 
--- Minimize button
+local VersionBadge = Instance.new("TextLabel")
+VersionBadge.Size            = UDim2.new(0, 34, 0, 16)
+VersionBadge.Position        = UDim2.new(0, 42, 0.5, -8)
+-- offset from TitleLabel right -- we do it inline with position
+VersionBadge.AnchorPoint     = Vector2.new(0, 0.5)
+-- nudge it next to the title text
+VersionBadge.Position        = UDim2.new(0, 200, 0.5, 0)
+VersionBadge.BackgroundColor3 = T.accent1
+VersionBadge.Text            = "v2.1"
+VersionBadge.TextColor3      = Color3.fromRGB(10, 30, 15)
+VersionBadge.TextSize        = 10
+VersionBadge.Font            = Enum.Font.GothamBold
+VersionBadge.ZIndex          = 4
+VersionBadge.BorderSizePixel = 0
+VersionBadge.Parent          = TitleBar
+local _vbCorner = Instance.new("UICorner")
+_vbCorner.CornerRadius = UDim.new(0, 4)
+_vbCorner.Parent       = VersionBadge
+
+-- Minimize button (styled pill)
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 28, 0, 28)
-MinBtn.Position = UDim2.new(1, -68, 0, 7)
-MinBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
-MinBtn.Text = "—"
-MinBtn.TextColor3 = Color3.fromRGB(180, 180, 190)
-MinBtn.TextSize = 14
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.BorderSizePixel = 0
-MinBtn.Parent = TitleBar
-local minCorner = Instance.new("UICorner")
-minCorner.CornerRadius = UDim.new(0, 6)
-minCorner.Parent = MinBtn
+MinBtn.Size             = UDim2.new(0, 28, 0, 28)
+MinBtn.Position         = UDim2.new(1, -66, 0.5, -14)
+MinBtn.BackgroundColor3 = T.bg3
+MinBtn.Text             = "–"
+MinBtn.TextColor3       = T.textSecondary
+MinBtn.TextSize         = 16
+MinBtn.Font             = Enum.Font.GothamBold
+MinBtn.BorderSizePixel  = 0
+MinBtn.ZIndex           = 4
+MinBtn.Parent           = TitleBar
+local _minC = Instance.new("UICorner")
+_minC.CornerRadius = UDim.new(0, 8)
+_minC.Parent       = MinBtn
+local _minS = Instance.new("UIStroke")
+_minS.Color     = T.stroke
+_minS.Thickness = 1
+_minS.Parent    = MinBtn
 
--- Close button
+-- Close button (red)
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 28, 0, 28)
-CloseBtn.Position = UDim2.new(1, -35, 0, 7)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 45, 45)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 12
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Parent = TitleBar
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = CloseBtn
+CloseBtn.Size             = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position         = UDim2.new(1, -32, 0.5, -14)
+CloseBtn.BackgroundColor3 = T.danger
+CloseBtn.Text             = "✕"
+CloseBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize         = 12
+CloseBtn.Font             = Enum.Font.GothamBold
+CloseBtn.BorderSizePixel  = 0
+CloseBtn.ZIndex           = 4
+CloseBtn.Parent           = TitleBar
+local _closeC = Instance.new("UICorner")
+_closeC.CornerRadius = UDim.new(0, 8)
+_closeC.Parent       = CloseBtn
+local _closeS = Instance.new("UIStroke")
+_closeS.Color     = Color3.fromRGB(240, 80, 80)
+_closeS.Thickness = 1
+_closeS.Parent    = CloseBtn
 
--- Minimize toggle
+-- Button hover effects
+for _, btn in ipairs({MinBtn, CloseBtn}) do
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundColor3 = btn == CloseBtn and Color3.fromRGB(230, 70, 70) or T.bg4
+        }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundColor3 = btn == CloseBtn and T.danger or T.bg3
+        }):Play()
+    end)
+end
+
+-- Minimize logic — [FIX 2]: do NOT re-assign ContentFrame from FindFirstChild
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
-    ContentFrame = MainFrame:FindFirstChild("ContentScroll") -- re-reference
+    -- Hide/show all children except title bar and non-visual stuff
     for _, child in pairs(MainFrame:GetChildren()) do
-        if child.Name ~= "TitleBar" and child.Name ~= "Shadow" and not child:IsA("UICorner") and not child:IsA("UIStroke") and not child:IsA("UISizeConstraint") then
+        if child ~= TitleBar and child ~= Shadow
+        and not child:IsA("UICorner") and not child:IsA("UIStroke")
+        and not child:IsA("UISizeConstraint") then
             child.Visible = not isMinimized
         end
     end
-    MainFrame.Size = isMinimized and UDim2.new(0.9, 0, 0, 42) or UDim2.new(0.9, 0, 0.85, 0)
-    MinBtn.Text = isMinimized and "+" or "—"
+    MainFrame.Size = isMinimized
+        and UDim2.new(0.9, 0, 0, 44)
+        or  UDim2.new(0.9, 0, 0.85, 0)
+    MinBtn.Text = isMinimized and "+" or "–"
 end)
 
--- Make draggable via title bar (moves MainFrame)
 MakeDraggable(TitleBar, MainFrame)
 
--- Tab system
-local TabContainer = Instance.new("Frame")
-TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(1, 0, 0, 36)
-TabContainer.Position = UDim2.new(0, 0, 0, 44)
-TabContainer.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-TabContainer.BorderSizePixel = 0
-TabContainer.ClipsDescendants = true
-TabContainer.Parent = MainFrame
+-- ==========================================
+-- TAB BAR
+-- ==========================================
+local TabBar = Instance.new("Frame")
+TabBar.Name             = "TabBar"
+TabBar.Size             = UDim2.new(1, 0, 0, 38)
+TabBar.Position         = UDim2.new(0, 0, 0, 44)
+TabBar.BackgroundColor3 = T.bg0
+TabBar.BorderSizePixel  = 0
+TabBar.ClipsDescendants = true
+TabBar.ZIndex           = 2
+TabBar.Parent           = MainFrame
 
-local TabLayout = Instance.new("UIListLayout")
-TabLayout.FillDirection = Enum.FillDirection.Horizontal
-TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabLayout.Padding = UDim.new(0, 1)
-TabLayout.Parent = TabContainer
+local _tabLayout = Instance.new("UIListLayout")
+_tabLayout.FillDirection = Enum.FillDirection.Horizontal
+_tabLayout.SortOrder     = Enum.SortOrder.LayoutOrder
+_tabLayout.Padding       = UDim.new(0, 0)
+_tabLayout.Parent        = TabBar
 
+-- Thin separator line under tab bar
+local TabSep = Instance.new("Frame")
+TabSep.Size             = UDim2.new(1, 0, 0, 1)
+TabSep.Position         = UDim2.new(0, 0, 1, -1)
+TabSep.BackgroundColor3 = T.stroke
+TabSep.BorderSizePixel  = 0
+TabSep.Parent           = TabBar
+
+-- ==========================================
+-- SCROLL CONTENT AREA
+-- ==========================================
 local ContentFrame = Instance.new("ScrollingFrame")
-ContentFrame.Name = "ContentScroll"
-ContentFrame.Size = UDim2.new(1, -20, 1, -100)
-ContentFrame.Position = UDim2.new(0, 10, 0, 84)
+ContentFrame.Name                = "ContentScroll"
+ContentFrame.Size                = UDim2.new(1, -14, 1, -102)
+ContentFrame.Position            = UDim2.new(0, 7, 0, 86)
 ContentFrame.BackgroundTransparency = 1
-ContentFrame.ScrollBarThickness = 4
-ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 200, 120)
-ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentFrame.ScrollBarThickness  = 3
+ContentFrame.ScrollBarImageColor3 = T.accent1
+ContentFrame.CanvasSize          = UDim2.new(0, 0, 0, 0)
 ContentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-ContentFrame.BorderSizePixel = 0
-ContentFrame.Parent = MainFrame
+ContentFrame.BorderSizePixel     = 0
+ContentFrame.ScrollingDirection  = Enum.ScrollingDirection.Y
+ContentFrame.Parent              = MainFrame
 
--- Create tabs
-local Tabs = {}
+-- ==========================================
+-- STATUS BAR (fixed at bottom, outside scroll)
+-- ==========================================
+local StatusBar = Instance.new("Frame")
+StatusBar.Name             = "StatusBar"
+StatusBar.Size             = UDim2.new(1, 0, 0, 16)
+StatusBar.Position         = UDim2.new(0, 0, 1, -16)
+StatusBar.BackgroundColor3 = T.bg0
+StatusBar.BorderSizePixel  = 0
+StatusBar.ZIndex           = 3
+StatusBar.Parent           = MainFrame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size             = UDim2.new(1, -12, 1, 0)
+StatusLabel.Position         = UDim2.new(0, 6, 0, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text             = "⏳ Script Active | Waiting..."
+StatusLabel.TextColor3       = T.textMuted
+StatusLabel.TextSize         = 10
+StatusLabel.Font             = Enum.Font.Gotham
+StatusLabel.TextXAlignment   = Enum.TextXAlignment.Left
+StatusLabel.ZIndex           = 3
+StatusLabel.Parent           = StatusBar
+
+-- ==========================================
+-- TAB SYSTEM
+-- ==========================================
 local TabNames = {"Main", "Steal", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🥷", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabIcons = {"🌱",   "🥷",    "🛡️",      "🏪",   "🌤️",     "ℹ️"}
 
 local function SwitchTab(tabName)
+    -- Hide all content panels
     for _, child in pairs(ContentFrame:GetChildren()) do
-        if child:IsA("Frame") then
-            child.Visible = false
-        end
+        if child:IsA("Frame") then child.Visible = false end
     end
-    for _, child in pairs(ContentFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Name == tabName then
-            child.Visible = true
-        end
-    end
-    for _, btn in pairs(TabContainer:GetChildren()) do
-        if btn:IsA("TextButton") then
-            btn.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-            btn.TextColor3 = Color3.fromRGB(120, 120, 130)
-        end
-    end
-    local tabBtn = TabContainer:FindFirstChild(tabName)
-    if tabBtn then
-        tabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-        tabBtn.TextColor3 = Color3.fromRGB(40, 200, 120)
-    end
-    
-    -- Try to update canvas if function exists (it gets defined later)
-    pcall(function()
-        if UpdateCanvas then UpdateCanvas() end
-    end)
-    
-    -- Reset scroll position to top when switching tabs
+    -- Show target
+    local panel = ContentFrame:FindFirstChild(tabName)
+    if panel then panel.Visible = true end
+    -- Reset scroll
     ContentFrame.CanvasPosition = Vector2.new(0, 0)
+    -- Update tab button styles
+    for _, btn in pairs(TabBar:GetChildren()) do
+        if btn:IsA("TextButton") then
+            local isActive = btn.Name == tabName
+            TweenService:Create(btn, TweenInfo.new(0.12), {
+                BackgroundColor3 = isActive and T.bg4 or T.bg0,
+                TextColor3       = isActive and T.textAccent or T.textMuted,
+            }):Play()
+            -- Move underline indicator
+            local ind = btn:FindFirstChild("ActiveIndicator")
+            if ind then
+                ind.BackgroundTransparency = isActive and 0 or 1
+            end
+        end
+    end
 end
 
 for i, tabName in ipairs(TabNames) do
     local tabBtn = Instance.new("TextButton")
-    tabBtn.Name = tabName
-    tabBtn.Size = UDim2.new(1 / #TabNames, -1, 1, 0)
-    tabBtn.LayoutOrder = i
-    tabBtn.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
-    tabBtn.Text = TabIcons[i] .. " " .. tabName
-    tabBtn.TextColor3 = Color3.fromRGB(120, 120, 130)
-    tabBtn.TextSize = 11
-    tabBtn.Font = Enum.Font.GothamSemibold
-    tabBtn.BorderSizePixel = 0
-    tabBtn.TextTruncate = Enum.TextTruncate.AtEnd
-    tabBtn.Parent = TabContainer
-    
-    if i == 1 then
-        tabBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-        tabBtn.TextColor3 = Color3.fromRGB(40, 200, 120)
+    tabBtn.Name             = tabName
+    tabBtn.Size             = UDim2.new(1 / #TabNames, 0, 1, 0)
+    tabBtn.LayoutOrder      = i
+    tabBtn.BackgroundColor3 = i == 1 and T.bg4 or T.bg0
+    tabBtn.Text             = TabIcons[i] .. "\n" .. tabName
+    tabBtn.TextColor3       = i == 1 and T.textAccent or T.textMuted
+    tabBtn.TextSize         = 9
+    tabBtn.Font             = Enum.Font.GothamSemibold
+    tabBtn.BorderSizePixel  = 0
+    tabBtn.TextTruncate     = Enum.TextTruncate.AtEnd
+    tabBtn.LineHeight       = 1.1
+    tabBtn.ZIndex           = 2
+    tabBtn.Parent           = TabBar
+
+    -- Active underline indicator
+    local indicator = Instance.new("Frame")
+    indicator.Name              = "ActiveIndicator"
+    indicator.Size              = UDim2.new(0.7, 0, 0, 2)
+    indicator.Position          = UDim2.new(0.15, 0, 1, -2)
+    indicator.BackgroundColor3  = T.accent1
+    indicator.BorderSizePixel   = 0
+    indicator.BackgroundTransparency = i == 1 and 0 or 1
+    indicator.ZIndex            = 3
+    indicator.Parent            = tabBtn
+    local _indCorner = Instance.new("UICorner")
+    _indCorner.CornerRadius = UDim.new(0, 1)
+    _indCorner.Parent       = indicator
+
+    tabBtn.MouseButton1Click:Connect(function() SwitchTab(tabName) end)
+    tabBtn.MouseEnter:Connect(function()
+        if tabBtn.TextColor3 == T.textMuted then
+            TweenService:Create(tabBtn, TweenInfo.new(0.1), {
+                BackgroundColor3 = T.bg3
+            }):Play()
+        end
+    end)
+    tabBtn.MouseLeave:Connect(function()
+        if tabBtn.TextColor3 == T.textMuted then
+            TweenService:Create(tabBtn, TweenInfo.new(0.1), {
+                BackgroundColor3 = T.bg0
+            }):Play()
+        end
+    end)
+end
+
+-- ==========================================
+-- UI COMPONENT HELPERS
+-- ==========================================
+local _rowOrder = 0
+
+-- Section header
+local function MakeSection(parent, title, iconEmoji, color)
+    _rowOrder = _rowOrder + 1
+    local wrap = Instance.new("Frame")
+    wrap.Name               = "Section_" .. _rowOrder
+    wrap.Size               = UDim2.new(1, 0, 0, 28)
+    wrap.BackgroundTransparency = 1
+    wrap.LayoutOrder        = _rowOrder
+    wrap.Parent             = parent
+
+    local line = Instance.new("Frame")
+    line.Size               = UDim2.new(1, 0, 0, 1)
+    line.Position           = UDim2.new(0, 0, 0.5, 0)
+    line.BackgroundColor3   = T.stroke
+    line.BorderSizePixel    = 0
+    line.Parent             = wrap
+
+    local badge = Instance.new("TextLabel")
+    badge.Size              = UDim2.new(0, 0, 0, 20)
+    badge.AutomaticSize     = Enum.AutomaticSize.X
+    badge.Position          = UDim2.new(0, 0, 0.5, -10)
+    badge.BackgroundColor3  = T.bg1
+    badge.Text              = "  " .. (iconEmoji or "") .. "  " .. title:upper() .. "  "
+    badge.TextColor3        = color or T.textSecondary
+    badge.TextSize          = 10
+    badge.Font              = Enum.Font.GothamBold
+    badge.BorderSizePixel   = 0
+    badge.Parent            = wrap
+    local _badgeCorner = Instance.new("UICorner")
+    _badgeCorner.CornerRadius = UDim.new(0, 3)
+    _badgeCorner.Parent       = badge
+end
+
+-- Info label (single line)
+local function MakeLabel(parent, text, color, size)
+    _rowOrder = _rowOrder + 1
+    local row = Instance.new("Frame")
+    row.Name            = "Row_" .. _rowOrder
+    row.Size            = UDim2.new(1, 0, 0, text == "" and 6 or (size or 20))
+    row.BackgroundTransparency = 1
+    row.LayoutOrder     = _rowOrder
+    row.Parent          = parent
+
+    if text ~= "" then
+        local lbl = Instance.new("TextLabel")
+        lbl.Size            = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text            = text
+        lbl.TextColor3      = color or T.textSecondary
+        lbl.TextSize        = size or 12
+        lbl.Font            = Enum.Font.Gotham
+        lbl.TextXAlignment  = Enum.TextXAlignment.Left  -- [FIX 7]
+        lbl.Parent          = row
+        return lbl
     end
-    
-    tabBtn.MouseButton1Click:Connect(function()
-        SwitchTab(tabName)
-    end)
+    return nil
 end
 
--- Helper: Create toggle row
-local toggleOrder = 0
-local function CreateToggle(tab, name, desc, default)
-    toggleOrder = toggleOrder + 1
+-- Toggle row
+-- Returns: toggleBtn (click target), getter function
+local function MakeToggle(parent, name, desc, default)
+    _rowOrder = _rowOrder + 1
     local row = Instance.new("Frame")
-    row.Name = "Toggle_" .. toggleOrder
-    row.Size = UDim2.new(1, 0, 0, 50)
-    row.BackgroundTransparency = 1
-    row.LayoutOrder = toggleOrder
-    row.Parent = tab
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, -5, 0, 22)
-    label.Position = UDim2.new(0, 0, 0, 4)
-    label.BackgroundTransparency = 1
-    label.Text = name
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.TextSize = 14
-    label.Font = Enum.Font.GothamSemibold
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = row
-    
+    row.Name            = "Toggle_" .. _rowOrder
+    row.Size            = UDim2.new(1, 0, 0, 54)
+    row.BackgroundColor3 = T.bg3
+    row.BorderSizePixel = 0
+    row.LayoutOrder     = _rowOrder
+    row.Parent          = parent
+    local _rowC = Instance.new("UICorner")
+    _rowC.CornerRadius = UDim.new(0, 8)
+    _rowC.Parent       = row
+    local _rowS = Instance.new("UIStroke")
+    _rowS.Color     = T.stroke
+    _rowS.Thickness = 1
+    _rowS.Parent    = row
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size           = UDim2.new(1, -70, 0, 22)
+    nameLabel.Position       = UDim2.new(0, 12, 0, 7)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text           = name
+    nameLabel.TextColor3     = T.textPrimary
+    nameLabel.TextSize       = 13
+    nameLabel.Font           = Enum.Font.GothamSemibold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent         = row
+
     local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(0.7, -5, 0, 16)
-    descLabel.Position = UDim2.new(0, 0, 0, 28)
+    descLabel.Size           = UDim2.new(1, -70, 0, 16)
+    descLabel.Position       = UDim2.new(0, 12, 0, 30)
     descLabel.BackgroundTransparency = 1
-    descLabel.Text = desc
-    descLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
-    descLabel.TextSize = 11
-    descLabel.Font = Enum.Font.Gotham
+    descLabel.Text           = desc
+    descLabel.TextColor3     = T.textMuted
+    descLabel.TextSize       = 10
+    descLabel.Font           = Enum.Font.Gotham
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
-    descLabel.Parent = row
-    
-    local toggle = Instance.new("Frame")
-    toggle.Size = UDim2.new(0, 50, 0, 24)
-    toggle.Position = UDim2.new(1, -55, 0, 13)
-    toggle.BackgroundColor3 = default and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
-    toggle.BorderSizePixel = 0
-    toggle.Parent = row
-    
-    local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 12)
-    toggleCorner.Parent = toggle
-    
+    descLabel.Parent         = row
+
+    -- Toggle track
+    local track = Instance.new("Frame")
+    track.Size             = UDim2.new(0, 46, 0, 24)
+    track.Position         = UDim2.new(1, -58, 0.5, -12)
+    track.BackgroundColor3 = default and T.toggleOn or T.toggleOff
+    track.BorderSizePixel  = 0
+    track.Parent           = row
+    local _trackC = Instance.new("UICorner")
+    _trackC.CornerRadius = UDim.new(0, 12)
+    _trackC.Parent       = track
+    local _trackS = Instance.new("UIStroke")
+    _trackS.Color     = default and T.accent1 or T.stroke
+    _trackS.Thickness = 1
+    _trackS.Parent    = track
+
+    -- Transparent click overlay (full row)
     local toggleBtn = Instance.new("TextButton")
-    toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+    toggleBtn.Size             = UDim2.new(1, 0, 1, 0)
     toggleBtn.BackgroundTransparency = 1
-    toggleBtn.Text = ""
-    toggleBtn.Parent = toggle
-    
-    local circle = Instance.new("Frame")
-    circle.Size = UDim2.new(0, 20, 0, 20)
-    circle.Position = default and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
-    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    circle.BorderSizePixel = 0
-    circle.Parent = toggle
-    
-    local circleCorner = Instance.new("UICorner")
-    circleCorner.CornerRadius = UDim.new(0, 10)
-    circleCorner.Parent = circle
-    
-    local toggled = default
-    
+    toggleBtn.Text             = ""
+    toggleBtn.Parent           = row
+
+    -- Knob
+    local knob = Instance.new("Frame")
+    knob.Size             = UDim2.new(0, 18, 0, 18)
+    knob.Position         = default and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel  = 0
+    knob.ZIndex           = 2
+    knob.Parent           = track
+    local _knobC = Instance.new("UICorner")
+    _knobC.CornerRadius = UDim.new(0, 9)
+    _knobC.Parent       = knob
+
+    local state = default
+
     toggleBtn.MouseButton1Click:Connect(function()
-        toggled = not toggled
-        toggle.BackgroundColor3 = toggled and Color3.fromRGB(40, 200, 120) or Color3.fromRGB(35, 35, 45)
-        circle:TweenPosition(UDim2.new(toggled and 1 or 0, toggled and -22 or 2, 0, 2), "Out", "Quad", 0.15, true)
+        state = not state
+        local ti = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        TweenService:Create(track, ti, {
+            BackgroundColor3 = state and T.toggleOn or T.toggleOff
+        }):Play()
+        TweenService:Create(_trackS, ti, {
+            Color = state and T.accent1 or T.stroke
+        }):Play()
+        TweenService:Create(knob, ti, {
+            Position = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+        }):Play()
+        -- Flash row bg briefly
+        TweenService:Create(row, TweenInfo.new(0.1), {
+            BackgroundColor3 = state and Color3.fromRGB(30, 55, 38) or T.bg3
+        }):Play()
+        task.delay(0.25, function()
+            TweenService:Create(row, TweenInfo.new(0.2), {
+                BackgroundColor3 = T.bg3
+            }):Play()
+        end)
     end)
-    
-    return toggleBtn, function() return toggled end
+
+    return toggleBtn, function() return state end
 end
 
--- Helper: Create label row
-local labelOrder = 0
-local function CreateLabel(tab, text, color)
-    labelOrder = labelOrder + 1
-    local row = Instance.new("Frame")
-    row.Name = "Label_" .. labelOrder
-    row.Size = UDim2.new(1, 0, 0, (text == "") and 8 or 24)
-    row.BackgroundTransparency = 1
-    row.LayoutOrder = labelOrder
-    row.Parent = tab
-    
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = color or Color3.fromRGB(180, 180, 180)
-    label.TextSize = 13
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = row
-    
-    return label
+-- Card widget (for weather/info cards)
+local function MakeCard(parent, order, h)
+    _rowOrder = _rowOrder + 1
+    local card = Instance.new("Frame")
+    card.Name            = "Card_" .. _rowOrder
+    card.Size            = UDim2.new(1, 0, 0, h or 40)
+    card.BackgroundColor3 = T.bg3
+    card.BorderSizePixel = 0
+    card.LayoutOrder     = order or _rowOrder
+    card.Parent          = parent
+    local _cC = Instance.new("UICorner")
+    _cC.CornerRadius = UDim.new(0, 8)
+    _cC.Parent       = card
+    local _cS = Instance.new("UIStroke")
+    _cS.Color     = T.stroke
+    _cS.Thickness = 1
+    _cS.Parent    = card
+    return card
 end
 
 -- ==========================================
 -- TAB: MAIN
 -- ==========================================
 local MainTab = Instance.new("Frame")
-MainTab.Name = "Main"
-MainTab.Size = UDim2.new(1, 0, 0, 0)
-MainTab.AutomaticSize = Enum.AutomaticSize.Y
+MainTab.Name            = "Main"
+MainTab.Size            = UDim2.new(1, 0, 0, 0)
+MainTab.AutomaticSize   = Enum.AutomaticSize.Y
 MainTab.BackgroundTransparency = 1
-MainTab.Parent = ContentFrame
+MainTab.Parent          = ContentFrame
 
-local MainLayout = Instance.new("UIListLayout")
-MainLayout.SortOrder = Enum.SortOrder.LayoutOrder
-MainLayout.Padding = UDim.new(0, 4)
-MainLayout.Parent = MainTab
+local _mainTL = Instance.new("UIListLayout")
+_mainTL.SortOrder  = Enum.SortOrder.LayoutOrder
+_mainTL.Padding    = UDim.new(0, 5)
+_mainTL.Parent     = MainTab
 
-CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
+local _mainPad = Instance.new("UIPadding")
+_mainPad.PaddingTop    = UDim.new(0, 6)
+_mainPad.PaddingBottom = UDim.new(0, 8)
+_mainPad.Parent        = MainTab
 
-local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Events", "Collect Golden, Rainbow, Bird, & Packs", true)
-local function getWeatherNotif() return true end
-local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
+MakeSection(MainTab, "Automation", "⚡", T.success)
+local _, getAutoCollect = MakeToggle(MainTab, "Auto-Collect Events",    "Golden, Rainbow, Bird & Seed Packs", true)
 
-CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
+-- [FIX 1]: getWeatherNotif is now a real toggle (was hardcoded `function() return true end`)
+local _, getWeatherNotif = MakeToggle(MainTab, "Weather Notifications", "Show weather change alerts",          true)
+local _, getShopNotif    = MakeToggle(MainTab, "Shop Predictions",      "Track seed shop rotations",           true)
 
-local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
-local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
+MakeSection(MainTab, "Defense", "🛡️", T.danger)
+local _, getAutoDefense = MakeToggle(MainTab, "Auto Defense",       "Auto-attack thieves in your base",      true)
+local _, getAutoStay    = MakeToggle(MainTab, "Auto Stay at Base",  "Return to base at night",               true)
 
-CreateLabel(MainTab, "=== UTILITIES ===", Color3.fromRGB(200, 180, 80))
-local _, getAntiAFK = CreateToggle(MainTab, "Anti-AFK", "Prevent Roblox from kicking you", true)
-local _, getAntiPause = CreateToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause", true)
-local _, getAutoSkip = CreateToggle(MainTab, "Auto Skip Cutscenes", "Skip intro or event cutscenes", true)
-
-local StatusLabelTitle = CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
-StatusLabelTitle.LayoutOrder = 100
-
-local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
-StatusLabel.Parent.LayoutOrder = 101
-
--- Spacer
-local spacer = Instance.new("Frame")
-spacer.Size = UDim2.new(1, 0, 0, 20)
-spacer.BackgroundTransparency = 1
-spacer.Parent = MainTab
-
--- Reset canvas size
-local function UpdateCanvas()
-    local totalH = 0
-    for _, child in pairs(ContentFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Visible then
-            local layout = child:FindFirstChildWhichIsA("UIListLayout")
-            if layout then
-                totalH = math.max(totalH, layout.AbsoluteContentSize.Y)
-            else
-                for _, row in pairs(child:GetChildren()) do
-                    if row:IsA("Frame") then
-                        totalH = totalH + row.Size.Y.Offset + 5
-                    end
-                end
-            end
-        end
-    end
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, totalH + 20)
-end
+MakeSection(MainTab, "Utilities", "🔧", T.warning)
+local _, getAntiAFK   = MakeToggle(MainTab, "Anti-AFK",            "Prevent Roblox kick",                   true)
+local _, getAntiPause = MakeToggle(MainTab, "Anti Gameplay Pause", "Prevent game freeze/pause",             true)
+local _, getAutoSkip  = MakeToggle(MainTab, "Auto Skip Cutscenes", "Skip intro & event cutscenes",          true)
 
 -- ==========================================
 -- TAB: STEAL
 -- ==========================================
 local StealTab = Instance.new("Frame")
-StealTab.Name = "Steal"
-StealTab.Size = UDim2.new(1, 0, 0, 0)
-StealTab.AutomaticSize = Enum.AutomaticSize.Y
+StealTab.Name            = "Steal"
+StealTab.Size            = UDim2.new(1, 0, 0, 0)
+StealTab.AutomaticSize   = Enum.AutomaticSize.Y
 StealTab.BackgroundTransparency = 1
-StealTab.Visible = false
-StealTab.Parent = ContentFrame
+StealTab.Visible         = false
+StealTab.Parent          = ContentFrame
 
-local StealLayout = Instance.new("UIListLayout")
-StealLayout.SortOrder = Enum.SortOrder.LayoutOrder
-StealLayout.Padding = UDim.new(0, 4)
-StealLayout.Parent = StealTab
+local _stealTL = Instance.new("UIListLayout")
+_stealTL.SortOrder = Enum.SortOrder.LayoutOrder
+_stealTL.Padding   = UDim.new(0, 5)
+_stealTL.Parent    = StealTab
 
-CreateLabel(StealTab, "=== STEALING CONTROLS ===", Color3.fromRGB(180, 80, 200))
-local _, getAutoSteal = CreateToggle(StealTab, "Auto Steal (Night)", "Steal crops from other bases", false)
-local _, getStealHighValue = CreateToggle(StealTab, "Steal High Value Only", "Only steal rare crops", true)
-local _, getAutoAttackOwner = CreateToggle(StealTab, "Attack Plot Owner", "Attack them while stealing", false)
+local _stealPad = Instance.new("UIPadding")
+_stealPad.PaddingTop    = UDim.new(0, 6)
+_stealPad.PaddingBottom = UDim.new(0, 8)
+_stealPad.Parent        = StealTab
 
-CreateLabel(StealTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(StealTab, "Automatically invades other player's gardens", Color3.fromRGB(200, 150, 200))
-CreateLabel(StealTab, "during the Night cycle to steal crops.", Color3.fromRGB(200, 150, 200))
-CreateLabel(StealTab, "Bypasses Auto Stay while active.", Color3.fromRGB(200, 150, 200))
+MakeSection(StealTab, "Stealing Controls", "🥷", Color3.fromRGB(180, 80, 220))
+
+local _, getAutoSteal      = MakeToggle(StealTab, "Auto Steal (Night)", "Steal crops from other bases at night", false)
+local _, getStealHighValue = MakeToggle(StealTab, "High Value Only",    "Only target rare/epic/legendary crops",  true)
+local _, getAutoAttackOwner = MakeToggle(StealTab, "Attack Plot Owner", "Attack owners while stealing",          false)
+
+MakeSection(StealTab, "Info", "ℹ️", T.textSecondary)
+MakeLabel(StealTab, "Invades other gardens during Night cycle.", T.textSecondary, 11)
+MakeLabel(StealTab, "Overrides Auto Stay Base while active.", Color3.fromRGB(200, 150, 200), 11)
 
 -- ==========================================
 -- TAB: DEFENSE
 -- ==========================================
 local DefenseTab = Instance.new("Frame")
-DefenseTab.Name = "Defense"
-DefenseTab.Size = UDim2.new(1, 0, 0, 0)
-DefenseTab.AutomaticSize = Enum.AutomaticSize.Y
+DefenseTab.Name            = "Defense"
+DefenseTab.Size            = UDim2.new(1, 0, 0, 0)
+DefenseTab.AutomaticSize   = Enum.AutomaticSize.Y
 DefenseTab.BackgroundTransparency = 1
-DefenseTab.Visible = false
-DefenseTab.Parent = ContentFrame
+DefenseTab.Visible         = false
+DefenseTab.Parent          = ContentFrame
 
-local DefenseLayout = Instance.new("UIListLayout")
-DefenseLayout.SortOrder = Enum.SortOrder.LayoutOrder
-DefenseLayout.Padding = UDim.new(0, 4)
-DefenseLayout.Parent = DefenseTab
+local _defTL = Instance.new("UIListLayout")
+_defTL.SortOrder = Enum.SortOrder.LayoutOrder
+_defTL.Padding   = UDim.new(0, 5)
+_defTL.Parent    = DefenseTab
 
-CreateLabel(DefenseTab, "=== WEAPON SETTINGS ===", Color3.fromRGB(200, 80, 80))
-CreateLabel(DefenseTab, "✓ Shovel (Default - Free)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Crowbar (Rare - Gear Shop)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Freeze Ray (Premium - 749 Robux)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Power Hose (Premium - 299 Robux)", Color3.fromRGB(150, 255, 150))
+local _defPad = Instance.new("UIPadding")
+_defPad.PaddingTop    = UDim.new(0, 6)
+_defPad.PaddingBottom = UDim.new(0, 8)
+_defPad.Parent        = DefenseTab
 
-CreateLabel(DefenseTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(DefenseTab, "Auto-detects thieves in your garden area", Color3.fromRGB(200, 200, 150))
-CreateLabel(DefenseTab, "and equips best available weapon to", Color3.fromRGB(200, 200, 150))
-CreateLabel(DefenseTab, "attack intruders automatically.", Color3.fromRGB(200, 200, 150))
+MakeSection(DefenseTab, "Weapon Priority", "⚔️", T.danger)
+
+local weapons = {
+    {"🧊 Freeze Ray",  "Premium — 749 Robux",  T.info},
+    {"💧 Power Hose",  "Premium — 299 Robux",  T.accent2},
+    {"🔧 Crowbar",     "Rare — Gear Shop",     T.warning},
+    {"⛏️ Shovel",      "Default — Free",        T.success},
+}
+for _, w in ipairs(weapons) do
+    local card = MakeCard(DefenseTab, nil, 42)
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 36, 1, 0)
+    icon.BackgroundTransparency = 1
+    icon.Text = w[1]:sub(1, 2) -- emoji only
+    icon.TextSize = 18
+    icon.Font = Enum.Font.GothamBold
+    icon.TextColor3 = w[3]
+    icon.Parent = card
+    local wname = Instance.new("TextLabel")
+    wname.Size = UDim2.new(0.55, 0, 0, 20)
+    wname.Position = UDim2.new(0, 36, 0, 5)
+    wname.BackgroundTransparency = 1
+    wname.Text = w[1]:sub(4) -- name without emoji
+    wname.TextSize = 12
+    wname.Font = Enum.Font.GothamSemibold
+    wname.TextColor3 = T.textPrimary
+    wname.TextXAlignment = Enum.TextXAlignment.Left
+    wname.Parent = card
+    local wdesc = Instance.new("TextLabel")
+    wdesc.Size = UDim2.new(0.55, 0, 0, 16)
+    wdesc.Position = UDim2.new(0, 36, 0, 22)
+    wdesc.BackgroundTransparency = 1
+    wdesc.Text = w[2]
+    wdesc.TextSize = 10
+    wdesc.Font = Enum.Font.Gotham
+    wdesc.TextColor3 = T.textMuted
+    wdesc.TextXAlignment = Enum.TextXAlignment.Left
+    wdesc.Parent = card
+    local wpill = Instance.new("TextLabel")
+    wpill.Size = UDim2.new(0, 38, 0, 18)
+    wpill.Position = UDim2.new(1, -46, 0.5, -9)
+    wpill.BackgroundColor3 = w[3]
+    wpill.Text = "AUTO"
+    wpill.TextSize = 9
+    wpill.Font = Enum.Font.GothamBold
+    wpill.TextColor3 = Color3.fromRGB(8, 8, 12)
+    wpill.BorderSizePixel = 0
+    wpill.Parent = card
+    local _pc = Instance.new("UICorner")
+    _pc.CornerRadius = UDim.new(0, 4)
+    _pc.Parent = wpill
+end
+
+MakeSection(DefenseTab, "How It Works", "ℹ️", T.textSecondary)
+MakeLabel(DefenseTab, "Auto-detects players in your garden area", T.textSecondary, 11)
+MakeLabel(DefenseTab, "and equips the best available weapon.", T.textSecondary, 11)
 
 -- ==========================================
 -- TAB: SHOP
 -- ==========================================
 local ShopTab = Instance.new("Frame")
-ShopTab.Name = "Shop"
-ShopTab.Size = UDim2.new(1, 0, 0, 0)
-ShopTab.AutomaticSize = Enum.AutomaticSize.Y
+ShopTab.Name            = "Shop"
+ShopTab.Size            = UDim2.new(1, 0, 0, 0)
+ShopTab.AutomaticSize   = Enum.AutomaticSize.Y
 ShopTab.BackgroundTransparency = 1
-ShopTab.Visible = false
-ShopTab.Parent = ContentFrame
+ShopTab.Visible         = false
+ShopTab.Parent          = ContentFrame
 
-local ShopLayout = Instance.new("UIListLayout")
-ShopLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ShopLayout.Padding = UDim.new(0, 3)
-ShopLayout.Parent = ShopTab
+local _shopTL = Instance.new("UIListLayout")
+_shopTL.SortOrder = Enum.SortOrder.LayoutOrder
+_shopTL.Padding   = UDim.new(0, 4)
+_shopTL.Parent    = ShopTab
 
--- Restock timer header
-labelOrder = labelOrder + 1
-local RestockHeader = Instance.new("Frame")
-RestockHeader.Name = "RestockHeader"
-RestockHeader.Size = UDim2.new(1, 0, 0, 36)
-RestockHeader.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-RestockHeader.BorderSizePixel = 0
-RestockHeader.LayoutOrder = labelOrder
-RestockHeader.Parent = ShopTab
-local rhCorner = Instance.new("UICorner")
-rhCorner.CornerRadius = UDim.new(0, 6)
-rhCorner.Parent = RestockHeader
+local _shopPad = Instance.new("UIPadding")
+_shopPad.PaddingTop    = UDim.new(0, 6)
+_shopPad.PaddingBottom = UDim.new(0, 8)
+_shopPad.Parent        = ShopTab
+
+-- Restock header card
+_rowOrder = _rowOrder + 1
+local RestockCard = MakeCard(ShopTab, _rowOrder, 40)
+RestockCard.BackgroundColor3 = Color3.fromRGB(42, 35, 14)
+local _rsg = Instance.new("UIGradient")
+_rsg.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(50, 42, 16)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(35, 28, 10)),
+})
+_rsg.Rotation = 90
+_rsg.Parent = RestockCard
 
 local ShopPredictLabel = Instance.new("TextLabel")
 ShopPredictLabel.Size = UDim2.new(1, -16, 1, 0)
 ShopPredictLabel.Position = UDim2.new(0, 8, 0, 0)
 ShopPredictLabel.BackgroundTransparency = 1
 ShopPredictLabel.Text = "🔄 Next Restock: --:--"
-ShopPredictLabel.TextColor3 = Color3.fromRGB(255, 200, 80)
+ShopPredictLabel.TextColor3 = T.warning
 ShopPredictLabel.TextSize = 14
 ShopPredictLabel.Font = Enum.Font.GothamBold
 ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Left
-ShopPredictLabel.Parent = RestockHeader
+ShopPredictLabel.Parent = RestockCard
 
--- Seed data: {name, emoji, rarity, restockMinutes (estimated avg cycle)}
+-- Seed data
 local SeedData = {
-    -- Common (always available, restock every 5 min)
-    {name = "Carrot", emoji = "🥕", rarity = "Common", cycle = 5},
-    {name = "Strawberry", emoji = "🍓", rarity = "Common", cycle = 5},
-    {name = "Blueberry", emoji = "🔵", rarity = "Common", cycle = 5},
-    -- Uncommon (restock ~10 min)
-    {name = "Tulip", emoji = "🌷", rarity = "Uncommon", cycle = 10},
-    {name = "Tomato", emoji = "🍅", rarity = "Uncommon", cycle = 10},
-    {name = "Apple", emoji = "🍎", rarity = "Uncommon", cycle = 10},
-    -- Rare (restock ~20 min)
-    {name = "Bamboo", emoji = "🎋", rarity = "Rare", cycle = 20},
-    {name = "Corn", emoji = "🌽", rarity = "Rare", cycle = 20},
-    {name = "Cactus", emoji = "🌵", rarity = "Rare", cycle = 20},
-    {name = "Pineapple", emoji = "🍍", rarity = "Rare", cycle = 20},
-    -- Epic (restock ~45 min)
-    {name = "Mushroom", emoji = "🍄", rarity = "Epic", cycle = 45},
-    {name = "Banana", emoji = "🍌", rarity = "Epic", cycle = 45},
-    {name = "Grape", emoji = "🍇", rarity = "Epic", cycle = 45},
-    {name = "Coconut", emoji = "🥥", rarity = "Epic", cycle = 45},
-    {name = "Mango", emoji = "🍋", rarity = "Epic", cycle = 45},
-    {name = "Green Bean", emoji = "🌿", rarity = "Epic", cycle = 45},
-    -- Legendary (restock ~90 min)
-    {name = "Dragon Fruit", emoji = "🐉", rarity = "Legendary", cycle = 90},
-    {name = "Acorn", emoji = "🌰", rarity = "Legendary", cycle = 90},
-    {name = "Cherry", emoji = "🍒", rarity = "Legendary", cycle = 90},
-    {name = "Sunflower", emoji = "🌻", rarity = "Legendary", cycle = 90},
-    -- Mythic (restock ~180 min)
-    {name = "Venus Flytrap", emoji = "🕷️", rarity = "Mythic", cycle = 180},
-    {name = "Pomegranate", emoji = "🔴", rarity = "Mythic", cycle = 180},
-    -- Super (restock ~240 min)
-    {name = "Moon Bloom", emoji = "💮", rarity = "Super", cycle = 240},
-    {name = "Dragon's Breath", emoji = "🔥", rarity = "Super", cycle = 240},
+    {name="Carrot",       emoji="🥕", rarity="Common",    cycle=5},
+    {name="Strawberry",   emoji="🍓", rarity="Common",    cycle=5},
+    {name="Blueberry",    emoji="🔵", rarity="Common",    cycle=5},
+    {name="Tulip",        emoji="🌷", rarity="Uncommon",  cycle=10},
+    {name="Tomato",       emoji="🍅", rarity="Uncommon",  cycle=10},
+    {name="Apple",        emoji="🍎", rarity="Uncommon",  cycle=10},
+    {name="Bamboo",       emoji="🎋", rarity="Rare",      cycle=20},
+    {name="Corn",         emoji="🌽", rarity="Rare",      cycle=20},
+    {name="Cactus",       emoji="🌵", rarity="Rare",      cycle=20},
+    {name="Pineapple",    emoji="🍍", rarity="Rare",      cycle=20},
+    {name="Mushroom",     emoji="🍄", rarity="Epic",      cycle=45},
+    {name="Banana",       emoji="🍌", rarity="Epic",      cycle=45},
+    {name="Grape",        emoji="🍇", rarity="Epic",      cycle=45},
+    {name="Coconut",      emoji="🥥", rarity="Epic",      cycle=45},
+    {name="Mango",        emoji="🥭", rarity="Epic",      cycle=45},
+    {name="Green Bean",   emoji="🌿", rarity="Epic",      cycle=45},
+    {name="Dragon Fruit", emoji="🐉", rarity="Legendary", cycle=90},
+    {name="Acorn",        emoji="🌰", rarity="Legendary", cycle=90},
+    {name="Cherry",       emoji="🍒", rarity="Legendary", cycle=90},
+    {name="Sunflower",    emoji="🌻", rarity="Legendary", cycle=90},
+    {name="Venus Flytrap",emoji="🕷️", rarity="Mythic",    cycle=180},
+    {name="Pomegranate",  emoji="🔴", rarity="Mythic",    cycle=180},
+    {name="Moon Bloom",   emoji="💮", rarity="Super",     cycle=240},
+    {name="Dragon's Breath",emoji="🔥",rarity="Super",    cycle=240},
 }
 
--- Rarity colors
 local RarityColors = {
-    Common = Color3.fromRGB(180, 180, 180),
+    Common   = Color3.fromRGB(180,180,180),
     Uncommon = Color3.fromRGB(80, 200, 80),
-    Rare = Color3.fromRGB(60, 140, 255),
-    Epic = Color3.fromRGB(180, 80, 255),
-    Legendary = Color3.fromRGB(255, 180, 40),
-    Mythic = Color3.fromRGB(255, 60, 80),
-    Super = Color3.fromRGB(0, 255, 255),
+    Rare     = Color3.fromRGB(60, 140,255),
+    Epic     = Color3.fromRGB(180, 80,255),
+    Legendary= Color3.fromRGB(255,180, 40),
+    Mythic   = Color3.fromRGB(255, 60, 80),
+    Super    = Color3.fromRGB(0,  240,240),
 }
-
 local RarityBG = {
-    Common = Color3.fromRGB(40, 40, 50),
-    Uncommon = Color3.fromRGB(30, 50, 30),
-    Rare = Color3.fromRGB(25, 35, 60),
-    Epic = Color3.fromRGB(45, 25, 60),
-    Legendary = Color3.fromRGB(55, 45, 20),
-    Mythic = Color3.fromRGB(55, 20, 25),
-    Super = Color3.fromRGB(20, 55, 60),
+    Common   = Color3.fromRGB(38,38,48),
+    Uncommon = Color3.fromRGB(28,48,28),
+    Rare     = Color3.fromRGB(22,32,58),
+    Epic     = Color3.fromRGB(42,22,58),
+    Legendary= Color3.fromRGB(52,42,18),
+    Mythic   = Color3.fromRGB(52,18,22),
+    Super    = Color3.fromRGB(18,52,58),
 }
 
--- Create seed rows
 local seedTimerLabels = {}
-local currentRarity = ""
-
+local curRarity = ""
 for i, seed in ipairs(SeedData) do
-    -- Add rarity header when rarity changes
-    if seed.rarity ~= currentRarity then
-        currentRarity = seed.rarity
-        labelOrder = labelOrder + 1
-        local header = Instance.new("Frame")
-        header.Name = "Header_" .. seed.rarity
-        header.Size = UDim2.new(1, 0, 0, 22)
-        header.BackgroundTransparency = 1
-        header.LayoutOrder = labelOrder
-        header.Parent = ShopTab
-        
-        local headerLabel = Instance.new("TextLabel")
-        headerLabel.Size = UDim2.new(1, 0, 1, 0)
-        headerLabel.BackgroundTransparency = 1
-        headerLabel.Text = "▸ " .. seed.rarity:upper()
-        headerLabel.TextColor3 = RarityColors[seed.rarity]
-        headerLabel.TextSize = 12
-        headerLabel.Font = Enum.Font.GothamBold
-        headerLabel.TextXAlignment = Enum.TextXAlignment.Left
-        headerLabel.Parent = header
+    if seed.rarity ~= curRarity then
+        curRarity = seed.rarity
+        _rowOrder = _rowOrder + 1
+        local hdr = Instance.new("Frame")
+        hdr.Name = "RarHdr_" .. seed.rarity
+        hdr.Size = UDim2.new(1, 0, 0, 20)
+        hdr.BackgroundTransparency = 1
+        hdr.LayoutOrder = _rowOrder
+        hdr.Parent = ShopTab
+        local hl = Instance.new("TextLabel")
+        hl.Size = UDim2.new(1, 0, 1, 0)
+        hl.BackgroundTransparency = 1
+        hl.Text = "▸ " .. seed.rarity:upper()
+        hl.TextColor3 = RarityColors[seed.rarity]
+        hl.TextSize = 11
+        hl.Font = Enum.Font.GothamBold
+        hl.TextXAlignment = Enum.TextXAlignment.Left
+        hl.Parent = hdr
     end
-    
-    labelOrder = labelOrder + 1
+
+    _rowOrder = _rowOrder + 1
     local row = Instance.new("Frame")
     row.Name = "Seed_" .. seed.name
     row.Size = UDim2.new(1, 0, 0, 28)
     row.BackgroundColor3 = RarityBG[seed.rarity]
     row.BorderSizePixel = 0
-    row.LayoutOrder = labelOrder
+    row.LayoutOrder = _rowOrder
     row.Parent = ShopTab
-    
-    local rowCorner = Instance.new("UICorner")
-    rowCorner.CornerRadius = UDim.new(0, 4)
-    rowCorner.Parent = row
-    
-    -- Emoji + Name
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0.55, 0, 1, 0)
-    nameLabel.Position = UDim2.new(0, 8, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = seed.emoji .. " " .. seed.name
-    nameLabel.TextColor3 = RarityColors[seed.rarity]
-    nameLabel.TextSize = 12
-    nameLabel.Font = Enum.Font.GothamSemibold
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.Parent = row
-    
-    -- Timer label
-    local timerLabel = Instance.new("TextLabel")
-    timerLabel.Name = "Timer"
-    timerLabel.Size = UDim2.new(0.42, 0, 1, 0)
-    timerLabel.Position = UDim2.new(0.55, 0, 0, 0)
-    timerLabel.BackgroundTransparency = 1
-    timerLabel.Text = "In --:--"
-    timerLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    timerLabel.TextSize = 11
-    timerLabel.Font = Enum.Font.GothamSemibold
-    timerLabel.TextXAlignment = Enum.TextXAlignment.Right
-    timerLabel.Parent = row
-    
-    seedTimerLabels[i] = {label = timerLabel, data = seed, row = row}
+    local _rrc = Instance.new("UICorner")
+    _rrc.CornerRadius = UDim.new(0, 5)
+    _rrc.Parent = row
+
+    local nameL = Instance.new("TextLabel")
+    nameL.Size = UDim2.new(0.55, 0, 1, 0)
+    nameL.Position = UDim2.new(0, 8, 0, 0)
+    nameL.BackgroundTransparency = 1
+    nameL.Text = seed.emoji .. " " .. seed.name
+    nameL.TextColor3 = RarityColors[seed.rarity]
+    nameL.TextSize = 11
+    nameL.Font = Enum.Font.GothamSemibold
+    nameL.TextXAlignment = Enum.TextXAlignment.Left
+    nameL.Parent = row
+
+    local timerL = Instance.new("TextLabel")
+    timerL.Name = "Timer"
+    timerL.Size = UDim2.new(0.42, 0, 1, 0)
+    timerL.Position = UDim2.new(0.55, 0, 0, 0)
+    timerL.BackgroundTransparency = 1
+    timerL.Text = "In --:--"
+    timerL.TextColor3 = T.textSecondary
+    timerL.TextSize = 10
+    timerL.Font = Enum.Font.GothamSemibold
+    timerL.TextXAlignment = Enum.TextXAlignment.Right
+    timerL.Parent = row
+
+    seedTimerLabels[i] = {label = timerL, data = seed, row = row}
 end
 
 -- ==========================================
 -- TAB: WEATHER
 -- ==========================================
 local WeatherTab = Instance.new("Frame")
-WeatherTab.Name = "Weather"
-WeatherTab.Size = UDim2.new(1, 0, 0, 0)
-WeatherTab.AutomaticSize = Enum.AutomaticSize.Y
+WeatherTab.Name            = "Weather"
+WeatherTab.Size            = UDim2.new(1, 0, 0, 0)
+WeatherTab.AutomaticSize   = Enum.AutomaticSize.Y
 WeatherTab.BackgroundTransparency = 1
-WeatherTab.Visible = false
-WeatherTab.Parent = ContentFrame
+WeatherTab.Visible         = false
+WeatherTab.Parent          = ContentFrame
 
-local WeatherLayout = Instance.new("UIListLayout")
-WeatherLayout.SortOrder = Enum.SortOrder.LayoutOrder
-WeatherLayout.Padding = UDim.new(0, 6)
-WeatherLayout.Parent = WeatherTab
+local _wxTL = Instance.new("UIListLayout")
+_wxTL.SortOrder = Enum.SortOrder.LayoutOrder
+_wxTL.Padding   = UDim.new(0, 5)
+_wxTL.Parent    = WeatherTab
 
--- Current weather display
-labelOrder = labelOrder + 1
-local CurrentWeatherRow = Instance.new("Frame")
-CurrentWeatherRow.Name = "CurrentWeather"
-CurrentWeatherRow.Size = UDim2.new(1, 0, 0, 40)
-CurrentWeatherRow.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-CurrentWeatherRow.BorderSizePixel = 0
-CurrentWeatherRow.LayoutOrder = labelOrder
-CurrentWeatherRow.Parent = WeatherTab
-local cwCorner = Instance.new("UICorner")
-cwCorner.CornerRadius = UDim.new(0, 6)
-cwCorner.Parent = CurrentWeatherRow
+local _wxPad = Instance.new("UIPadding")
+_wxPad.PaddingTop    = UDim.new(0, 6)
+_wxPad.PaddingBottom = UDim.new(0, 8)
+_wxPad.Parent        = WeatherTab
+
+-- Current weather row
+_rowOrder = _rowOrder + 1
+local CurrWxCard = MakeCard(WeatherTab, _rowOrder, 44)
+CurrWxCard.BackgroundColor3 = Color3.fromRGB(28, 38, 55)
 
 local WeatherLabel = Instance.new("TextLabel")
 WeatherLabel.Size = UDim2.new(0.6, 0, 1, 0)
 WeatherLabel.Position = UDim2.new(0, 10, 0, 0)
 WeatherLabel.BackgroundTransparency = 1
-WeatherLabel.Text = "Current: ☀️ Day"
-WeatherLabel.TextColor3 = Color3.fromRGB(255, 255, 150)
-WeatherLabel.TextSize = 14
+WeatherLabel.Text = "☀️  Day"
+WeatherLabel.TextColor3 = Color3.fromRGB(255, 240, 140)
+WeatherLabel.TextSize = 15
 WeatherLabel.Font = Enum.Font.GothamBold
 WeatherLabel.TextXAlignment = Enum.TextXAlignment.Left
-WeatherLabel.Parent = CurrentWeatherRow
+WeatherLabel.Parent = CurrWxCard
 
 local WeatherTimerLabel = Instance.new("TextLabel")
-WeatherTimerLabel.Size = UDim2.new(0.4, -10, 1, 0)
-WeatherTimerLabel.Position = UDim2.new(0.6, 0, 0, 0)
+WeatherTimerLabel.Size = UDim2.new(0.38, 0, 1, 0)
+WeatherTimerLabel.Position = UDim2.new(0.62, 0, 0, 0)
 WeatherTimerLabel.BackgroundTransparency = 1
-WeatherTimerLabel.Text = "--:--"
-WeatherTimerLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-WeatherTimerLabel.TextSize = 13
+WeatherTimerLabel.Text = "--:-- left"
+WeatherTimerLabel.TextColor3 = T.textSecondary
+WeatherTimerLabel.TextSize = 12
 WeatherTimerLabel.Font = Enum.Font.GothamSemibold
 WeatherTimerLabel.TextXAlignment = Enum.TextXAlignment.Right
-WeatherTimerLabel.Parent = CurrentWeatherRow
+WeatherTimerLabel.Parent = CurrWxCard
 
--- Next Weather display
-labelOrder = labelOrder + 1
-local NextWeatherRow = Instance.new("Frame")
-NextWeatherRow.Name = "NextWeather"
-NextWeatherRow.Size = UDim2.new(1, 0, 0, 28)
-NextWeatherRow.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-NextWeatherRow.BorderSizePixel = 0
-NextWeatherRow.LayoutOrder = labelOrder
-NextWeatherRow.Parent = WeatherTab
-
-local nwCorner = Instance.new("UICorner")
-nwCorner.CornerRadius = UDim.new(0, 6)
-nwCorner.Parent = NextWeatherRow
+-- Next weather row
+_rowOrder = _rowOrder + 1
+local NextWxCard = MakeCard(WeatherTab, _rowOrder, 30)
+NextWxCard.BackgroundColor3 = Color3.fromRGB(24, 32, 46)
 
 local NextWeatherLabel = Instance.new("TextLabel")
-NextWeatherLabel.Size = UDim2.new(1, -20, 1, 0)
-NextWeatherLabel.Position = UDim2.new(0, 10, 0, 0)
+NextWeatherLabel.Size = UDim2.new(1, -16, 1, 0)
+NextWeatherLabel.Position = UDim2.new(0, 8, 0, 0)
 NextWeatherLabel.BackgroundTransparency = 1
 NextWeatherLabel.Text = "Next: ⏳ Calculating..."
-NextWeatherLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
-NextWeatherLabel.TextSize = 12
+NextWeatherLabel.TextColor3 = Color3.fromRGB(180, 255, 200)
+NextWeatherLabel.TextSize = 11
 NextWeatherLabel.Font = Enum.Font.GothamSemibold
 NextWeatherLabel.TextXAlignment = Enum.TextXAlignment.Left
-NextWeatherLabel.Parent = NextWeatherRow
+NextWeatherLabel.Parent = NextWxCard
 
--- Weather card builder
+MakeSection(WeatherTab, "Forecast", "🗓️", T.info)
+
+-- [FIX 6]: Weather cards now use UIGridLayout inside a container frame
+-- instead of absolute-positioned cards which clipped on narrow screens
 local weatherCardLabels = {}
 
-local function CreateWeatherCard(parent, weatherName, icon, order)
+local weatherCardDefs = {
+    {"Day",          "☀️",  Color3.fromRGB(255,220,60)},
+    {"Moon",         "🌙",  Color3.fromRGB(160,160,220)},
+    {"Goldmoon",     "🌟",  Color3.fromRGB(255,200,40)},
+    {"Bloodmoon",    "🌑",  Color3.fromRGB(200,40,40)},
+    {"Rainbow Moon", "🌈",  Color3.fromRGB(120,220,255)},
+    {"Rain",         "🌧️", Color3.fromRGB(100,160,255)},
+    {"Lightning",    "⚡",  Color3.fromRGB(255,230,60)},
+    {"Snowfall",     "❄️",  Color3.fromRGB(200,230,255)},
+    {"Rainbow",      "🌈",  Color3.fromRGB(120,220,180)},
+    {"Starfall",     "⭐",  Color3.fromRGB(240,220,100)},
+}
+
+_rowOrder = _rowOrder + 1
+local WxGrid = Instance.new("Frame")
+WxGrid.Name = "WxGrid"
+WxGrid.Size = UDim2.new(1, 0, 0, 0)
+WxGrid.AutomaticSize = Enum.AutomaticSize.Y
+WxGrid.BackgroundTransparency = 1
+WxGrid.LayoutOrder = _rowOrder
+WxGrid.Parent = WeatherTab
+
+local _wxGrid = Instance.new("UIGridLayout")
+_wxGrid.CellSize    = UDim2.new(0.5, -4, 0, 72)
+_wxGrid.CellPadding = UDim2.new(0, 4, 0, 4)
+_wxGrid.SortOrder   = Enum.SortOrder.LayoutOrder
+_wxGrid.Parent      = WxGrid
+
+for idx, def in ipairs(weatherCardDefs) do
+    local wname, wicon, wcolor = def[1], def[2], def[3]
     local card = Instance.new("Frame")
-    card.Name = "Card_" .. weatherName
-    card.Size = UDim2.new(0.48, 0, 0, 70)
-    card.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
+    card.Name = "WxCard_" .. wname
+    card.Size = UDim2.new(0.5, -4, 0, 72) -- grid overrides this
+    card.BackgroundColor3 = Color3.fromRGB(28, 38, 58)
     card.BorderSizePixel = 0
-    card.LayoutOrder = order
-    card.Parent = parent
-    
-    local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 8)
-    cardCorner.Parent = card
-    
-    local cardStroke = Instance.new("UIStroke")
-    cardStroke.Color = Color3.fromRGB(80, 130, 200)
-    cardStroke.Thickness = 1.5
-    cardStroke.Parent = card
-    
-    local iconLabel = Instance.new("TextLabel")
-    iconLabel.Size = UDim2.new(1, 0, 0, 28)
-    iconLabel.Position = UDim2.new(0, 0, 0, 4)
-    iconLabel.BackgroundTransparency = 1
-    iconLabel.Text = icon
-    iconLabel.TextSize = 22
-    iconLabel.Font = Enum.Font.GothamBold
-    iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    iconLabel.Parent = card
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0, 16)
-    nameLabel.Position = UDim2.new(0, 0, 0, 30)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = weatherName
-    nameLabel.TextSize = 12
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.Parent = card
-    
-    local timerLabel = Instance.new("TextLabel")
-    timerLabel.Name = "Timer"
-    timerLabel.Size = UDim2.new(1, 0, 0, 16)
-    timerLabel.Position = UDim2.new(0, 0, 0, 48)
-    timerLabel.BackgroundTransparency = 1
-    timerLabel.Text = "In --:--"
-    timerLabel.TextSize = 11
-    timerLabel.Font = Enum.Font.GothamSemibold
-    timerLabel.TextColor3 = Color3.fromRGB(200, 220, 255)
-    timerLabel.Parent = card
-    
-    weatherCardLabels[weatherName] = timerLabel
-    return card
+    card.LayoutOrder = idx
+    card.Parent = WxGrid
+    local _cc = Instance.new("UICorner")
+    _cc.CornerRadius = UDim.new(0, 8)
+    _cc.Parent = card
+    local _cs = Instance.new("UIStroke")
+    _cs.Color     = T.stroke
+    _cs.Thickness = 1
+    _cs.Parent    = card
+
+    local iconL = Instance.new("TextLabel")
+    iconL.Size = UDim2.new(1, 0, 0, 28)
+    iconL.Position = UDim2.new(0, 0, 0, 4)
+    iconL.BackgroundTransparency = 1
+    iconL.Text = wicon
+    iconL.TextSize = 20
+    iconL.Font = Enum.Font.GothamBold
+    iconL.TextColor3 = Color3.fromRGB(255, 255, 255)
+    iconL.Parent = card
+
+    local nameL2 = Instance.new("TextLabel")
+    nameL2.Size = UDim2.new(1, -8, 0, 16)
+    nameL2.Position = UDim2.new(0, 4, 0, 30)
+    nameL2.BackgroundTransparency = 1
+    nameL2.Text = wname
+    nameL2.TextSize = 11
+    nameL2.Font = Enum.Font.GothamBold
+    nameL2.TextColor3 = wcolor
+    nameL2.TextWrapped = true
+    nameL2.Parent = card
+
+    local timerL2 = Instance.new("TextLabel")
+    timerL2.Name = "WxTimer"
+    timerL2.Size = UDim2.new(1, -8, 0, 16)
+    timerL2.Position = UDim2.new(0, 4, 0, 50)
+    timerL2.BackgroundTransparency = 1
+    timerL2.Text = "--:--"
+    timerL2.TextSize = 10
+    timerL2.Font = Enum.Font.GothamSemibold
+    timerL2.TextColor3 = Color3.fromRGB(180, 200, 255)
+    timerL2.Parent = card
+
+    weatherCardLabels[wname] = {label = timerL2, card = card, stroke = _cs, baseColor = Color3.fromRGB(28, 38, 58)}
 end
 
--- Row 1: Day cycle
-labelOrder = labelOrder + 1
-local Row1 = Instance.new("Frame")
-Row1.Name = "Row1"
-Row1.Size = UDim2.new(1, 0, 0, 70)
-Row1.BackgroundTransparency = 1
-Row1.LayoutOrder = labelOrder
-Row1.Parent = WeatherTab
-
-CreateWeatherCard(Row1, "Day", "☀️", 1).Position = UDim2.new(0, 0, 0, 0)
-CreateWeatherCard(Row1, "Moon", "🌙", 2).Position = UDim2.new(0.52, 0, 0, 0)
-
--- Row 2: Special moons
-labelOrder = labelOrder + 1
-local Row2 = Instance.new("Frame")
-Row2.Name = "Row2"
-Row2.Size = UDim2.new(1, 0, 0, 70)
-Row2.BackgroundTransparency = 1
-Row2.LayoutOrder = labelOrder
-Row2.Parent = WeatherTab
-
-CreateWeatherCard(Row2, "Goldmoon", "🌟", 1).Position = UDim2.new(0, 0, 0, 0)
-CreateWeatherCard(Row2, "Bloodmoon", "🌑", 2).Position = UDim2.new(0.52, 0, 0, 0)
-
--- Row 3: Rainbow Moon + Rain
-labelOrder = labelOrder + 1
-local Row3 = Instance.new("Frame")
-Row3.Name = "Row3"
-Row3.Size = UDim2.new(1, 0, 0, 70)
-Row3.BackgroundTransparency = 1
-Row3.LayoutOrder = labelOrder
-Row3.Parent = WeatherTab
-
-CreateWeatherCard(Row3, "Rainbow Moon", "🌈", 1).Position = UDim2.new(0, 0, 0, 0)
-CreateWeatherCard(Row3, "Rain", "🌧️", 2).Position = UDim2.new(0.52, 0, 0, 0)
-
--- Row 4: Lightning + Snowfall
-labelOrder = labelOrder + 1
-local Row4 = Instance.new("Frame")
-Row4.Name = "Row4"
-Row4.Size = UDim2.new(1, 0, 0, 70)
-Row4.BackgroundTransparency = 1
-Row4.LayoutOrder = labelOrder
-Row4.Parent = WeatherTab
-
-CreateWeatherCard(Row4, "Lightning", "⚡", 1).Position = UDim2.new(0, 0, 0, 0)
-CreateWeatherCard(Row4, "Snowfall", "❄️", 2).Position = UDim2.new(0.52, 0, 0, 0)
-
--- Row 5: Rainbow + Starfall
-labelOrder = labelOrder + 1
-local Row5 = Instance.new("Frame")
-Row5.Name = "Row5"
-Row5.Size = UDim2.new(1, 0, 0, 70)
-Row5.BackgroundTransparency = 1
-Row5.LayoutOrder = labelOrder
-Row5.Parent = WeatherTab
-
-CreateWeatherCard(Row5, "Rainbow", "🌈", 1).Position = UDim2.new(0, 0, 0, 0)
-CreateWeatherCard(Row5, "Starfall", "⭐", 2).Position = UDim2.new(0.52, 0, 0, 0)
+-- Helper: update a weather card's active state
+local function SetWxCardActive(wname, isActive)
+    local entry = weatherCardLabels[wname]
+    if not entry then return end
+    local targetBG = isActive and Color3.fromRGB(30, 70, 34) or entry.baseColor
+    local targetStroke = isActive and T.accent1 or T.stroke
+    TweenService:Create(entry.card, TweenInfo.new(0.2), {BackgroundColor3 = targetBG}):Play()
+    TweenService:Create(entry.stroke, TweenInfo.new(0.2), {Color = targetStroke}):Play()
+    if isActive then
+        entry.label.Text = "▶ NOW!"
+        entry.label.TextColor3 = T.accent1
+    end
+end
 
 -- ==========================================
 -- TAB: INFO
 -- ==========================================
 local InfoTab = Instance.new("Frame")
-InfoTab.Name = "Info"
-InfoTab.Size = UDim2.new(1, 0, 0, 0)
-InfoTab.AutomaticSize = Enum.AutomaticSize.Y
+InfoTab.Name            = "Info"
+InfoTab.Size            = UDim2.new(1, 0, 0, 0)
+InfoTab.AutomaticSize   = Enum.AutomaticSize.Y
 InfoTab.BackgroundTransparency = 1
-InfoTab.Visible = false
-InfoTab.Parent = ContentFrame
+InfoTab.Visible         = false
+InfoTab.Parent          = ContentFrame
 
-local InfoLayout = Instance.new("UIListLayout")
-InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-InfoLayout.Padding = UDim.new(0, 4)
-InfoLayout.Parent = InfoTab
+local _infoTL = Instance.new("UIListLayout")
+_infoTL.SortOrder = Enum.SortOrder.LayoutOrder
+_infoTL.Padding   = UDim.new(0, 4)
+_infoTL.Parent    = InfoTab
 
-CreateLabel(InfoTab, "=== GROW A GARDEN 2 by: Devo ===", Color3.fromRGB(40, 180, 80))
-CreateLabel(InfoTab, "bebe Ed sheeran", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(InfoTab, "HOW TO USE:", Color3.fromRGB(255, 200, 100))
-CreateLabel(InfoTab, "1. Equip weapons in your inventory", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "2. Toggle features on/off", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "3. Script auto-detects events", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(InfoTab, "Features:", Color3.fromRGB(255, 200, 100))
-CreateLabel(InfoTab, "✅ Event seed auto-collect", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Weather prediction system", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Seed shop rotation tracker", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Auto-stay at base during night", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Auto defense with weapons", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200, 150))
-CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
+local _infoPad = Instance.new("UIPadding")
+_infoPad.PaddingTop    = UDim.new(0, 6)
+_infoPad.PaddingBottom = UDim.new(0, 8)
+_infoPad.Parent        = InfoTab
 
-UpdateCanvas()
+-- Branding card
+_rowOrder = _rowOrder + 1
+local brandCard = MakeCard(InfoTab, _rowOrder, 60)
+brandCard.BackgroundColor3 = Color3.fromRGB(18, 35, 22)
+local _bg2 = Instance.new("UIGradient")
+_bg2.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 42, 24)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 18, 14)),
+})
+_bg2.Rotation = 135
+_bg2.Parent = brandCard
+local brandTitle = Instance.new("TextLabel")
+brandTitle.Size = UDim2.new(1, -20, 0, 28)
+brandTitle.Position = UDim2.new(0, 10, 0, 6)
+brandTitle.BackgroundTransparency = 1
+brandTitle.Text = "🌱 Grow A Garden 2"
+brandTitle.TextColor3 = T.accent1
+brandTitle.TextSize = 16
+brandTitle.Font = Enum.Font.GothamBold
+brandTitle.TextXAlignment = Enum.TextXAlignment.Left
+brandTitle.Parent = brandCard
+local brandSub = Instance.new("TextLabel")
+brandSub.Size = UDim2.new(1, -20, 0, 18)
+brandSub.Position = UDim2.new(0, 10, 0, 34)
+brandSub.BackgroundTransparency = 1
+brandSub.Text = "Script by Devo  ·  bebe Ed Sheeran ♪"
+brandSub.TextColor3 = T.textMuted
+brandSub.TextSize = 11
+brandSub.Font = Enum.Font.Gotham
+brandSub.TextXAlignment = Enum.TextXAlignment.Left
+brandSub.Parent = brandCard
 
--- End of Info Tab
+MakeSection(InfoTab, "How to Use", "📋", T.warning)
+MakeLabel(InfoTab, "1. Equip weapons from your inventory",    T.textSecondary, 11)
+MakeLabel(InfoTab, "2. Toggle features on the Main tab",      T.textSecondary, 11)
+MakeLabel(InfoTab, "3. Script auto-detects events & weather", T.textSecondary, 11)
 
--- ==========================================
--- CORE FEATURES IMPLEMENTATION
--- ==========================================
-
--- Track game objects
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CollectionService = game:GetService("CollectionService")
-
--- Find important objects
-local function FindGameObject(path)
-    local obj = nil
-    local success, result = pcall(function()
-        local current = game
-        for _, part in ipairs(path) do
-            current = current:WaitForChild(part, 5)
-        end
-        return current
-    end)
-    if success then
-        obj = result
-    end
-    return obj
+MakeSection(InfoTab, "Features", "✅", T.success)
+local feats = {
+    "Event seed auto-collect (Golden, Rainbow, Birds)",
+    "Weather prediction & real-time cycle tracking",
+    "Seed shop rotation timer per rarity",
+    "Auto-stay at base during Night phase",
+    "Auto defense using priority weapon list",
+    "Auto steal (Night only) with high-value filter",
+    "Anti-AFK & cutscene skipper",
+}
+for _, f in ipairs(feats) do
+    MakeLabel(InfoTab, "✅ " .. f, T.success, 11)
 end
 
--- Accurate GAG2 weather cycle timings
-local currentWeather = "Day"
+MakeSection(InfoTab, "Bug Fixes v2.1", "🔧", T.info)
+local fixes = {
+    "Weather toggle now works correctly",
+    "Minimize no longer nulls ContentFrame",
+    "TouchInterest detection fixed",
+    "DescendantAdded validity guard added",
+    "Weather cards use grid (no clipping)",
+}
+for _, f in ipairs(fixes) do
+    MakeLabel(InfoTab, "→ " .. f, T.info, 10)
+end
+
+-- ==========================================
+-- INITIALIZE — show Main tab
+-- ==========================================
+SwitchTab("Main")
+
+-- ==========================================
+-- CORE GAME LOGIC
+-- ==========================================
+
+-- Weather system data
+local currentWeather  = "Day"
 local weatherStartTime = tick()
 
--- Accurate durations based on actual GAG2 data
 local weatherDurations = {
-    Day = 160,         -- 2m 40s
-    Night = 80,        -- 1m 20s
-    Rain = 120,        -- 2min
-    Lightning = 120,   -- 2min
-    Rainbow = 120,     -- 2min
-    Snowfall = 120,    -- 2min
-    Starfall = 120,    -- 2min
-    BloodMoon = 80,    -- 1m 20s
-    GoldMoon = 80,     -- 1m 20s
-    RainbowMoon = 80,  -- 1m 20s
+    Day=160, Night=80, Rain=120, Lightning=120,
+    Rainbow=120, Snowfall=120, Starfall=120,
+    BloodMoon=80, GoldMoon=80, RainbowMoon=80,
 }
-
--- Full day-night cycle dynamically updated
-local FULL_CYCLE = 160 + 80
 
 local weatherIcons = {
-    Day = "☀️",
-    Night = "🌙",
-    Rain = "🌧️",
-    Lightning = "⚡",
-    Rainbow = "🌈",
-    Snowfall = "❄️",
-    Starfall = "⭐",
-    BloodMoon = "🌑",
-    GoldMoon = "🌟",
-    RainbowMoon = "🌈"
+    Day="☀️", Night="🌙", Rain="🌧️", Lightning="⚡",
+    Rainbow="🌈", Snowfall="❄️", Starfall="⭐",
+    BloodMoon="🌑", GoldMoon="🌟", RainbowMoon="🌈",
 }
 
--- Try to read weather directly from the game's dedicated weather system
 local function ReadGameWeather()
     local result = nil
-    
-    -- Method 1: Check Workspace attributes (most reliable if game uses them)
     pcall(function()
-        for _, attrName in ipairs({"Weather", "CurrentWeather", "GameWeather", "WeatherType"}) do
-            local val = Workspace:GetAttribute(attrName)
-            if val and tostring(val) ~= "" then result = tostring(val) return end
+        for _, a in ipairs({"Weather","CurrentWeather","GameWeather","WeatherType"}) do
+            local v = Workspace:GetAttribute(a)
+            if v and tostring(v) ~= "" then result = tostring(v) return end
         end
     end)
     if result then return result end
-    
-    -- Method 2: Check ReplicatedStorage for weather values
     pcall(function()
         local rs = game:GetService("ReplicatedStorage")
-        -- Look for a dedicated weather folder/value
-        local weatherObj = rs:FindFirstChild("Weather") or rs:FindFirstChild("GameWeather") or rs:FindFirstChild("WeatherSystem")
-        if weatherObj then
-            if weatherObj:IsA("StringValue") then
-                result = weatherObj.Value
-            elseif weatherObj:IsA("Folder") or weatherObj:IsA("Configuration") then
-                local cur = weatherObj:FindFirstChild("Current") or weatherObj:FindFirstChild("Type") or weatherObj:FindFirstChild("State")
-                if cur and cur:IsA("StringValue") then
-                    result = cur.Value
-                end
+        local wo = rs:FindFirstChild("Weather") or rs:FindFirstChild("GameWeather") or rs:FindFirstChild("WeatherSystem")
+        if wo then
+            if wo:IsA("StringValue") then result = wo.Value
+            elseif wo:IsA("Folder") or wo:IsA("Configuration") then
+                local cur = wo:FindFirstChild("Current") or wo:FindFirstChild("Type") or wo:FindFirstChild("State")
+                if cur and cur:IsA("StringValue") then result = cur.Value end
             end
-            local val = weatherObj:GetAttribute("Current") or weatherObj:GetAttribute("Type")
-            if val then result = tostring(val) end
+            local v2 = wo:GetAttribute("Current") or wo:GetAttribute("Type")
+            if v2 then result = tostring(v2) end
         end
     end)
     if result and result ~= "" then return result end
-    
-    -- Method 3: Check Lighting attributes
     pcall(function()
-        for _, attrName in ipairs({"Weather", "CurrentWeather", "WeatherType"}) do
-            local val = Lighting:GetAttribute(attrName)
-            if val and tostring(val) ~= "" then result = tostring(val) return end
-        end
-    end)
-    if result then return result end
-    
-    return nil
-end
-
--- Try to read explicit NEXT weather from the game
-local function ReadNextWeather()
-    local result = nil
-    pcall(function()
-        for _, attrName in ipairs({"NextWeather", "UpcomingWeather", "NextEvent"}) do
-            local val = Workspace:GetAttribute(attrName) or Lighting:GetAttribute(attrName)
-            if val and tostring(val) ~= "" then result = tostring(val) return end
-        end
-    end)
-    if result then return result end
-    
-    pcall(function()
-        local rs = game:GetService("ReplicatedStorage")
-        local weatherObj = rs:FindFirstChild("Weather") or rs:FindFirstChild("GameWeather") or rs:FindFirstChild("WeatherSystem")
-        if weatherObj then
-            local nextObj = weatherObj:FindFirstChild("Next") or weatherObj:FindFirstChild("Upcoming")
-            if nextObj and nextObj:IsA("StringValue") then
-                result = nextObj.Value
-            end
-            local val = weatherObj:GetAttribute("Next") or weatherObj:GetAttribute("Upcoming")
-            if val then result = tostring(val) end
+        for _, a in ipairs({"Weather","CurrentWeather","WeatherType"}) do
+            local v = Lighting:GetAttribute(a)
+            if v and tostring(v) ~= "" then result = tostring(v) return end
         end
     end)
     return result
 end
 
--- Map game text to our weather names (strict matching)
+local function ReadNextWeather()
+    local result = nil
+    pcall(function()
+        for _, a in ipairs({"NextWeather","UpcomingWeather","NextEvent"}) do
+            local v = Workspace:GetAttribute(a) or Lighting:GetAttribute(a)
+            if v and tostring(v) ~= "" then result = tostring(v) return end
+        end
+    end)
+    if result then return result end
+    pcall(function()
+        local rs = game:GetService("ReplicatedStorage")
+        local wo = rs:FindFirstChild("Weather") or rs:FindFirstChild("GameWeather") or rs:FindFirstChild("WeatherSystem")
+        if wo then
+            local nx = wo:FindFirstChild("Next") or wo:FindFirstChild("Upcoming")
+            if nx and nx:IsA("StringValue") then result = nx.Value end
+            local v2 = wo:GetAttribute("Next") or wo:GetAttribute("Upcoming")
+            if v2 then result = tostring(v2) end
+        end
+    end)
+    return result
+end
+
 local function NormalizeWeatherName(text)
     if not text then return nil end
-    local t = text:lower():gsub("%s+", "")
-    -- Exact/strict matches only
-    if t == "bloodmoon" or t == "blood_moon" or t == "blood moon" then return "BloodMoon" end
-    if t == "goldmoon" or t == "gold_moon" or t == "gold moon" or t == "midas" then return "GoldMoon" end
-    if t == "rainbowmoon" or t == "rainbow_moon" or t == "rainbow moon" then return "RainbowMoon" end
-    if t == "lightning" or t == "thunder" or t == "thunderstorm" then return "Lightning" end
-    if t == "rainbow" then return "Rainbow" end
-    if t == "rain" or t == "rainy" then return "Rain" end
-    if t == "snowfall" or t == "snow" or t == "blizzard" then return "Snowfall" end
-    if t == "starfall" then return "Starfall" end
-    if t == "night" or t == "moon" or t == "nighttime" then return "Night" end
-    if t == "day" or t == "daytime" or t == "morning" or t == "sunny" then return "Day" end
+    local t = text:lower():gsub("%s+","")
+    if t=="bloodmoon" or t=="blood_moon" then return "BloodMoon" end
+    if t=="goldmoon"  or t=="gold_moon"  or t=="midas" then return "GoldMoon" end
+    if t=="rainbowmoon" or t=="rainbow_moon" then return "RainbowMoon" end
+    if t=="lightning" or t=="thunder" or t=="thunderstorm" then return "Lightning" end
+    if t=="rainbow" then return "Rainbow" end
+    if t=="rain" or t=="rainy" then return "Rain" end
+    if t=="snowfall" or t=="snow" or t=="blizzard" then return "Snowfall" end
+    if t=="starfall" then return "Starfall" end
+    if t=="night" or t=="moon" or t=="nighttime" then return "Night" end
+    if t=="day" or t=="daytime" or t=="morning" or t=="sunny" then return "Day" end
     return nil
 end
 
--- Detect weather using ClockTime as primary, with conservative fallbacks
 local function DetectWeather()
-    -- Priority 1: Read from game's own weather data (attributes/values)
-    local gameText = ReadGameWeather()
-    local fromGame = NormalizeWeatherName(gameText)
+    local fromGame = NormalizeWeatherName(ReadGameWeather())
     if fromGame then return fromGame end
-    
-    -- Priority 2: Use Lighting.ClockTime for day/night cycle (always reliable)
+
     local clockTime = Lighting.ClockTime or 12
-    
-    -- Determine base phase from clock
     local isNight = (clockTime < 6 or clockTime >= 18)
-    
-    -- Priority 3: Only check for active weather PARTICLES (not just any named object)
-    -- Only ParticleEmitters that are Enabled count as active weather
-    local activeWeatherEffect = nil
+
+    local activeEffect = nil
     pcall(function()
         for _, v in pairs(Workspace:GetDescendants()) do
             if v:IsA("ParticleEmitter") and v.Enabled then
-                local name = v.Name:lower()
-                local parentName = v.Parent and v.Parent.Name:lower() or ""
-                local combined = name .. " " .. parentName
-                -- Only match very specific weather effect names
-                if combined:find("thundereffect") or combined:find("lightningeffect") or combined:find("lightningbolt") then
-                    activeWeatherEffect = "Lightning"
-                    break
-                elseif combined:find("raineffect") or combined:find("raindrop") or combined:find("rainparticle") then
-                    if not combined:find("rainbow") then
-                        activeWeatherEffect = "Rain"
-                        break
-                    end
-                elseif combined:find("snoweffect") or combined:find("snowflake") or combined:find("snowparticle") or combined:find("blizzard") then
-                    activeWeatherEffect = "Snowfall"
-                    break
-                elseif combined:find("starfalleffect") or combined:find("fallingstar") then
-                    activeWeatherEffect = "Starfall"
-                    break
-                elseif combined:find("rainboweffect") or combined:find("rainbowarc") then
-                    if not combined:find("moon") then
-                        activeWeatherEffect = "Rainbow"
-                        break
-                    end
+                local n = (v.Name .. " " .. (v.Parent and v.Parent.Name or "")):lower()
+                if n:find("thundereffect") or n:find("lightningeffect") or n:find("lightningbolt") then
+                    activeEffect = "Lightning" break
+                elseif (n:find("raineffect") or n:find("raindrop") or n:find("rainparticle")) and not n:find("rainbow") then
+                    activeEffect = "Rain" break
+                elseif n:find("snoweffect") or n:find("snowflake") or n:find("snowparticle") or n:find("blizzard") then
+                    activeEffect = "Snowfall" break
+                elseif n:find("starfalleffect") or n:find("fallingstar") then
+                    activeEffect = "Starfall" break
+                elseif (n:find("rainboweffect") or n:find("rainbowarc")) and not n:find("moon") then
+                    activeEffect = "Rainbow" break
                 end
             end
         end
     end)
-    
-    -- If we found an active weather particle effect, trust it
-    if activeWeatherEffect then return activeWeatherEffect end
-    
-    -- Night phase: check for special moons using Ambient color
+    if activeEffect then return activeEffect end
+
     if isNight then
-        local ambient = Lighting.Ambient or Color3.new(0, 0, 0)
-        -- Blood moon: strong red, no green/blue
-        if ambient.R > 0.4 and ambient.G < 0.08 and ambient.B < 0.08 then
-            return "BloodMoon"
-        end
-        -- Gold moon: strong gold/yellow, low blue
-        if ambient.R > 0.4 and ambient.G > 0.3 and ambient.B < 0.08 then
-            return "GoldMoon"
-        end
-        -- Default night (don't guess RainbowMoon from colors - too unreliable)
+        local amb = Lighting.Ambient or Color3.new(0,0,0)
+        if amb.R > 0.4 and amb.G < 0.08 and amb.B < 0.08 then return "BloodMoon" end
+        if amb.R > 0.4 and amb.G > 0.3  and amb.B < 0.08 then return "GoldMoon" end
         return "Night"
     end
-    
-    -- Default: Day (don't guess weather from fog/brightness - too unreliable)
     return "Day"
 end
 
--- Dynamic Clock Speed Tracker for perfect sync
 local dynamicClockData = {
-    lastClockTime = Lighting.ClockTime or 12,
-    lastTick = tick(),
-    secPerDayHour = 160 / 12.0,  -- 13.33s per in-game hour
-    secPerNightHour = 80 / 12.0, -- 6.66s per in-game hour
+    lastClockTime   = Lighting.ClockTime or 12,
+    lastTick        = tick(),
+    secPerDayHour   = 160 / 12.0,
+    secPerNightHour = 80  / 12.0,
 }
 
 local function UpdateClockSpeed()
-    local currentClockTime = Lighting.ClockTime or 12
-    local currentTick = tick()
-    local dt = currentTick - dynamicClockData.lastTick
-    
+    local ct  = Lighting.ClockTime or 12
+    local now = tick()
+    local dt  = now - dynamicClockData.lastTick
     if dt >= 1.0 then
-        local dClock = currentClockTime - dynamicClockData.lastClockTime
-        if dClock < -12 then dClock = dClock + 24 end
-        if dClock > 12 then dClock = dClock - 24 end
-        
-        if dClock > 0 and dClock < 2 then
-            local hoursPerSec = dClock / dt
-            if hoursPerSec > 0 then
-                local secPerHour = 1 / hoursPerSec
-                if secPerHour > 2 and secPerHour < 100 then
-                    if currentClockTime >= 6 and currentClockTime < 18 then
-                        dynamicClockData.secPerDayHour = dynamicClockData.secPerDayHour * 0.8 + secPerHour * 0.2
-                    else
-                        dynamicClockData.secPerNightHour = dynamicClockData.secPerNightHour * 0.8 + secPerHour * 0.2
-                    end
+        local dC = ct - dynamicClockData.lastClockTime
+        if dC < -12 then dC = dC + 24 end
+        if dC >  12 then dC = dC - 24 end
+        if dC > 0 and dC < 2 then
+            local sph = dt / dC
+            if sph > 2 and sph < 100 then
+                if ct >= 6 and ct < 18 then
+                    dynamicClockData.secPerDayHour   = dynamicClockData.secPerDayHour   * 0.8 + sph * 0.2
+                else
+                    dynamicClockData.secPerNightHour = dynamicClockData.secPerNightHour * 0.8 + sph * 0.2
                 end
             end
         end
-        dynamicClockData.lastClockTime = currentClockTime
-        dynamicClockData.lastTick = currentTick
-        
-        weatherDurations.Day = math.floor(dynamicClockData.secPerDayHour * 12)
-        weatherDurations.Night = math.floor(dynamicClockData.secPerNightHour * 12)
+        dynamicClockData.lastClockTime = ct
+        dynamicClockData.lastTick      = now
+        weatherDurations.Day       = math.floor(dynamicClockData.secPerDayHour   * 12)
+        weatherDurations.Night     = math.floor(dynamicClockData.secPerNightHour * 12)
         weatherDurations.BloodMoon = weatherDurations.Night
-        weatherDurations.GoldMoon = weatherDurations.Night
+        weatherDurations.GoldMoon  = weatherDurations.Night
         weatherDurations.RainbowMoon = weatherDurations.Night
     end
 end
 
--- Calculate time until next occurrence of each weather phase accurately using ClockTime
 local function GetCycleTimeRemaining()
-    local clockTime = Lighting.ClockTime or 12
-    
+    local ct = Lighting.ClockTime or 12
+    local SD = dynamicClockData.secPerDayHour
+    local SN = dynamicClockData.secPerNightHour
     local timeToMoon, timeToDay
-    local SEC_PER_DAY_HOUR = dynamicClockData.secPerDayHour
-    local SEC_PER_NIGHT_HOUR = dynamicClockData.secPerNightHour
-    
-    if clockTime >= 6 and clockTime < 18 then
-        local hoursLeftDay = 18 - clockTime
-        timeToMoon = hoursLeftDay * SEC_PER_DAY_HOUR
-        timeToDay = timeToMoon + (12 * SEC_PER_NIGHT_HOUR)
+    if ct >= 6 and ct < 18 then
+        local hl = 18 - ct
+        timeToMoon = hl * SD
+        timeToDay  = timeToMoon + 12 * SN
     else
-        local hoursLeftNight = (clockTime >= 18) and (24 - clockTime + 6) or (6 - clockTime)
-        timeToDay = hoursLeftNight * SEC_PER_NIGHT_HOUR
-        timeToMoon = timeToDay + (12 * SEC_PER_DAY_HOUR)
+        local hl = (ct >= 18) and (24 - ct + 6) or (6 - ct)
+        timeToDay  = hl * SN
+        timeToMoon = timeToDay + 12 * SD
     end
-    
     return timeToMoon, timeToDay
 end
 
--- Find event drops (Golden/Rainbow Seeds, Birds, Seed Packs) by scanning for pickable objects
+-- Seed collector
 local function FindEventSeeds()
     local seeds = {}
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
             local name = obj.Name:lower()
-            local isTarget = false
-            
-            -- Golden seed check
-            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
-                isTarget = true
-            -- Rainbow seed check
-            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
-                isTarget = true
-            -- Bird check
-            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then
-                isTarget = true
-            -- Seed Pack check
-            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then
-                isTarget = true
+            local ok = false
+            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then ok=true
+            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then ok=true
+            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then ok=true
+            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then ok=true
             end
-            
-            if isTarget then
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
-                    table.insert(seeds, obj)
-                end
+            if ok and (obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt")) then
+                table.insert(seeds, obj)
             end
         end
     end
     return seeds
 end
 
--- Collect seed (simulate click/interact) - Ultra Fast Edition
+-- [FIX 3]: CollectSeed — corrected TouchTransmitter → TouchInterest check
 local function CollectSeed(seedObj)
     pcall(function()
-        -- 1. Try TouchInterest (Fastest)
-        local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter")
+        -- 1. TouchInterest (correct child name, not TouchTransmitter)
+        local touch = seedObj:FindFirstChild("TouchInterest")
         if touch then
             if firetouchinterest and RootPart then
                 firetouchinterest(RootPart, seedObj, 0)
@@ -1245,8 +1448,7 @@ local function CollectSeed(seedObj)
             end
             return true
         end
-        
-        -- 2. Try ProximityPrompt
+        -- 2. ProximityPrompt
         local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
         if prompt then
             pcall(function() prompt.HoldDuration = 0 end)
@@ -1259,15 +1461,13 @@ local function CollectSeed(seedObj)
             end
             return true
         end
-        
-        -- 3. Try ClickDetector
+        -- 3. ClickDetector
         local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
         if detector and fireclickdetector then
             fireclickdetector(detector)
             return true
         end
-        
-        -- 4. Try RemoteEvents directly
+        -- 4. RemoteEvent fallback
         for _, remote in pairs(seedObj:GetDescendants()) do
             if remote:IsA("RemoteEvent") then
                 remote:FireServer(seedObj)
@@ -1278,85 +1478,61 @@ local function CollectSeed(seedObj)
     return false
 end
 
--- Teleport to position
 local function TeleportTo(pos)
-    if RootPart then
-        RootPart.CFrame = CFrame.new(pos)
-    end
+    if RootPart then RootPart.CFrame = CFrame.new(pos) end
 end
 
--- Find base/garden plot position
 local myBasePosCache = nil
-local lastCacheTime = 0
+local lastCacheTime  = 0
 
 local function FindMyBasePos()
     if myBasePosCache and (os.time() - lastCacheTime < 30) then return myBasePosCache end
-    
-    local playerName = LocalPlayer.Name
+    local pName   = LocalPlayer.Name
     local display = LocalPlayer.DisplayName
-    local userId = tostring(LocalPlayer.UserId)
-    
+    local uid     = tostring(LocalPlayer.UserId)
     for _, obj in pairs(Workspace:GetDescendants()) do
         if (obj:IsA("Model") or obj:IsA("Folder")) and not obj:FindFirstChild("Humanoid") then
             local isMyBase = false
             local name = obj.Name
-            
-            if name == playerName or name == display or name == userId then
-                isMyBase = true
-            end
-            
+            if name == pName or name == display or name == uid then isMyBase = true end
             if not isMyBase then
-                if obj:GetAttribute("Owner") == playerName or obj:GetAttribute("Owner") == display or tostring(obj:GetAttribute("Owner")) == userId then 
-                    isMyBase = true 
-                end
+                local oa = obj:GetAttribute("Owner")
+                if tostring(oa) == pName or tostring(oa) == display or tostring(oa) == uid then isMyBase = true end
             end
-            
             if not isMyBase then
-                for _, valName in ipairs({"Owner", "Player", "PlayerName", "owner", "PlayerId"}) do
-                    local ownerVal = obj:FindFirstChild(valName)
-                    if ownerVal then
-                        local val = tostring(ownerVal.Value)
-                        if val == playerName or val == display or val == userId then
-                            isMyBase = true
-                        elseif ownerVal:IsA("ObjectValue") and ownerVal.Value == LocalPlayer then
-                            isMyBase = true
-                        end
+                for _, vn in ipairs({"Owner","Player","PlayerName","owner","PlayerId"}) do
+                    local ov = obj:FindFirstChild(vn)
+                    if ov then
+                        local val = tostring(ov.Value)
+                        if val == pName or val == display or val == uid then isMyBase = true end
+                        if ov:IsA("ObjectValue") and ov.Value == LocalPlayer then isMyBase = true end
                     end
                 end
             end
-            
             if not isMyBase then
-                local lowerName = name:lower()
-                if lowerName:find("garden") or lowerName:find("plot") or lowerName:find("base") or lowerName:find("tycoon") or lowerName:find("land") or lowerName:find("farm") then
-                    for _, label in ipairs(obj:GetDescendants()) do
-                        if label:IsA("TextLabel") or label:IsA("TextButton") or label:IsA("SurfaceGui") or label:IsA("BillboardGui") then
-                            local text = label:IsA("TextLabel") and label.Text or label:IsA("TextButton") and label.Text or label.Name
-                            if text:find(playerName) or text:find(display) then
-                                isMyBase = true
-                                break
-                            end
-                        end
+                local ln = name:lower()
+                if ln:find("garden") or ln:find("plot") or ln:find("base") or ln:find("tycoon") or ln:find("land") or ln:find("farm") then
+                    for _, lbl in ipairs(obj:GetDescendants()) do
+                        local tx = (lbl:IsA("TextLabel") or lbl:IsA("TextButton")) and lbl.Text or lbl.Name
+                        if tx:find(pName) or tx:find(display) then isMyBase = true break end
                     end
                 end
             end
-            
             if isMyBase then
                 local pos = nil
-                if obj:IsA("Model") and obj.PrimaryPart then 
-                    pos = obj.PrimaryPart.Position 
+                if obj:IsA("Model") and obj.PrimaryPart then
+                    pos = obj.PrimaryPart.Position
                 else
-                    local part = obj:FindFirstChild("Base") or obj:FindFirstChild("Floor") or obj:FindFirstChildWhichIsA("BasePart", true)
-                    if part then pos = part.Position end
+                    local p = obj:FindFirstChild("Base") or obj:FindFirstChild("Floor") or obj:FindFirstChildWhichIsA("BasePart", true)
+                    if p then pos = p.Position end
                 end
-                
                 if not pos then
-                    local anyPart = obj:FindFirstChildWhichIsA("BasePart", true)
-                    if anyPart then pos = anyPart.Position end
+                    local ap = obj:FindFirstChildWhichIsA("BasePart", true)
+                    if ap then pos = ap.Position end
                 end
-                
                 if pos then
                     myBasePosCache = pos
-                    lastCacheTime = os.time()
+                    lastCacheTime  = os.time()
                     return pos
                 end
             end
@@ -1368,8 +1544,7 @@ end
 local function FindPlayerNear(pos, radius)
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (player.Character.HumanoidRootPart.Position - pos).Magnitude
-            if dist < radius then
+            if (player.Character.HumanoidRootPart.Position - pos).Magnitude < radius then
                 return player
             end
         end
@@ -1380,61 +1555,29 @@ end
 local function GetOtherPlayersPlants()
     local plants = {}
     local myBasePos = FindMyBasePos()
-    
     for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") or obj:IsA("Model") then
-            local isPlant = false
             local name = obj.Name:lower()
-            
             local interactable = obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("TouchTransmitter") or obj:FindFirstChildWhichIsA("ClickDetector")
-            
+            local isPlant = false
             if interactable then
-                if name:find("plant") or name:find("fruit") or name:find("crop") or name:find("seed") or name:find("tree") or name:find("apple") or name:find("berry") then
-                    isPlant = true
-                end
-                
-                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
-                if prompt then
-                    local action = prompt.ActionText:lower()
-                    local objectText = prompt.ObjectText:lower()
-                    if action:find("harvest") or action:find("steal") or action:find("pick") or action:find("take") or action:find("collect") or action:find("grab") or action:find("claim") or action == "" then
-                        isPlant = true
-                    end
-                    if objectText:find("plant") or objectText:find("crop") or objectText:find("tree") or objectText:find("seed") then
-                        isPlant = true
-                    end
-                    
-                    if not isPlant and not (name:find("door") or name:find("gate") or name:find("buy") or name:find("button") or name:find("upgrade") or name:find("pad") or name:find("spawner")) then
-                        isPlant = true
-                    end
-                end
-                
-                -- Fallback for touch transmitters in other bases (risky, but we restrict it)
-                if not isPlant and not obj:FindFirstChildWhichIsA("ProximityPrompt") then
-                    if not (name:find("door") or name:find("wall") or name:find("spawn") or name:find("pad")) then
-                        isPlant = true
-                    end
+                if name:find("plant") or name:find("fruit") or name:find("crop") or name:find("seed") or name:find("tree") or name:find("apple") or name:find("berry") then isPlant = true end
+                local pp = obj:FindFirstChildWhichIsA("ProximityPrompt")
+                if pp then
+                    local at = pp.ActionText:lower()
+                    local ot = pp.ObjectText:lower()
+                    if at:find("harvest") or at:find("steal") or at:find("pick") or at:find("take") or at:find("collect") or at:find("grab") then isPlant = true end
+                    if ot:find("plant") or ot:find("crop") or ot:find("tree") or ot:find("seed") then isPlant = true end
+                    if not isPlant and not (name:find("door") or name:find("gate") or name:find("buy") or name:find("button") or name:find("upgrade")) then isPlant = true end
                 end
             end
-            
             if isPlant then
                 local part = obj:IsA("BasePart") and obj or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
                 if part then
-                    local isHighValue = false
-                    if name:find("gold") or name:find("rainbow") or name:find("diamond") or name:find("mythic") or name:find("rare") or name:find("epic") or name:find("legend") then
-                        isHighValue = true
-                    end
-                    
-                    local isMine = false
-                    if myBasePos then
-                        local dist = Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(myBasePos.X, myBasePos.Z)
-                        if dist.Magnitude < 60 then
-                            isMine = true
-                        end
-                    end
-                    
+                    local isHighValue = name:find("gold") or name:find("rainbow") or name:find("diamond") or name:find("mythic") or name:find("rare") or name:find("epic") or name:find("legend")
+                    local isMine = myBasePos and (Vector2.new(part.Position.X, part.Position.Z) - Vector2.new(myBasePos.X, myBasePos.Z)).Magnitude < 60
                     if not isMine then
-                        table.insert(plants, {obj = obj, part = part, highValue = isHighValue})
+                        table.insert(plants, {obj=obj, part=part, highValue=isHighValue and true or false})
                     end
                 end
             end
@@ -1443,16 +1586,12 @@ local function GetOtherPlayersPlants()
     return plants
 end
 
--- Find thieves in base area
 local function FindThreatsInBase(basePos)
     if not basePos then return {} end
-    
     local threats = {}
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local charPos = player.Character.HumanoidRootPart.Position
-            local dist = (charPos - basePos).Magnitude
-            if dist < Config.DefenseRange then
+            if (player.Character.HumanoidRootPart.Position - basePos).Magnitude < Config.DefenseRange then
                 table.insert(threats, player)
             end
         end
@@ -1460,424 +1599,303 @@ local function FindThreatsInBase(basePos)
     return threats
 end
 
--- Equip and use weapon
 local function EquipWeapon(weaponName)
-    -- Find weapon in backpack
     local backpack = LocalPlayer.Backpack
-    if not backpack then return false end
-    
+    if not backpack then return nil end
+    local target = weaponName:lower()
     for _, item in pairs(backpack:GetChildren()) do
-        local itemName = item.Name:lower()
-        local targetName = weaponName:lower()
-        if itemName:find(targetName) or targetName:find(itemName) then
-            -- Equip it
+        if item.Name:lower():find(target) or target:find(item.Name:lower()) then
             LocalPlayer.Character.Humanoid:EquipTool(item)
             task.wait(0.3)
             return item
         end
     end
-    
-    -- Check if already equipped in character
     if Character then
         for _, tool in pairs(Character:GetChildren()) do
             if tool:IsA("Tool") then
-                local toolName = tool.Name:lower()
-                local targetName = weaponName:lower()
-                if toolName:find(targetName) or targetName:find(toolName) then
-                    return tool
-                end
+                local tn = tool.Name:lower()
+                if tn:find(target) or target:find(tn) then return tool end
             end
         end
     end
-    
     return nil
 end
 
--- Attack a player/thief
 local function AttackThief(thief, basePos)
     if not thief.Character or not thief.Character:FindFirstChild("Humanoid") then return end
-    
     local targetRoot = thief.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
-    
-    -- Prevent chasing outside the base
-    if basePos then
-        local distFromBase = (targetRoot.Position - basePos).Magnitude
-        if distFromBase > Config.DefenseRange then
-            return -- Thief is outside garden, do not chase!
-        end
-    end
-    
-    -- Face the target
+    if basePos and (targetRoot.Position - basePos).Magnitude > Config.DefenseRange then return end
     if RootPart then
-        local lookCF = CFrame.lookAt(RootPart.Position, targetRoot.Position)
-        RootPart.CFrame = lookCF
+        RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
     end
-    
-    -- Try each weapon in priority order
-    for _, weaponName in ipairs(Config.DefenseWeapons) do
-        local weapon = EquipWeapon(weaponName)
+    for _, wName in ipairs(Config.DefenseWeapons) do
+        local weapon = EquipWeapon(wName)
         if weapon then
-            -- Activate weapon
-            if weapon:FindFirstChild("ClickDetector") then
+            if weapon:FindFirstChild("ClickDetector") and fireclickdetector then
                 fireclickdetector(weapon.ClickDetector)
             elseif weapon:FindFirstChildWhichIsA("RemoteEvent") then
-                local remote = weapon:FindFirstChildWhichIsA("RemoteEvent")
-                remote:FireServer(thief)
+                weapon:FindFirstChildWhichIsA("RemoteEvent"):FireServer(thief)
             end
-            
-            -- Try to use tool on target
             weapon:Activate()
             task.wait(0.1)
-            
-            -- If shovel/crowbar, try to hit
             local handle = weapon:FindFirstChild("Handle")
-            if handle then
-                if RootPart then
-                    local targetDest = targetRoot.CFrame * CFrame.new(0, 0, 3)
-                    -- Ensure destination is still inside base
-                    if basePos and (targetDest.Position - basePos).Magnitude > Config.DefenseRange then
-                        -- Don't teleport out! Just stay put and attack
-                        RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
-                    else
-                        RootPart.CFrame = targetDest
-                    end
+            if handle and RootPart then
+                local dest = targetRoot.CFrame * CFrame.new(0, 0, 3)
+                if not basePos or (dest.Position - basePos).Magnitude <= Config.DefenseRange then
+                    RootPart.CFrame = dest
+                else
+                    RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
                 end
                 weapon:Activate()
             end
-            
-            StatusLabel.Text = "⚔️ Attacking " .. thief.Name .. " with " .. weaponName
+            StatusLabel.Text = "⚔️ Defending vs " .. thief.Name
             break
         end
     end
 end
 
 -- ==========================================
--- MAIN LOOP & EVENT SNATCHER
+-- FORMAT HELPER
 -- ==========================================
+local function FormatTime(secs)
+    secs = math.max(0, math.floor(secs))
+    local h = math.floor(secs / 3600)
+    local m = math.floor((secs % 3600) / 60)
+    local s = secs % 60
+    if h > 0 then return string.format("In %d:%02d:%02d", h, m, s)
+    else           return string.format("In %02d:%02d", m, s) end
+end
 
--- Instant Event Snatcher: Beats other scripters by catching events the millisecond they spawn
+-- ==========================================
+-- INSTANT EVENT SNATCHER
+-- [FIX 4]: Added validity guard before interacting
+-- ==========================================
 Workspace.DescendantAdded:Connect(function(obj)
     if not _scriptRunning or not getAutoCollect() then return end
-    
     task.spawn(function()
-        task.wait(0.1) -- allow children to load
-        if not obj or not obj.Parent then return end
-        
+        task.wait(0.1)
+        -- [FIX 4]: Verify obj still exists in workspace before acting
+        if not obj or not obj.Parent or not obj:IsDescendantOf(Workspace) then return end
+
         if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
             local name = obj.Name:lower()
             local isTarget = false
-            
-            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget = true
-            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget = true
-            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then isTarget = true
-            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then isTarget = true
+            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget=true
+            elseif (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then isTarget=true
+            elseif name:find("bird") or name:find("crow") or name:find("pigeon") then isTarget=true
+            elseif name:find("seed pack") or (name:find("seed") and name:find("pack")) then isTarget=true
             end
-            
             if isTarget and RootPart then
-                -- Must have an interaction object
                 if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
-                    local originalPos = RootPart.CFrame
+                    local orig = RootPart.CFrame
                     RootPart.CFrame = obj.CFrame
                     task.wait(0.05)
                     CollectSeed(obj)
-                    if StatusLabel then StatusLabel.Text = "⚡ Instantly Snatched " .. obj.Name end
+                    if StatusLabel then StatusLabel.Text = "⚡ Snatched " .. obj.Name end
                     task.wait(0.1)
-                    RootPart.CFrame = originalPos
+                    RootPart.CFrame = orig
                 end
             end
         end
     end)
 end)
 
--- Helper: format seconds to "H:MM:SS" or "MM:SS" string
-local function FormatTime(seconds)
-    seconds = math.max(0, math.floor(seconds))
-    local h = math.floor(seconds / 3600)
-    local m = math.floor((seconds % 3600) / 60)
-    local s = seconds % 60
-    if h > 0 then
-        return string.format("In %d:%02d:%02d", h, m, s)
-    else
-        return string.format("In %02d:%02d", m, s)
-    end
-end
-
+-- ==========================================
+-- MAIN LOOP
+-- ==========================================
 local function MainLoop()
     while _scriptRunning and task.wait(1) do
-        local success, err = pcall(function()
+        local ok, err = pcall(function()
             UpdateClockSpeed()
-            
-            -- 1. Auto-Collect Event Seeds
+
+            -- 1. Auto-collect
             if getAutoCollect() then
                 local seeds = FindEventSeeds()
                 if #seeds > 0 and RootPart then
-                    local originalPos = RootPart.CFrame
+                    local orig = RootPart.CFrame
                     for _, seed in ipairs(seeds) do
-                        -- Instant teleport to bypass distance checks
                         RootPart.CFrame = seed.CFrame
                         task.wait(0.05)
                         CollectSeed(seed)
                         StatusLabel.Text = "🎯 Collected " .. seed.Name
                     end
                     task.wait(0.1)
-                    RootPart.CFrame = originalPos
+                    RootPart.CFrame = orig
                 end
             end
-            
-            -- 2. Weather Detection & Prediction
-            if getWeatherNotif() then
-                local detectedWeather = DetectWeather()
-                
-                if detectedWeather ~= currentWeather then
-                    currentWeather = detectedWeather
+
+            -- 2. Weather
+            if getWeatherNotif() then  -- [FIX 1] now reads real toggle state
+                local det = DetectWeather()
+                if det ~= currentWeather then
+                    currentWeather  = det
                     weatherStartTime = tick()
                     local icon = weatherIcons[currentWeather] or "❓"
-                    WeatherLabel.Text = "Current: " .. icon .. " " .. currentWeather
-                    
-                    StatusLabel.Text = "🌤️ Weather changed: " .. currentWeather
-                    
+                    WeatherLabel.Text = icon .. "  " .. currentWeather
+                    StatusLabel.Text = "🌤️ Weather → " .. currentWeather
                     if currentWeather == "Rainbow" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
-                        StatusLabel.Text = "⭐ EVENT WEATHER: " .. currentWeather .. " - Seeds may spawn!"
+                        StatusLabel.Text = "⭐ EVENT WEATHER: " .. currentWeather
                     end
                 end
-                
-                -- Update current weather remaining timer
-                local duration = weatherDurations[currentWeather] or 120
+
+                local dur     = weatherDurations[currentWeather] or 120
                 local elapsed = tick() - weatherStartTime
-                local remaining = math.max(0, duration - elapsed)
-                local mins = math.floor(remaining / 60)
-                local secs = math.floor(remaining % 60)
-                WeatherTimerLabel.Text = string.format("%02d:%02d left", mins, secs)
-                
-                -- Update weather card countdown timers
+                local rem     = math.max(0, dur - elapsed)
+                WeatherTimerLabel.Text = string.format("%02d:%02d left", math.floor(rem/60), math.floor(rem%60))
+
                 local timeToMoon, timeToDay = GetCycleTimeRemaining()
-                
-                local currentClockTime = Lighting.ClockTime or 12
-                local nextWeatherName = "Day"
-                local nextWeatherTime = timeToDay
-                
-                if currentClockTime >= 6 and currentClockTime < 18 then
-                    nextWeatherName = "Night"
-                    nextWeatherTime = timeToMoon
-                else
-                    nextWeatherName = "Day"
-                    nextWeatherTime = timeToDay
-                end
-                
-                local explicitNext = ReadNextWeather()
-                if explicitNext then
-                    local normalized = NormalizeWeatherName(explicitNext)
-                    if normalized then
-                        nextWeatherName = normalized
-                    end
-                end
-                
+                local curClock = Lighting.ClockTime or 12
+                local nextName = (curClock >= 6 and curClock < 18) and "Night" or "Day"
+                local nextTime = (curClock >= 6 and curClock < 18) and timeToMoon or timeToDay
+
+                local explicitNext = NormalizeWeatherName(ReadNextWeather())
+                if explicitNext then nextName = explicitNext end
+
                 if NextWeatherLabel then
-                    local nIcon = weatherIcons[nextWeatherName] or "❓"
-                    NextWeatherLabel.Text = string.format("Next: %s %s (%s)", nIcon, nextWeatherName, FormatTime(nextWeatherTime))
+                    local nIcon = weatherIcons[nextName] or "❓"
+                    NextWeatherLabel.Text = "Next: " .. nIcon .. " " .. nextName .. "  (" .. FormatTime(nextTime) .. ")"
                 end
-                
-                -- Day card
-                if weatherCardLabels["Day"] then
-                    if currentWeather == "Day" then
-                        weatherCardLabels["Day"].Text = "NOW!"
+
+                -- Reset all cards first
+                for wname, entry in pairs(weatherCardLabels) do
+                    local isActive = false
+                    if wname == "Day"         and currentWeather == "Day"         then isActive = true end
+                    if wname == "Moon"        and (currentWeather == "Night" or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon") then isActive = true end
+                    if wname == "Goldmoon"    and currentWeather == "GoldMoon"    then isActive = true end
+                    if wname == "Bloodmoon"   and currentWeather == "BloodMoon"   then isActive = true end
+                    if wname == "Rainbow Moon" and currentWeather == "RainbowMoon" then isActive = true end
+                    if wname == currentWeather then isActive = true end
+
+                    if isActive then
+                        SetWxCardActive(wname, true)
                     else
-                        weatherCardLabels["Day"].Text = FormatTime(timeToDay)
-                    end
-                end
-                
-                -- Moon (Night) card
-                if weatherCardLabels["Moon"] then
-                    if currentWeather == "Night" or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
-                        weatherCardLabels["Moon"].Text = "NOW!"
-                    else
-                        weatherCardLabels["Moon"].Text = FormatTime(timeToMoon)
-                    end
-                end
-                
-                -- Gold Moon card (next cycle + night with 13% chance)
-                if weatherCardLabels["Goldmoon"] then
-                    if currentWeather == "GoldMoon" then
-                        weatherCardLabels["Goldmoon"].Text = "NOW!"
-                    else
-                        weatherCardLabels["Goldmoon"].Text = FormatTime(timeToMoon) .. " (13%)"
-                    end
-                end
-                
-                -- Blood Moon card (next night with 2% chance)
-                if weatherCardLabels["Bloodmoon"] then
-                    if currentWeather == "BloodMoon" then
-                        weatherCardLabels["Bloodmoon"].Text = "NOW!"
-                    else
-                        weatherCardLabels["Bloodmoon"].Text = FormatTime(timeToMoon) .. " (2%)"
-                    end
-                end
-                
-                -- Rainbow Moon card (next night with 6% chance)
-                if weatherCardLabels["Rainbow Moon"] then
-                    if currentWeather == "RainbowMoon" then
-                        weatherCardLabels["Rainbow Moon"].Text = "NOW!"
-                    else
-                        weatherCardLabels["Rainbow Moon"].Text = FormatTime(timeToMoon) .. " (6%)"
-                    end
-                end
-                
-                -- Weather events (random, show "Random" since they can't be predicted)
-                local randomWeathers = {"Rain", "Lightning", "Snowfall", "Rainbow", "Starfall"}
-                for _, wName in ipairs(randomWeathers) do
-                    if weatherCardLabels[wName] then
-                        if currentWeather == wName then
-                            local wRemaining = math.max(0, (weatherDurations[wName] or 120) - (tick() - weatherStartTime))
-                            weatherCardLabels[wName].Text = FormatTime(wRemaining) .. " left"
+                        -- Reset color
+                        TweenService:Create(entry.card, TweenInfo.new(0.2), {BackgroundColor3 = entry.baseColor}):Play()
+                        TweenService:Create(entry.stroke, TweenInfo.new(0.2), {Color = T.stroke}):Play()
+                        -- Set timer text
+                        local wremain = 0
+                        if wname == "Day" then
+                            wremain = (currentWeather ~= "Day") and timeToDay or 0
+                        elseif wname == "Moon" or wname == "Goldmoon" or wname == "Bloodmoon" or wname == "Rainbow Moon" then
+                            wremain = (currentWeather == "Day") and timeToMoon or 0
+                            if wname == "Goldmoon"    then entry.label.Text = (wremain > 0) and FormatTime(wremain) .. " (13%)" or "Active"
+                            elseif wname == "Bloodmoon"   then entry.label.Text = (wremain > 0) and FormatTime(wremain) .. " (2%)"  or "Active"
+                            elseif wname == "Rainbow Moon" then entry.label.Text = (wremain > 0) and FormatTime(wremain) .. " (6%)"  or "Active"
+                            else   entry.label.Text = FormatTime(wremain) end
+                            entry.label.TextColor3 = T.textSecondary
+                            goto continue
                         else
-                            weatherCardLabels[wName].Text = "Random"
+                            -- Random event weathers
+                            if currentWeather == wname then
+                                local wr = math.max(0, (weatherDurations[wname] or 120) - (tick() - weatherStartTime))
+                                entry.label.Text = FormatTime(wr) .. " left"
+                            else
+                                entry.label.Text = "Random"
+                            end
                         end
-                    end
-                end
-                
-                -- Highlight active weather card
-                for cardName, label in pairs(weatherCardLabels) do
-                    local card = label.Parent
-                    if card then
-                        local isActive = false
-                        if cardName == "Day" and currentWeather == "Day" then isActive = true end
-                        if cardName == "Moon" and currentWeather == "Night" then isActive = true end
-                        if cardName == "Goldmoon" and currentWeather == "GoldMoon" then isActive = true end
-                        if cardName == "Bloodmoon" and currentWeather == "BloodMoon" then isActive = true end
-                        if cardName == "Rainbow Moon" and currentWeather == "RainbowMoon" then isActive = true end
-                        if cardName == currentWeather then isActive = true end
-                        
-                        if isActive then
-                            card.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-                            label.Text = "NOW!"
-                        else
-                            card.BackgroundColor3 = Color3.fromRGB(50, 90, 160)
+                        if wname == "Day" then
+                            entry.label.Text = FormatTime(wremain)
                         end
+                        entry.label.TextColor3 = T.textSecondary
+                        ::continue::
                     end
                 end
             end
-            
-            -- 3. Seed Shop Prediction
+
+            -- 3. Shop prediction
             if getShopNotif() then
-                -- Base shop restock every 5 minutes (300 seconds)
+                local now = os.time()
                 local baseRestock = 300
-                local currentGlobalTime = os.time()
-                local shopCycle = currentGlobalTime % baseRestock
-                local nextRestock = baseRestock - shopCycle
-                local restockMins = math.floor(nextRestock / 60)
-                local restockSecs = math.floor(nextRestock % 60)
-                ShopPredictLabel.Text = string.format("🔄 Next Restock: %02d:%02d", restockMins, restockSecs)
-                
-                -- Update per-seed timers
+                local next5 = baseRestock - (now % baseRestock)
+                ShopPredictLabel.Text = string.format("🔄 Next Restock: %02d:%02d", math.floor(next5/60), math.floor(next5%60))
                 for _, entry in ipairs(seedTimerLabels) do
-                    local cycleSec = entry.data.cycle * 60
-                    local seedCycle = currentGlobalTime % cycleSec
-                    local seedNext = cycleSec - seedCycle
-                    
-                    if seedNext < 30 then
+                    local cyc = entry.data.cycle * 60
+                    local sNext = cyc - (now % cyc)
+                    if sNext < 30 then
                         entry.label.Text = "⚡ SOON!"
-                        entry.label.TextColor3 = Color3.fromRGB(255, 220, 80)
-                        entry.row.BackgroundColor3 = Color3.fromRGB(60, 55, 20)
+                        entry.label.TextColor3 = T.warning
+                        entry.row.BackgroundColor3 = Color3.fromRGB(55, 50, 18)
                     else
-                        entry.label.Text = FormatTime(seedNext)
-                        entry.label.TextColor3 = Color3.fromRGB(200, 200, 200)
+                        entry.label.Text = FormatTime(sNext)
+                        entry.label.TextColor3 = T.textSecondary
                         entry.row.BackgroundColor3 = RarityBG[entry.data.rarity]
                     end
                 end
             end
-            
-            local basePos = FindMyBasePos()
 
-            local currentClockTime = Lighting.ClockTime or 12
-            local isNightTime = (currentClockTime < 6 or currentClockTime >= 18)
-            local isStealing = false
-            
-            -- 3.5 Auto Steal (Night)
+            local basePos       = FindMyBasePos()
+            local curClock2     = Lighting.ClockTime or 12
+            local isNightTime   = (curClock2 < 6 or curClock2 >= 18)
+            local isStealing    = false
+
+            -- 4. Auto Steal (Night)
             if isNightTime and getAutoSteal() then
                 local plants = GetOtherPlayersPlants()
-                local targetPlant = nil
-                
+                local target = nil
                 for _, p in ipairs(plants) do
-                    if p.highValue then
-                        targetPlant = p
-                        break
-                    end
+                    if p.highValue then target = p break end
                 end
-                
-                if not targetPlant and not getStealHighValue() then
-                    if #plants > 0 then targetPlant = plants[1] end
+                if not target and not getStealHighValue() then
+                    if #plants > 0 then target = plants[1] end
                 end
-                
-                if targetPlant and RootPart then
+                if target and RootPart then
                     isStealing = true
-                    
                     if getAutoAttackOwner() then
-                        local owner = FindPlayerNear(targetPlant.part.Position, 40)
-                        if owner then
-                            AttackThief(owner, targetPlant.part.Position)
-                            task.wait(0.2)
-                        end
+                        local owner = FindPlayerNear(target.part.Position, 40)
+                        if owner then AttackThief(owner, target.part.Position) task.wait(0.2) end
                     end
-                    
-                    RootPart.CFrame = targetPlant.part.CFrame
+                    RootPart.CFrame = target.part.CFrame
                     task.wait(0.05)
-                    CollectSeed(targetPlant.obj)
-                    StatusLabel.Text = "🥷 Stealing " .. targetPlant.obj.Name .. "..."
+                    CollectSeed(target.obj)
+                    StatusLabel.Text = "🥷 Stealing " .. target.obj.Name
                     task.wait(0.1)
                 end
             end
 
-            -- 4. Auto Stay Base at Night
+            -- 5. Auto Stay Base
             if getAutoStay() and isNightTime and not isStealing then
                 if basePos and RootPart then
-                    local distFromBase = Vector2.new(RootPart.Position.X, RootPart.Position.Z) - Vector2.new(basePos.X, basePos.Z)
-                    if distFromBase.Magnitude > 40 then
-                        -- Teleport back to base
+                    local d = Vector2.new(RootPart.Position.X, RootPart.Position.Z) - Vector2.new(basePos.X, basePos.Z)
+                    if d.Magnitude > 40 then
                         TeleportTo(basePos + Vector3.new(0, 3, 0))
-                        StatusLabel.Text = "🌙 Night - Returned to base"
+                        StatusLabel.Text = "🌙 Night — returned to base"
                     end
                 end
             end
-            
-            -- 5. Auto Defense
+
+            -- 6. Auto Defense
             if getAutoDefense() then
                 local threats = FindThreatsInBase(basePos)
-                if #threats > 0 then
-                    for _, thief in ipairs(threats) do
-                        AttackThief(thief, basePos)
-                        task.wait(Config.WeaponCooldown)
-                    end
+                for _, thief in ipairs(threats) do
+                    AttackThief(thief, basePos)
+                    task.wait(Config.WeaponCooldown)
                 end
             end
-            
-            -- 6. Utilities
+
+            -- 7. Utilities
             if getAntiPause() then
-                pcall(function()
-                    game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)
-                end)
+                pcall(function() game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false) end)
             end
-            
+
             if getAutoSkip() then
                 pcall(function()
-                    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-                    if playerGui then
-                        for _, gui in pairs(playerGui:GetDescendants()) do
-                            if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-                                local text = (gui:IsA("TextButton") and gui.Text:lower()) or gui.Name:lower()
-                                if text:find("skip") or text:find("play") or text:find("continue") or text:find("start") then
-                                    if gui.Visible and gui.Active and gui.AbsoluteSize.X > 0 then
-                                        local screenGui = gui:FindFirstAncestorWhichIsA("ScreenGui")
-                                        if screenGui and (screenGui.Name:lower():find("intro") or screenGui.Name:lower():find("main") or screenGui.Name:lower():find("loading") or screenGui.Name:lower():find("menu") or text:find("skip")) then
-                                            if getconnections then
-                                                for _, connection in pairs(getconnections(gui.MouseButton1Click)) do connection:Fire() end
-                                                for _, connection in pairs(getconnections(gui.Activated)) do connection:Fire() end
-                                            else
-                                                local pos = gui.AbsolutePosition + (gui.AbsoluteSize / 2)
-                                                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-                                                task.wait(0.05)
-                                                VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-                                            end
+                    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                    if not pg then return end
+                    for _, gui in pairs(pg:GetDescendants()) do
+                        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                            local text = gui:IsA("TextButton") and gui.Text:lower() or gui.Name:lower()
+                            if text:find("skip") or text:find("continue") or text:find("start") then
+                                if gui.Visible and gui.Active and gui.AbsoluteSize.X > 0 then
+                                    local sg = gui:FindFirstAncestorWhichIsA("ScreenGui")
+                                    if sg and (sg.Name:lower():find("intro") or sg.Name:lower():find("loading") or sg.Name:lower():find("menu") or text:find("skip")) then
+                                        if getconnections then
+                                            for _, c in pairs(getconnections(gui.MouseButton1Click)) do c:Fire() end
+                                        else
+                                            local pos = gui.AbsolutePosition + gui.AbsoluteSize / 2
+                                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true,  game, 1)
+                                            task.wait(0.05)
+                                            VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
                                         end
                                     end
                                 end
@@ -1886,103 +1904,79 @@ local function MainLoop()
                     end
                 end)
             end
-            
-            -- Update base status label
-            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") then
-                StatusLabel.Text = "✅ Active | " .. currentWeather .. " | Monitoring..."
+
+            -- Update status if nothing more specific
+            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") and not StatusLabel.Text:find("⚡") and not StatusLabel.Text:find("🥷") then
+                StatusLabel.Text = "✅ Active · " .. currentWeather .. " · monitoring"
             end
         end)
-        
-        if not success then
-            warn("MainLoop Error: ", err)
-            StatusLabel.Text = "⚠️ Loop Error: " .. tostring(err):sub(1, 40)
+
+        if not ok then
+            warn("GAG2 Loop Error:", err)
+            StatusLabel.Text = "⚠️ " .. tostring(err):sub(1, 50)
         end
     end
 end
 
--- Character respawn handler
+-- ==========================================
+-- CHARACTER RESPAWN
+-- ==========================================
 LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
-    RootPart = char:WaitForChild("HumanoidRootPart")
-    task.wait(2) -- Wait for game to load
+    RootPart  = char:WaitForChild("HumanoidRootPart")
+    task.wait(2)
 end)
 
--- Anti-AFK Connection
+-- Anti-AFK
 LocalPlayer.Idled:Connect(function()
     if getAntiAFK() then
-        local VirtualUser = game:GetService("VirtualUser")
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
+        local VU = game:GetService("VirtualUser")
+        VU:CaptureController()
+        VU:ClickButton2(Vector2.new())
     end
 end)
 
--- Start the script
+-- ==========================================
+-- CLEANUP
+-- ==========================================
+local function CleanupScript()
+    _scriptRunning = false
+    for _, conn in ipairs(_connections) do pcall(function() conn:Disconnect() end) end
+    _connections = {}
+    if Library and Library.Parent then Library:Destroy() end
+end
+
+CloseBtn.MouseButton1Click:Connect(CleanupScript)
+
+if script then
+    pcall(function() script.Destroying:Connect(CleanupScript) end)
+    pcall(function()
+        script.AncestryChanged:Connect(function(_, np)
+            if not np then CleanupScript() end
+        end)
+    end)
+end
+
+game.Players.LocalPlayer.AncestryChanged:Connect(function(_, np)
+    if not np then CleanupScript() end
+end)
+
+-- ==========================================
+-- START
+-- ==========================================
 task.spawn(MainLoop)
 
--- Initial status
-StatusLabel.Text = "✅ Script loaded | Waiting for events..."
-WeatherLabel.Text = "Current: ☀️ Day"
-WeatherTimerLabel.Text = "--:--"
+StatusLabel.Text = "✅ Devo GAG2 v2.1 loaded · Monitoring..."
+WeatherLabel.Text = "☀️  Day"
+WeatherTimerLabel.Text = "--:-- left"
 
--- Print status to chat
 pcall(function()
-    local StarterGui = game:GetService("StarterGui")
-    StarterGui:SetCore("ChatMakeSystemMessage", {
-        Text = "🌱 Devo GAG2 v2.0 loaded! bebe Ed Sheeran ♪",
-        Color = Color3.fromRGB(40, 200, 120),
-        Font = Enum.Font.GothamBold,
-        TextSize = 16
+    game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+        Text     = "🌱 Devo GAG2 v2.1 loaded! bebe Ed Sheeran ♪  (7 bugs fixed)",
+        Color    = Color3.fromRGB(32, 210, 110),
+        Font     = Enum.Font.GothamBold,
+        TextSize = 16,
     })
 end)
 
-print("🌱 Devo GAG2 v2.0 loaded successfully!")
-
--- ==========================================
--- CLEANUP: Destroy UI when script is removed
--- ==========================================
-
--- Function to fully clean up
-local function CleanupScript()
-    _scriptRunning = false
-    
-    -- Disconnect all tracked connections
-    for _, conn in ipairs(_connections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    _connections = {}
-    
-    -- Destroy the UI
-    if Library and Library.Parent then
-        Library:Destroy()
-    end
-end
-
--- Close button: fully destroys the script UI
-CloseBtn.MouseButton1Click:Connect(function()
-    CleanupScript()
-end)
-
--- Auto-cleanup when script is destroyed from executor
--- This catches when user deletes/stops the script
-if script then
-    pcall(function()
-        script.Destroying:Connect(function()
-            CleanupScript()
-        end)
-    end)
-    -- Fallback: AncestryChanged catches removal from parent
-    pcall(function()
-        script.AncestryChanged:Connect(function(_, newParent)
-            if not newParent then
-                CleanupScript()
-            end
-        end)
-    end)
-end
-
--- Also clean up if player leaves
-game.Players.LocalPlayer.AncestryChanged:Connect(function(_, newParent)
-    if not newParent then
-        CleanupScript()
-    end
-end)
+print("🌱 Devo GAG2 v2.1 — Fixed & Premium UI — loaded!")
