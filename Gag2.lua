@@ -740,7 +740,7 @@ ShopLayout.Parent = ShopTab
 
 CreateLabel(ShopTab, "=== AUTO BUY ===", Color3.fromRGB(80, 200, 120))
 local _, getAutoBuy = CreateToggle(ShopTab, "Auto Buy Seeds", "Buy selected seeds when in stock", false)
-local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", {"None", "Cactus", "Pineapple", "Mushroom", "Banana", "Dragon Fruit", "Moon Bloom"}, 1)
+local getBuySeed = CreateDropdown(ShopTab, "Seed to Buy", {"None", "Carrot", "Strawberry", "Blueberry", "Tulip", "Tomato", "Apple", "Bamboo", "Corn", "Cactus", "Pineapple", "Mushroom", "Banana", "Grape", "Coconut", "Mango", "Green Bean", "Dragon Fruit", "Acorn", "Cherry", "Sunflower", "Venus Flytrap", "Pomegranate", "Moon Bloom", "Dragon's Breath"}, 1)
 
 
 -- Restock timer header
@@ -2205,9 +2205,11 @@ local function MainLoop()
                                 CollectSeed(obj)
                                 StatusLabel.Text = "🚜 Harvested " .. obj.Name
                                 task.wait(0.2)
+                                break
                             end
                         end
                     end
+                    if isFarming then break end
                 end
             end
             
@@ -2225,9 +2227,11 @@ local function MainLoop()
                                 CollectSeed(obj)
                                 StatusLabel.Text = "💧 Watered Plant"
                                 task.wait(0.2)
+                                break
                             end
                         end
                     end
+                    if isFarming then break end
                 end
             end
             
@@ -2246,9 +2250,11 @@ local function MainLoop()
                                 CollectSeed(obj)
                                 StatusLabel.Text = "🌱 Planted " .. seedToPlant
                                 task.wait(0.2)
+                                break
                             end
                         end
                     end
+                    if isFarming then break end
                 end
             end
             
