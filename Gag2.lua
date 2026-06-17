@@ -43,10 +43,13 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local Character
 local RootPart
+local _connections = {}
+local _scriptRunning = true
 
 local function UpdateCharacter(char)
+    if not char then return end
     Character = char
-    RootPart = char:WaitForChild("HumanoidRootPart")
+    RootPart = char:WaitForChild("HumanoidRootPart", 10)
 end
 
 UpdateCharacter(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())
@@ -66,10 +69,6 @@ pcall(function()
         CoreGui:FindFirstChild("DevoGag2"):Destroy()
     end
 end)
-
--- Track all connections for cleanup
-local _connections = {}
-local _scriptRunning = true
 
 -- UI Library
 local Library = Instance.new("ScreenGui")
@@ -98,27 +97,35 @@ end
 local function MakeDraggable(dragHandle, targetFrame)
     local dragging = false
     local dragStart, startPos
-    
-local endConn
 
-endConn = input.Changed:Connect(function()
-    if input.UserInputState == Enum.UserInputState.End then
-        dragging = false
-
-        if endConn then
-            endConn:Disconnect()
-            endConn = nil
+    table.insert(_connections, dragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
         end
-    end
-end)
 
-table.insert(_connections,endConn)hanged:Connect(function(input)
+        dragging = true
+        dragStart = input.Position
+        startPos = targetFrame.Position
+
+        local endConn
+        endConn = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                if endConn then
+                    endConn:Disconnect()
+                    endConn = nil
+                end
+            end
+        end)
+        table.insert(_connections, endConn)
+    end))
+
+    table.insert(_connections, UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
             targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
-    end)
-    table.insert(_connections, c2)
+    end))
 end
 
 -- ==========================================
@@ -1659,6 +1666,15 @@ local function FindEventSeeds()
     return seeds
 end
 
+local function GetObjectPart(obj)
+    if not obj then return nil end
+    if obj:IsA("BasePart") then return obj end
+    if obj:IsA("Model") then
+        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return obj:FindFirstChildWhichIsA("BasePart", true)
+end
+
 -- Collect seed (simulate click/interact) - Ultra Fast Edition
 local function CollectSeed(seedObj)
     pcall(function()
@@ -1745,11 +1761,15 @@ local function FindMyBasePos()
                 for _, valName in ipairs({"Owner", "Player", "PlayerName", "owner", "PlayerId"}) do
                     local ownerVal = obj:FindFirstChild(valName)
                     if ownerVal then
-                        local val = tostring(ownerVal.Value)
-                        if val == playerName or val == display or val == userId then
-                            isMyBase = true
-                        elseif ownerVal:IsA("ObjectValue") and ownerVal.Value == LocalPlayer then
-                            isMyBase = true
+                        if ownerVal:IsA("ObjectValue") then
+                            if ownerVal.Value == LocalPlayer then
+                                isMyBase = true
+                            end
+                        elseif ownerVal:IsA("StringValue") or ownerVal:IsA("IntValue") or ownerVal:IsA("NumberValue") then
+                            local val = tostring(ownerVal.Value)
+                            if val == playerName or val == display or val == userId then
+                                isMyBase = true
+                            end
                         end
                     end
                 end
@@ -1918,14 +1938,15 @@ end
 local function EquipWeapon(weaponName)
     -- Find weapon in backpack
     local backpack = LocalPlayer.Backpack
-    if not backpack then return false end
+    local humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    if not backpack or not humanoid then return false end
     
     for _, item in pairs(backpack:GetChildren()) do
         local itemName = item.Name:lower()
         local targetName = weaponName:lower()
-        if itemName:find(targetName) or targetName:find(itemName) then
+        if itemName:find(targetName, 1, true) or targetName:find(itemName, 1, true) then
             -- Equip it
-            LocalPlayer.Character.Humanoid:EquipTool(item)
+            humanoid:EquipTool(item)
             task.wait(0.3)
             return item
         end
@@ -1937,7 +1958,7 @@ local function EquipWeapon(weaponName)
             if tool:IsA("Tool") then
                 local toolName = tool.Name:lower()
                 local targetName = weaponName:lower()
-                if toolName:find(targetName) or targetName:find(toolName) then
+                if toolName:find(targetName, 1, true) or targetName:find(toolName, 1, true) then
                     return tool
                 end
             end
@@ -2011,7 +2032,7 @@ end
 -- ==========================================
 
 -- Instant Event Snatcher: Beats other scripters by catching events the millisecond they spawn
-Workspace.DescendantAdded:Connect(function(obj)
+table.insert(_connections, Workspace.DescendantAdded:Connect(function(obj)
     if not _scriptRunning or not getAutoCollect() then return end
     
     task.spawn(function()
@@ -2031,8 +2052,10 @@ Workspace.DescendantAdded:Connect(function(obj)
             if isTarget and RootPart then
                 -- Must have an interaction object
                 if obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("TouchTransmitter", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
+                    local targetPart = GetObjectPart(obj)
+                    if not targetPart then return end
                     local originalPos = RootPart.CFrame
-                    RootPart.CFrame = obj.CFrame
+                    RootPart.CFrame = targetPart.CFrame
                     task.wait(0.05)
                     CollectSeed(obj)
                     if StatusLabel then StatusLabel.Text = "⚡ Instantly Snatched " .. obj.Name end
@@ -2071,9 +2094,12 @@ local function MainLoop()
                     local originalPos = RootPart.CFrame
                     for _, seed in ipairs(seeds) do
                         -- Instant teleport to bypass distance checks
-                        RootPart.CFrame = seed.CFrame
-                        task.wait(0.05)
-                        CollectSeed(seed)
+                        local seedPart = GetObjectPart(seed)
+                        if seedPart then
+                            RootPart.CFrame = seedPart.CFrame
+                            task.wait(0.05)
+                            CollectSeed(seed)
+                        end
                         StatusLabel.Text = "🎯 Collected " .. seed.Name
                     end
                     task.wait(0.1)
@@ -2393,9 +2419,12 @@ local WeatherScanCooldown = 3
                                 for _, prompt in pairs(Workspace:GetDescendants()) do
                                     if prompt:IsA("ProximityPrompt") and prompt.ActionText:lower():find("buy") and prompt.Parent and prompt.Parent.Name:lower():find(targetSeed:lower()) then
                                         if RootPart then
-                                            RootPart.CFrame = prompt.Parent.CFrame
-                                            task.wait(0.1)
-                                            if fireproximityprompt then fireproximityprompt(prompt, 1, true) end
+                                            local promptPart = GetObjectPart(prompt.Parent)
+                                            if promptPart then
+                                                RootPart.CFrame = promptPart.CFrame
+                                                task.wait(0.1)
+                                                if fireproximityprompt then fireproximityprompt(prompt, 1, true) end
+                                            end
                                         end
                                         break
                                     end
@@ -2599,21 +2628,14 @@ local WeatherScanCooldown = 3
     end
 end
 
--- Character respawn handler
-LocalPlayer.CharacterAdded:Connect(function(char)
-    Character = char
-    RootPart = char:WaitForChild("HumanoidRootPart")
-    task.wait(2) -- Wait for game to load
-end)
-
 -- Anti-AFK Connection
-LocalPlayer.Idled:Connect(function()
+table.insert(_connections, LocalPlayer.Idled:Connect(function()
     if getAntiAFK() then
         local VirtualUser = game:GetService("VirtualUser")
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
     end
-end)
+end))
 
 -- Start the script
 task.spawn(MainLoop)
@@ -2640,23 +2662,23 @@ print("🌱 Devo GAG2 v2.0 loaded successfully!")
 -- This catches when user deletes/stops the script
 if script then
     pcall(function()
-        script.Destroying:Connect(function()
+        table.insert(_connections, script.Destroying:Connect(function()
             CleanupScript()
-        end)
+        end))
     end)
     -- Fallback: AncestryChanged catches removal from parent
     pcall(function()
-        script.AncestryChanged:Connect(function(_, newParent)
+        table.insert(_connections, script.AncestryChanged:Connect(function(_, newParent)
             if not newParent then
                 CleanupScript()
             end
-        end)
+        end))
     end)
 end
 
 -- Also clean up if player leaves
-game.Players.LocalPlayer.AncestryChanged:Connect(function(_, newParent)
+table.insert(_connections, game.Players.LocalPlayer.AncestryChanged:Connect(function(_, newParent)
     if not newParent then
         CleanupScript()
     end
-end)
+end))
