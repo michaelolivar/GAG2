@@ -41,6 +41,7 @@ local CoreGui = game:GetService("CoreGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 local Character
 local RootPart
 local _connections = {}
@@ -49,33 +50,70 @@ local _scriptRunning = true
 local function UpdateCharacter(char)
     if not char then return end
     Character = char
-    RootPart = char:WaitForChild("HumanoidRootPart", 10)
+    RootPart = char:FindFirstChild("HumanoidRootPart")
+    task.spawn(function()
+        RootPart = char:WaitForChild("HumanoidRootPart", 10) or RootPart
+    end)
 end
 
-UpdateCharacter(LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait())
+UpdateCharacter(LocalPlayer.Character)
 
 table.insert(_connections,
     LocalPlayer.CharacterAdded:Connect(UpdateCharacter)
 )
 
--- Cleanup: destroy old UI if script is re-run
-local guiParent = (gethui and gethui()) or CoreGui
-if guiParent:FindFirstChild("DevoGag2") then
-    guiParent:FindFirstChild("DevoGag2"):Destroy()
+local function GetGuiParent()
+    local parent
+    pcall(function()
+        if gethui then
+            parent = gethui()
+        end
+    end)
+    if parent then return parent end
+
+    pcall(function()
+        CoreGui:GetChildren()
+        parent = CoreGui
+    end)
+    return parent or PlayerGui
 end
--- Pcall fallback for normal CoreGui just in case
-pcall(function()
-    if CoreGui:FindFirstChild("DevoGag2") then
-        CoreGui:FindFirstChild("DevoGag2"):Destroy()
-    end
-end)
+
+local guiParent = GetGuiParent()
+
+local function DestroyExistingGui(parent)
+    if not parent then return end
+    pcall(function()
+        local existing = parent:FindFirstChild("DevoGag2")
+        if existing then
+            existing:Destroy()
+        end
+    end)
+end
+
+-- Cleanup: destroy old UI if script is re-run
+DestroyExistingGui(guiParent)
+DestroyExistingGui(CoreGui)
+DestroyExistingGui(PlayerGui)
 
 -- UI Library
 local Library = Instance.new("ScreenGui")
 Library.Name = "DevoGag2"
-Library.Parent = guiParent
 Library.ResetOnSpawn = false
 Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Library.DisplayOrder = 999999
+Library.IgnoreGuiInset = true
+local parented = false
+if guiParent then
+    parented = pcall(function()
+        Library.Parent = guiParent
+    end)
+end
+if not parented and PlayerGui then
+    Library.Parent = PlayerGui
+end
+if not Library.Parent then
+    error("DevoGag2: could not find a valid UI parent", 0)
+end
 
 local function CleanupScript()
     _scriptRunning = false
@@ -172,6 +210,12 @@ uiScale.Parent = MainFrame
 local Camera = workspace.CurrentCamera
 
 local function UpdateUIScale()
+    Camera = workspace.CurrentCamera or Camera
+    if not Camera then
+        uiScale.Scale = 1
+        return
+    end
+
     local size = Camera.ViewportSize
 
     local scale = math.clamp(
@@ -207,7 +251,7 @@ shadow.AnchorPoint = Vector2.new(0.5, 0.5)
 shadow.BackgroundTransparency = 1
 shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
 shadow.Size = UDim2.new(1, 30, 1, 30)
-shadow.ZIndex = -1
+shadow.ZIndex = 0
 shadow.Image = "rbxassetid://6015897843"
 shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
 shadow.ImageTransparency = 0.5
