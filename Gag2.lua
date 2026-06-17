@@ -785,25 +785,11 @@ function UI:Initialize()
 
     -- Add to CoreGui or PlayerGui (Executor Safe)
     local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    local targetParent
+    local targetParent = success and coreGui or LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChild("PlayerGui")
     
-    if type(gethui) == "function" then
-        local h = gethui()
-        if h and h:IsA("ScreenGui") then
-            -- Delta's gethui() often returns a ScreenGui. We cannot nest ScreenGui inside ScreenGui.
-            targetParent = (success and coreGui) or h.Parent or h
-        else
-            targetParent = h
-        end
-    elseif success and coreGui then
-        targetParent = coreGui
-    else
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChild("PlayerGui")
-        if not playerGui then
-            playerGui = Instance.new("PlayerGui")
-            playerGui.Parent = LocalPlayer
-        end
-        targetParent = playerGui
+    if not targetParent then
+        targetParent = Instance.new("PlayerGui")
+        targetParent.Parent = LocalPlayer
     end
     
     screenGui.Parent = targetParent
@@ -1904,54 +1890,54 @@ function ToggleAll(enabled)
 end
 
 -- ============================================================
--- SECTION 11: MAIN EXECUTION
+-- MAIN EXECUTION WITH ERROR CATCHER
 -- ============================================================
-
-Log:Success("🌱 Harvest Elite v2.1.0 loading...")
-
--- Delay to let game load
-task.wait(1)
-
--- Initialize UI
-UI:Initialize()
-
--- Start core engines based on config
-if CONFIG.AutoFarm then FarmEngine:Start() end
-if CONFIG.AutoCollectEventSeeds or CONFIG.AutoBuyEventSeeds then EventSeedCollector:Start() end
-if CONFIG.AntiAFK then AntiAFK:Start() end
-
-Log:Success("✅ Harvest Elite v2.1.0 fully loaded and operational")
-Log:Info("📌 Press [Right Ctrl] to toggle UI visibility")
-Log:Info("📌 Report bugs: https://help.hackerai.co")
-
--- UI Toggle Hotkey
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
-        if UI.ScreenGui then
-            UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
-        end
-    end
-end)
-
--- Auto-save collected seeds count tracking
-local startTime = os.time()
-task.spawn(function()
-    while task.wait(10) do
-        if FarmEngine.Running then
-            local balance = Utilities.GetPlayerBalance()
-            local uptime = math.floor((os.time() - startTime) / 60)
-            -- Update UI stats if page exists
-            local mainPage = UI.Elements.ContentPages and UI.Elements.ContentPages["Main"]
-            if mainPage then
-                for _, child in ipairs(mainPage:GetDescendants()) do
-                    if child:IsA("TextLabel") and child.Name == "Value" then
-                        -- Update dynamically (simplified)
-                    end
-                end
+local function StartScript()
+    Log:Success("🌱 Harvest Elite v2.1.0 loading...")
+    task.wait(1)
+    
+    UI:Initialize()
+    
+    if CONFIG.AutoFarm then FarmEngine:Start() end
+    if CONFIG.AutoCollectEventSeeds or CONFIG.AutoBuyEventSeeds then EventSeedCollector:Start() end
+    if CONFIG.AntiAFK then AntiAFK:Start() end
+    
+    Log:Success("✅ Harvest Elite v2.1.0 fully loaded and operational")
+    Log:Info("📌 Press [Right Ctrl] to toggle UI visibility")
+    
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+            if UI.ScreenGui then
+                UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
             end
         end
-    end
-end)
+    end)
+    
+    local startTime = os.time()
+    task.spawn(function()
+        while task.wait(10) do
+            if FarmEngine.Running then
+                local balance = Utilities.GetPlayerBalance()
+            end
+        end
+    end)
+end
+
+local success, err = pcall(StartScript)
+if not success then
+    warn("HARVEST ELITE FATAL ERROR: " .. tostring(err))
+    local sg = Instance.new("ScreenGui")
+    local successCore, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    sg.Parent = (successCore and coreGui) or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local tl = Instance.new("TextLabel")
+    tl.Size = UDim2.new(1, 0, 0, 150)
+    tl.Position = UDim2.new(0, 0, 0, 0)
+    tl.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    tl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tl.TextScaled = true
+    tl.Text = "🚨 HARVEST ELITE CRASHED 🚨\nError: " .. tostring(err)
+    tl.Parent = sg
+end
 
 -- ============================================================
 -- END OF SCRIPT
