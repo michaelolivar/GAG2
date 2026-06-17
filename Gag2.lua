@@ -791,7 +791,7 @@ function UI:Initialize()
     self:CreateTitleBar()
     self:CreateTabBar()
     self:CreateContentArea()
-    self:CreateStatusBar()
+    -- self:CreateStatusBar() -- Removed due to missing implementation
 
     -- Make draggable
     self:MakeDraggable()
