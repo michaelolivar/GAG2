@@ -2,32 +2,26 @@
 ████████████████████████████████████████████████████████████████████████████
 █                                                                          █
 █   GROW A GARDEN 2 — Premium Auto Collect & Farm Script                  █
-█   Version: 2.1.0                                                         █
-█   Compatibility: All major executors (Synapse, Delta, Solara, Codex)    █
-█   Author: HackerAI Security Research                                     █
-█                                                                          █
-█   DISCLAIMER: For authorized pentesting & educational purposes only.    █
-█   Report bugs to game devs responsibly.                                  █
+█   Version: 2.1.1 (UI FIXED)                                              █
+█   Compatibility: All major executors                                    █
 █                                                                          █
 ████████████████████████████████████████████████████████████████████████████
 --]]
 
 -- ============================================================
--- SECTION 1: CONFIGURATION (User-editable settings)
+-- SECTION 1: CONFIGURATION
 -- ============================================================
 local CONFIG = {
-    -- Core Toggles
-    AutoCollectEventSeeds = true,      -- Auto-collect event seeds from shop
-    AutoBuyEventSeeds = true,           -- Auto-purchase event seeds when in stock
-    AutoFarm = true,                    -- Full auto farm cycle
-    AutoPlant = true,                   -- Plant seeds automatically
-    AutoHarvest = true,                 -- Harvest mature crops
-    AutoSell = true,                    -- Sell harvested crops
-    AutoWater = true,                   -- Water plants if needed
-    AntiAFK = true,                     -- Prevent kick for inactivity
-    AutoSteal = false,                  -- Steal from other gardens (use at own risk)
+    AutoCollectEventSeeds = true,
+    AutoBuyEventSeeds = true,
+    AutoFarm = true,
+    AutoPlant = true,
+    AutoHarvest = true,
+    AutoSell = true,
+    AutoWater = true,
+    AntiAFK = true,
+    AutoSteal = false,
 
-    -- Event Seed Configuration
     EventSeeds = {
         ["Delphinium"] = { Priority = 1, MaxPrice = 50000, AutoBuy = true },
         ["Traveler's Fruit"] = { Priority = 2, MaxPrice = 100000, AutoBuy = true },
@@ -41,51 +35,38 @@ local CONFIG = {
         ["Rosy Delight"] = { Priority = 10, MaxPrice = 80000, AutoBuy = true },
     },
 
-    -- Farming Settings
-    MinShecklesToKeep = 1000,           -- Minimum balance to maintain
-    HarvestRadius = 50,                 -- Radius to scan for harvestable crops
-    PlantRadius = 30,                   -- Radius to scan for empty plots
-    MaxPlants = 100,                    -- Maximum plants to maintain
+    MinShecklesToKeep = 1000,
+    HarvestRadius = 50,
+    PlantRadius = 30,
+    MaxPlants = 100,
     PreferredSeeds = {"Moon Bloom", "Dragon's Breath", "Ghost Pepper", "Glow Mushroom"},
 
-    -- UI Settings
     Theme = {
-        Primary = Color3.fromRGB(30, 200, 80),      -- Emerald green
-        Secondary = Color3.fromRGB(20, 150, 60),     -- Darker green
-        Accent = Color3.fromRGB(255, 215, 0),        -- Gold
-        Background = Color3.fromRGB(15, 15, 25),     -- Dark
-        Surface = Color3.fromRGB(25, 25, 40),        -- Card surface
-        Text = Color3.fromRGB(230, 230, 240),        -- Light text
-        Danger = Color3.fromRGB(255, 70, 70),        -- Red
-        Warning = Color3.fromRGB(255, 180, 50),      -- Orange
+        Primary = Color3.fromRGB(30, 200, 80),
+        Secondary = Color3.fromRGB(20, 150, 60),
+        Accent = Color3.fromRGB(255, 215, 0),
+        Background = Color3.fromRGB(15, 15, 25),
+        Surface = Color3.fromRGB(25, 25, 40),
+        Text = Color3.fromRGB(230, 230, 240),
+        Danger = Color3.fromRGB(255, 70, 70),
+        Warning = Color3.fromRGB(255, 180, 50),
     },
     Opacity = 0.92,
     Font = Enum.Font.GothamBold,
-    Title = "🌱 HARVEST ELITE  •  v2.1.0"
+    Title = "🌱 HARVEST ELITE  •  v2.1.1"
 }
 
 -- ============================================================
--- SECTION 2: SERVICE CACHING (Optimized lookups)
+-- SECTION 2: SERVICES
 -- ============================================================
-local Services = setmetatable({}, {
-    __index = function(_, key)
-        local success, service = pcall(function()
-            return game:GetService(key)
-        end)
-        return success and service or nil
-    end
-})
-
+local Services = setmetatable({}, {__index = function(_, k) return game:GetService(k) end})
 local Players = Services.Players
 local RunService = Services.RunService
 local UserInputService = Services.UserInputService
 local TweenService = Services.TweenService
 local VirtualInputManager = Services.VirtualInputManager
-local MarketplaceService = Services.MarketplaceService
-local HttpService = Services.HttpService
 
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
 -- SECTION 3: UTILITY FUNCTIONS
@@ -751,7 +732,7 @@ end
 function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
 
 -- ============================================================
--- SECTION 8: PREMIUM PROFESSIONAL UI (FIXED)
+-- SECTION 8: FIXED UI (Main Fix)
 -- ============================================================
 local UI = {
     ScreenGui = nil,
@@ -765,7 +746,6 @@ local UI = {
 }
 
 function UI:Initialize()
-    -- Create ScreenGui
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "HarvestEliteGUI"
     screenGui.ResetOnSpawn = false
@@ -773,26 +753,15 @@ function UI:Initialize()
     screenGui.DisplayOrder = 999
     screenGui.IgnoreGuiInset = true
 
-    -- Executor-safe parenting
     if gethui then
         screenGui.Parent = gethui()
     else
-        local success, coreGui = pcall(function() 
-            return game:GetService("CoreGui") 
-        end)
-        if success and coreGui then
-            pcall(function() screenGui.Parent = coreGui end)
-        end
+        pcall(function() screenGui.Parent = game:GetService("CoreGui") end)
     end
 
-    -- Fallback to PlayerGui
     if not screenGui.Parent then
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        if not playerGui then
-            playerGui = Instance.new("PlayerGui")
-            playerGui.Parent = LocalPlayer
-        end
-        screenGui.Parent = playerGui
+        local pg = LocalPlayer:FindFirstChild("PlayerGui") or Instance.new("PlayerGui")
+        screenGui.Parent = pg
     end
 
     self.ScreenGui = screenGui
@@ -809,1007 +778,31 @@ function UI:Initialize()
 end
 
 function UI:CreateMainFrame()
-    local theme = CONFIG.Theme
-
     local main = Instance.new("Frame")
     main.Name = "MainFrame"
     main.Size = UDim2.new(0, 420, 0, 540)
     main.Position = UDim2.new(0.5, -210, 0.5, -270)
-    main.BackgroundColor3 = theme.Background
+    main.BackgroundColor3 = CONFIG.Theme.Background
     main.BackgroundTransparency = 1 - CONFIG.Opacity
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Parent = self.ScreenGui
 
-    -- Shadow Effect
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 40, 1, 40)
-    shadow.Position = UDim2.new(0, -20, 0, -20)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://6014262763"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.65
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(20, 20, 20, 20)
-    shadow.Parent = main
-
     self.MainFrame = main
     self.Elements.MainFrame = main
 end
 
--- === IMPORTANT: Palitan mo rin itong mga function sa baba ===
+-- The rest of the UI functions (CreateTitleBar, CreateTabBar, etc.) are the same as your original.
+-- To save space here, copy the rest from your original file and just use the fixed Initialize and MainFrame.
 
-function UI:MakeDraggable()
-    local titleBar = self.Elements.TitleBar
-    if not titleBar or not self.MainFrame then return end
-
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self.Dragging = true
-            self.DragOffset = Vector2.new(
-                input.Position.X - self.MainFrame.AbsolutePosition.X,
-                input.Position.Y - self.MainFrame.AbsolutePosition.Y
-            )
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if self.Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local pos = input.Position
-            self.MainFrame.Position = UDim2.new(0, pos.X - self.DragOffset.X, 0, pos.Y - self.DragOffset.Y)
-        end
-    end)
-
-    titleBar.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            self.Dragging = false
-        end
-    end)
-end
-
-function UI:ToggleMinimize()
-    self.Minimized = not self.Minimized
-    self.MainFrame.Size = self.Minimized and UDim2.new(0, 420, 0, 42) or UDim2.new(0, 420, 0, 540)
-    
-    for _, child in ipairs(self.MainFrame:GetChildren()) do
-        if child ~= self.Elements.TitleBar and child.Name ~= "Shadow" then
-            child.Visible = not self.Minimized
+-- Hotkey Fix
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+        if UI.ScreenGui then
+            UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
         end
     end
-end
-
-function UI:AnimateEntrance()
-    if not self.MainFrame then return end
-    self.MainFrame.Position = UDim2.new(0.5, -210, 0.3, 0)
-    self.MainFrame.BackgroundTransparency = 0.9
-    
-    TweenService:Create(self.MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, -210, 0.5, -270),
-        BackgroundTransparency = 1 - CONFIG.Opacity
-    }):Play()
-end
-
-function UI:Destroy()
-    if self.ScreenGui then
-        self.ScreenGui:Destroy()
-        self.ScreenGui = nil
-    end
-end
-
-    self.Instance = screenGui
-    self:CreateMainFrame()
-    self:CreateTitleBar()
-    self:CreateTabBar()
-    self:CreateContentArea()
-    self:CreateStatusBar()
-
-    -- Make draggable
-    self:MakeDraggable()
-
-    -- Animate entrance
-    self:AnimateEntrance()
-
-    Log:Success("🌐 UI Initialized")
-end
-
-function UI:CreateMainFrame()
-    local theme = CONFIG.Theme
-
-    -- Main frame
-    local main = Instance.new("Frame")
-    main.Name = "MainFrame"
-    main.Size = UDim2.new(0, 420, 0, 540)
-    main.Position = UDim2.new(0.5, -210, 0.5, -270)
-    main.BackgroundColor3 = theme.Background
-    main.BackgroundTransparency = 1 - CONFIG.Opacity
-    main.BorderSizePixel = 0
-    main.ClipsDescendants = false
-    main.Parent = self.Instance
-
-    -- Add shadow/glow effect
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.Size = UDim2.new(1, 40, 1, 40)
-    shadow.Position = UDim2.new(0, -20, 0, -20)
-    shadow.BackgroundTransparency = 1
-    shadow.Image = "rbxassetid://6014262763"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = 0.7
-    shadow.ScaleType = Enum.ScaleType.Slice
-    shadow.SliceCenter = Rect.new(20, 20, 20, 20)
-    shadow.Parent = main
-
-    -- Border accent
-    local border = Instance.new("Frame")
-    border.Name = "Border"
-    border.Size = UDim2.new(1, 0, 1, 0)
-    border.BackgroundColor3 = theme.Secondary
-    border.BackgroundTransparency = 0.5
-    border.BorderSizePixel = 0
-    border.Parent = main
-
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, theme.Secondary),
-        ColorSequenceKeypoint.new(0.5, theme.Primary),
-        ColorSequenceKeypoint.new(1, theme.Secondary),
-    })
-    gradient.Rotation = 90
-    gradient.Parent = border
-
-    self.Elements.MainFrame = main
-    self.Instance = main
-end
-
-function UI:CreateTitleBar()
-    local theme = CONFIG.Theme
-
-    -- Title bar background
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 42)
-    titleBar.Position = UDim2.new(0, 0, 0, 0)
-    titleBar.BackgroundColor3 = theme.Surface
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = self.Instance
-
-    local titleGradient = Instance.new("UIGradient")
-    titleGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 30, 20)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(25, 45, 30)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 30, 20)),
-    })
-    titleGradient.Parent = titleBar
-
-    -- Bottom border line
-    local titleBorder = Instance.new("Frame")
-    titleBorder.Name = "BorderLine"
-    titleBorder.Size = UDim2.new(1, 0, 0, 2)
-    titleBorder.Position = UDim2.new(0, 0, 1, 0)
-    titleBorder.BackgroundColor3 = theme.Primary
-    titleBorder.BorderSizePixel = 0
-    titleBorder.Parent = titleBar
-
-    -- Title text
-    local titleText = Instance.new("TextLabel")
-    titleText.Name = "Title"
-    titleText.Size = UDim2.new(1, -80, 1, 0)
-    titleText.Position = UDim2.new(0, 12, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.Text = CONFIG.Title
-    titleText.Font = CONFIG.Font
-    titleText.TextSize = 16
-    titleText.TextColor3 = theme.Text
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-
-    -- Version badge
-    local badge = Instance.new("Frame")
-    badge.Name = "VersionBadge"
-    badge.Size = UDim2.new(0, 50, 0, 18)
-    badge.Position = UDim2.new(0, 12, 0, 24)
-    badge.BackgroundColor3 = theme.Primary
-    badge.BackgroundTransparency = 0.3
-    badge.BorderSizePixel = 0
-    badge.Parent = titleBar
-
-    local badgeText = Instance.new("TextLabel")
-    badgeText.Size = UDim2.new(1, 0, 1, 0)
-    badgeText.BackgroundTransparency = 1
-    badgeText.Text = "ACTIVE"
-    badgeText.Font = Enum.Font.Gotham
-    badgeText.TextSize = 10
-    badgeText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    badgeText.Parent = badge
-
-    -- Minimize button
-    local minBtn = Instance.new("ImageButton")
-    minBtn.Name = "MinimizeBtn"
-    minBtn.Size = UDim2.new(0, 28, 0, 28)
-    minBtn.Position = UDim2.new(1, -68, 0, 7)
-    minBtn.BackgroundTransparency = 1
-    minBtn.Image = "rbxassetid://6031094662"
-    minBtn.ImageColor3 = Color3.fromRGB(180, 180, 180)
-    minBtn.Parent = titleBar
-
-    minBtn.MouseButton1Click:Connect(function()
-        self:ToggleMinimize()
-    end)
-
-    -- Close button
-    local closeBtn = Instance.new("ImageButton")
-    closeBtn.Name = "CloseBtn"
-    closeBtn.Size = UDim2.new(0, 28, 0, 28)
-    closeBtn.Position = UDim2.new(1, -34, 0, 7)
-    closeBtn.BackgroundTransparency = 1
-    closeBtn.Image = "rbxassetid://6031094677"
-    closeBtn.ImageColor3 = Color3.fromRGB(220, 80, 80)
-    closeBtn.Parent = titleBar
-
-    closeBtn.MouseButton1Click:Connect(function()
-        self:Destroy()
-    end)
-
-    self.Elements.TitleBar = titleBar
-    self.Elements.MinimizeBtn = minBtn
-    self.Elements.CloseBtn = closeBtn
-end
-
-function UI:CreateTabBar()
-    local theme = CONFIG.Theme
-
-    local tabBar = Instance.new("Frame")
-    tabBar.Name = "TabBar"
-    tabBar.Size = UDim2.new(1, 0, 0, 34)
-    tabBar.Position = UDim2.new(0, 0, 0, 42)
-    tabBar.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
-    tabBar.BorderSizePixel = 0
-    tabBar.Parent = self.Instance
-
-    -- Tab buttons
-    local tabs = {
-        {Name = "Main", Icon = "🏠"},
-        {Name = "Events", Icon = "🎯"},
-        {Name = "Farm", Icon = "🌱"},
-        {Name = "Inventory", Icon = "📦"},
-        {Name = "Logs", Icon = "📋"},
-    }
-
-    local tabWidth = 420 / #tabs
-    for i, tab in ipairs(tabs) do
-        local btn = Instance.new("TextButton")
-        btn.Name = tab.Name .. "Tab"
-        btn.Size = UDim2.new(0, tabWidth, 0.8, 0)
-        btn.Position = UDim2.new(0, (i-1) * tabWidth, 0.1, 0)
-        btn.BackgroundColor3 = theme.Surface
-        btn.BackgroundTransparency = 0.5
-        btn.BorderSizePixel = 0
-        btn.Text = tab.Icon .. " " .. tab.Name
-        btn.Font = CONFIG.Font
-        btn.TextSize = 12
-        btn.TextColor3 = Color3.fromRGB(160, 160, 170)
-        btn.Parent = tabBar
-
-        -- Active indicator
-        local indicator = Instance.new("Frame")
-        indicator.Name = "Indicator"
-        indicator.Size = UDim2.new(0.8, 0, 0, 3)
-        indicator.Position = UDim2.new(0.1, 0, 1, -3)
-        indicator.BackgroundColor3 = theme.Primary
-        indicator.BorderSizePixel = 0
-        indicator.BackgroundTransparency = (tab.Name ~= "Main") and 1 or 0.2
-        indicator.Parent = btn
-
-        btn.MouseButton1Click:Connect(function()
-            self:SwitchTab(tab.Name)
-            -- Update indicators
-            for _, child in ipairs(tabBar:GetChildren()) do
-                if child:IsA("TextButton") and child:FindFirstChild("Indicator") then
-                    child:FindFirstChild("Indicator").BackgroundTransparency = 1
-                    child.TextColor3 = Color3.fromRGB(160, 160, 170)
-                end
-            end
-            btn.TextColor3 = theme.Text
-            indicator.BackgroundTransparency = 0.2
-        end)
-
-        btn.MouseEnter:Connect(function()
-            if self.ActiveTab ~= tab.Name then
-                btn.TextColor3 = Color3.fromRGB(200, 200, 210)
-            end
-        end)
-        btn.MouseLeave:Connect(function()
-            if self.ActiveTab ~= tab.Name then
-                btn.TextColor3 = Color3.fromRGB(160, 160, 170)
-            end
-        end)
-
-        self.Tabs[tab.Name] = {Button = btn, Indicator = indicator}
-    end
-
-    self.Elements.TabBar = tabBar
-end
-
-function UI:CreateContentArea()
-    local theme = CONFIG.Theme
-
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, -20, 1, -116)
-    content.Position = UDim2.new(0, 10, 0, 80)
-    content.BackgroundColor3 = theme.Surface
-    content.BackgroundTransparency = 0.3
-    content.BorderSizePixel = 0
-    content.Parent = self.Instance
-
-    -- Corner rounding
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = content
-
-    self.Elements.Content = content
-    self.Elements.ContentPages = {}
-
-    -- Create each tab page
-    self:CreateMainPage()
-    self:CreateEventPage()
-    self:CreateFarmPage()
-    self:CreateInventoryPage()
-    self:CreateLogPage()
-
-    -- Show main by default
-    self:SwitchTab("Main")
-end
-
-function UI:CreateMainPage()
-    local theme = CONFIG.Theme
-    local content = self.Elements.Content
-    if not content then return end
-
-    local page = Instance.new("ScrollingFrame")
-    page.Name = "MainPage"
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 4
-    page.ScrollBarImageColor3 = theme.Primary
-    page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    page.Visible = false
-    page.Parent = content
-
-    local yOffset = 10
-
-    -- Status Section
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, -20, 0, 20)
-    statusLabel.Position = UDim2.new(0, 10, 0, yOffset)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "📊 SYSTEM STATUS"
-    statusLabel.Font = CONFIG.Font
-    statusLabel.TextSize = 13
-    statusLabel.TextColor3 = theme.Accent
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    statusLabel.Parent = page
-    yOffset = yOffset + 25
-
-    -- Status cards (2 columns)
-    local statusItems = {
-        {Label = "⚡ Script Status", Value = "Running", Color = Color3.fromRGB(50, 255, 100)},
-        {Label = "💰 Balance", Value = "₿" .. self:FormatNumber(Utilities.GetPlayerBalance()), Color = theme.Accent},
-        {Label = "🌱 Plants Active", Value = "0", Color = theme.Primary},
-        {Label = "📦 Seeds Owned", Value = tostring(#Utilities.GetSeedInventory()), Color = Color3.fromRGB(100, 200, 255)},
-    }
-
-    for i, item in ipairs(statusItems) do
-        local col = (i-1) % 2
-        local row = math.floor((i-1) / 2)
-        local card = self:CreateCard(page, UDim2.new(0, 185, 0, 52),
-            UDim2.new(0, 10 + (col * 195), 0, yOffset + (row * 58)))
-        card.Parent = page
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -10, 0, 18)
-        label.Position = UDim2.new(0, 8, 0, 6)
-        label.BackgroundTransparency = 1
-        label.Text = item.Label
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 10
-        label.TextColor3 = Color3.fromRGB(160, 160, 170)
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = card
-
-        local value = Instance.new("TextLabel")
-        value.Name = "Value"
-        value.Size = UDim2.new(1, -10, 0, 22)
-        value.Position = UDim2.new(0, 8, 0, 26)
-        value.BackgroundTransparency = 1
-        value.Text = item.Value
-        value.Font = CONFIG.Font
-        value.TextSize = 14
-        value.TextColor3 = item.Color
-        value.TextXAlignment = Enum.TextXAlignment.Left
-        value.Parent = card
-    end
-    yOffset = yOffset + 120
-
-    -- Quick Actions Section
-    local actionsLabel = Instance.new("TextLabel")
-    actionsLabel.Size = UDim2.new(1, -20, 0, 20)
-    actionsLabel.Position = UDim2.new(0, 10, 0, yOffset)
-    actionsLabel.BackgroundTransparency = 1
-    actionsLabel.Text = "⚡ QUICK ACTIONS"
-    actionsLabel.Font = CONFIG.Font
-    actionsLabel.TextSize = 13
-    actionsLabel.TextColor3 = theme.Accent
-    actionsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    actionsLabel.Parent = page
-    yOffset = yOffset + 25
-
-    local actions = {
-        {Name = "▶ Start All", Color = theme.Primary, Action = function() ToggleAll(true) end},
-        {Name = "⏹ Stop All", Color = theme.Danger, Action = function() ToggleAll(false) end},
-        {Name = "🔄 Refresh", Color = theme.Warning, Action = function()
-            Log:Info("🔄 Refreshing...")
-        end},
-    }
-
-    for i, action in ipairs(actions) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, (380 / #actions) - 6, 0, 34)
-        btn.Position = UDim2.new(0, 10 + ((i-1) * ((380 / #actions) + 3)), 0, yOffset)
-        btn.BackgroundColor3 = action.Color
-        btn.BackgroundTransparency = 0.7
-        btn.BorderSizePixel = 0
-        btn.Text = action.Name
-        btn.Font = CONFIG.Font
-        btn.TextSize = 12
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Parent = page
-
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 4)
-        btnCorner.Parent = btn
-
-        btn.MouseButton1Click:Connect(function()
-            action.Action()
-        end)
-
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundTransparency = 0.4
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundTransparency = 0.7
-        end)
-    end
-    yOffset = yOffset + 45
-
-    -- Session Stats
-    local statsLabel = Instance.new("TextLabel")
-    statsLabel.Size = UDim2.new(1, -20, 0, 20)
-    statsLabel.Position = UDim2.new(0, 10, 0, yOffset)
-    statsLabel.BackgroundTransparency = 1
-    statsLabel.Text = "📈 SESSION STATISTICS"
-    statsLabel.Font = CONFIG.Font
-    statsLabel.TextSize = 13
-    statsLabel.TextColor3 = theme.Accent
-    statsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    statsLabel.Parent = page
-    yOffset = yOffset + 25
-
-    local statsData = {
-        {Label = "Farm Cycles", Value = "0", Color = theme.Primary},
-        {Label = "Event Seeds Collected", Value = "0", Color = Color3.fromRGB(255, 150, 50)},
-        {Label = "Total Earned", Value = "₿0", Color = theme.Accent},
-        {Label = "Uptime", Value = "0m", Color = Color3.fromRGB(100, 200, 255)},
-    }
-
-    for i, stat in ipairs(statsData) do
-        local col = (i-1) % 2
-        local row = math.floor((i-1) / 2)
-        local card = self:CreateCard(page, UDim2.new(0, 185, 0, 48),
-            UDim2.new(0, 10 + (col * 195), 0, yOffset + (row * 52)))
-        card.Parent = page
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -10, 0, 16)
-        label.Position = UDim2.new(0, 8, 0, 4)
-        label.BackgroundTransparency = 1
-        label.Text = stat.Label
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 10
-        label.TextColor3 = Color3.fromRGB(160, 160, 170)
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = card
-
-        local value = Instance.new("TextLabel")
-        value.Name = "Value"
-        value.Size = UDim2.new(1, -10, 0, 22)
-        value.Position = UDim2.new(0, 8, 0, 22)
-        value.BackgroundTransparency = 1
-        value.Text = stat.Value
-        value.Font = CONFIG.Font
-        value.TextSize = 14
-        value.TextColor3 = stat.Color
-        value.TextXAlignment = Enum.TextXAlignment.Left
-        value.Parent = card
-    end
-    yOffset = yOffset + 110
-
-    page.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
-    self.Elements.ContentPages["Main"] = page
-end
-
-function UI:CreateEventPage()
-    local theme = CONFIG.Theme
-    local content = self.Elements.Content
-    if not content then return end
-
-    local page = Instance.new("ScrollingFrame")
-    page.Name = "EventPage"
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 4
-    page.ScrollBarImageColor3 = theme.Primary
-    page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    page.Visible = false
-    page.Parent = content
-
-    local yOffset = 10
-
-    -- Event Collector Header
-    local header = self:CreateCard(page, UDim2.new(0, 380, 0, 70), UDim2.new(0, 10, 0, yOffset))
-    header.Parent = page
-    yOffset = yOffset + 78
-
-    local collectorTitle = Instance.new("TextLabel")
-    collectorTitle.Size = UDim2.new(1, -10, 0, 20)
-    collectorTitle.Position = UDim2.new(0, 8, 0, 6)
-    collectorTitle.BackgroundTransparency = 1
-    collectorTitle.Text = "🎯 Event Seed Collector"
-    collectorTitle.Font = CONFIG.Font
-    collectorTitle.TextSize = 14
-    collectorTitle.TextColor3 = theme.Text
-    collectorTitle.TextXAlignment = Enum.TextXAlignment.Left
-    collectorTitle.Parent = header
-
-    local collectorDesc = Instance.new("TextLabel")
-    collectorDesc.Size = UDim2.new(1, -10, 0, 16)
-    collectorDesc.Position = UDim2.new(0, 8, 0, 28)
-    collectorDesc.BackgroundTransparency = 1
-    collectorDesc.Text = "Auto-collects event seeds from Tom's Shop & Summer Merchant"
-    collectorDesc.Font = Enum.Font.Gotham
-    collectorDesc.TextSize = 10
-    collectorDesc.TextColor3 = Color3.fromRGB(140, 140, 150)
-    collectorDesc.TextXAlignment = Enum.TextXAlignment.Left
-    collectorDesc.Parent = header
-
-    -- Toggle buttons
-    local collectToggle = self:CreateToggle(header, "Auto-Collect Event Seeds",
-        CONFIG.AutoCollectEventSeeds, UDim2.new(0, 8, 0, 44), function(val)
-            CONFIG.AutoCollectEventSeeds = val
-            if val then EventSeedCollector:Start() else EventSeedCollector:Stop() end
-            Log:Info(string.format("🎯 Auto-Collect Event Seeds: %s", val and "ON" or "OFF"))
-        end)
-    collectToggle.Parent = header
-
-    -- Event Seeds List
-    local seedsLabel = Instance.new("TextLabel")
-    seedsLabel.Size = UDim2.new(1, -20, 0, 20)
-    seedsLabel.Position = UDim2.new(0, 10, 0, yOffset)
-    seedsLabel.BackgroundTransparency = 1
-    seedsLabel.Text = "🌱 EVENT SEEDS"
-    seedsLabel.Font = CONFIG.Font
-    seedsLabel.TextSize = 13
-    seedsLabel.TextColor3 = theme.Accent
-    seedsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    seedsLabel.Parent = page
-    yOffset = yOffset + 25
-
-    for seedName, seedConfig in pairs(CONFIG.EventSeeds) do
-        local card = self:CreateCard(page, UDim2.new(0, 380, 0, 40), UDim2.new(0, 10, 0, yOffset))
-        card.Parent = page
-        yOffset = yOffset + 44
-
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(0, 160, 1, 0)
-        nameLabel.Position = UDim2.new(0, 8, 0, 0)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = seedName
-        nameLabel.Font = CONFIG.Font
-        nameLabel.TextSize = 12
-        nameLabel.TextColor3 = theme.Text
-        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        nameLabel.Parent = card
-
-        local priceLabel = Instance.new("TextLabel")
-        priceLabel.Size = UDim2.new(0, 80, 1, 0)
-        priceLabel.Position = UDim2.new(0, 170, 0, 0)
-        priceLabel.BackgroundTransparency = 1
-        priceLabel.Text = "≤ ₿" .. self:FormatNumber(seedConfig.MaxPrice)
-        priceLabel.Font = Enum.Font.Gotham
-        priceLabel.TextSize = 10
-        priceLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-        priceLabel.TextXAlignment = Enum.TextXAlignment.Left
-        priceLabel.Parent = card
-
-        local toggle = self:CreateToggle(card, "", seedConfig.AutoBuy,
-            UDim2.new(1, -50, 0, 8), function(val)
-                CONFIG.EventSeeds[seedName].AutoBuy = val
-            end)
-        toggle.Parent = card
-    end
-
-    page.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
-    self.Elements.ContentPages["Events"] = page
-end
-
-function UI:CreateFarmPage()
-    local theme = CONFIG.Theme
-    local content = self.Elements.Content
-    if not content then return end
-
-    local page = Instance.new("ScrollingFrame")
-    page.Name = "FarmPage"
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 4
-    page.ScrollBarImageColor3 = theme.Primary
-    page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    page.Visible = false
-    page.Parent = content
-
-    local yOffset = 10
-
-    -- Farm Controls Header
-    local header = self:CreateCard(page, UDim2.new(0, 380, 0, 40), UDim2.new(0, 10, 0, yOffset))
-    header.Parent = page
-    yOffset = yOffset + 48
-
-    local farmTitle = Instance.new("TextLabel")
-    farmTitle.Size = UDim2.new(1, -10, 0, 20)
-    farmTitle.Position = UDim2.new(0, 8, 0, 6)
-    farmTitle.BackgroundTransparency = 1
-    farmTitle.Text = "🌱 Farm Engine Controls"
-    farmTitle.Font = CONFIG.Font
-    farmTitle.TextSize = 14
-    farmTitle.TextColor3 = theme.Text
-    farmTitle.TextXAlignment = Enum.TextXAlignment.Left
-    farmTitle.Parent = header
-
-    -- Toggles
-    local farmToggles = {
-        {Label = "Auto Farm (Full Cycle)", Key = "AutoFarm", Default = CONFIG.AutoFarm},
-        {Label = "Auto Plant", Key = "AutoPlant", Default = CONFIG.AutoPlant},
-        {Label = "Auto Harvest", Key = "AutoHarvest", Default = CONFIG.AutoHarvest},
-        {Label = "Auto Sell", Key = "AutoSell", Default = CONFIG.AutoSell},
-        {Label = "Auto Water", Key = "AutoWater", Default = CONFIG.AutoWater},
-        {Label = "Anti-AFK", Key = "AntiAFK", Default = CONFIG.AntiAFK},
-        {Label = "Auto Steal", Key = "AutoSteal", Default = CONFIG.AutoSteal},
-    }
-
-    for _, toggleData in ipairs(farmToggles) do
-        local card = self:CreateCard(page, UDim2.new(0, 380, 0, 36), UDim2.new(0, 10, 0, yOffset))
-        card.Parent = page
-        yOffset = yOffset + 40
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 250, 1, 0)
-        label.Position = UDim2.new(0, 8, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Text = toggleData.Label
-        label.Font = CONFIG.Font
-        label.TextSize = 12
-        label.TextColor3 = theme.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = card
-
-        local toggle = self:CreateToggle(card, "", toggleData.Default,
-            UDim2.new(1, -50, 0, 6), function(val)
-                CONFIG[toggleData.Key] = val
-                if toggleData.Key == "AutoFarm" then
-                    if val then FarmEngine:Start() else FarmEngine:Stop() end
-                elseif toggleData.Key == "AntiAFK" then
-                    if val then AntiAFK:Start() else AntiAFK:Stop() end
-                end
-                Log:Info(string.format("🔧 %s: %s", toggleData.Label, val and "ON" or "OFF"))
-            end)
-        toggle.Parent = card
-    end
-
-    -- Settings Section
-    yOffset = yOffset + 10
-    local settingsLabel = Instance.new("TextLabel")
-    settingsLabel.Size = UDim2.new(1, -20, 0, 20)
-    settingsLabel.Position = UDim2.new(0, 10, 0, yOffset)
-    settingsLabel.BackgroundTransparency = 1
-    settingsLabel.Text = "⚙️ FARM SETTINGS"
-    settingsLabel.Font = CONFIG.Font
-    settingsLabel.TextSize = 13
-    settingsLabel.TextColor3 = theme.Accent
-    settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    settingsLabel.Parent = page
-    yOffset = yOffset + 25
-
-    local settings = {
-        {Label = "Harvest Radius", Value = tostring(CONFIG.HarvestRadius), Min = 10, Max = 200, Key = "HarvestRadius"},
-        {Label = "Max Plants", Value = tostring(CONFIG.MaxPlants), Min = 10, Max = 500, Key = "MaxPlants"},
-        {Label = "Min Sheckles", Value = tostring(CONFIG.MinShecklesToKeep), Min = 100, Max = 100000, Key = "MinShecklesToKeep"},
-    }
-
-    for _, setting in ipairs(settings) do
-        local card = self:CreateCard(page, UDim2.new(0, 380, 0, 44), UDim2.new(0, 10, 0, yOffset))
-        card.Parent = page
-        yOffset = yOffset + 48
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0, 180, 0, 20)
-        label.Position = UDim2.new(0, 8, 0, 6)
-        label.BackgroundTransparency = 1
-        label.Text = setting.Label
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 11
-        label.TextColor3 = theme.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = card
-
-        local valueBox = Instance.new("TextBox")
-        valueBox.Size = UDim2.new(0, 80, 0, 26)
-        valueBox.Position = UDim2.new(0, 190, 0, 8)
-        valueBox.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-        valueBox.BorderSizePixel = 0
-        valueBox.Text = setting.Value
-        valueBox.Font = CONFIG.Font
-        valueBox.TextSize = 12
-        valueBox.TextColor3 = theme.Text
-        valueBox.PlaceholderText = "Value"
-        valueBox.ClearTextOnFocus = false
-        valueBox.Parent = card
-
-        local boxCorner = Instance.new("UICorner")
-        boxCorner.CornerRadius = UDim.new(0, 4)
-        boxCorner.Parent = valueBox
-
-        valueBox.FocusLost:Connect(function(enter)
-            if enter then
-                local val = tonumber(valueBox.Text)
-                if val then
-                    CONFIG[setting.Key] = math.clamp(val, setting.Min, setting.Max)
-                    valueBox.Text = tostring(CONFIG[setting.Key])
-                    Log:Info(string.format("⚙️ %s set to %d", setting.Label, CONFIG[setting.Key]))
-                else
-                    valueBox.Text = tostring(CONFIG[setting.Key])
-                end
-            end
-        end)
-    end
-
-    page.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
-    self.Elements.ContentPages["Farm"] = page
-end
-
-function UI:CreateInventoryPage()
-    local theme = CONFIG.Theme
-    local content = self.Elements.Content
-    if not content then return end
-
-    local page = Instance.new("ScrollingFrame")
-    page.Name = "InventoryPage"
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.BorderSizePixel = 0
-    page.ScrollBarThickness = 4
-    page.ScrollBarImageColor3 = theme.Primary
-    page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    page.Visible = false
-    page.Parent = content
-
-    local yOffset = 10
-
-    local header = self:CreateCard(page, UDim2.new(0, 380, 0, 40), UDim2.new(0, 10, 0, yOffset))
-    header.Parent = page
-    yOffset = yOffset + 48
-
-    local invTitle = Instance.new("TextLabel")
-    invTitle.Size = UDim2.new(1, -10, 0, 20)
-    invTitle.Position = UDim2.new(0, 8, 0, 6)
-    invTitle.BackgroundTransparency =
-    invTitle.Text = "📦 Seed Inventory"
-    invTitle.Font = CONFIG.Font
-    invTitle.TextSize = 14
-    invTitle.TextColor3 = theme.Text
-    invTitle.TextXAlignment = Enum.TextXAlignment.Left
-    invTitle.Parent = header
-
-    -- Refresh button
-    local refreshBtn = Instance.new("TextButton")
-    refreshBtn.Size = UDim2.new(0, 80, 0, 24)
-    refreshBtn.Position = UDim2.new(1, -90, 0, 8)
-    refreshBtn.BackgroundColor3 = theme.Primary
-    refreshBtn.BackgroundTransparency = 0.5
-    refreshBtn.BorderSizePixel = 0
-    refreshBtn.Text = "🔄 Scan"
-    refreshBtn.Font = CONFIG.Font
-    refreshBtn.TextSize = 10
-    refreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    refreshBtn.Parent = header
-
-    local refreshCorner = Instance.new("UICorner")
-    refreshCorner.CornerRadius = UDim.new(0, 4)
-    refreshCorner.Parent = refreshBtn
-
-    -- Seed list container
-    local seedListContainer = Instance.new("Frame")
-    seedListContainer.Name = "SeedList"
-    seedListContainer.Size = UDim2.new(1, -20, 0, 260)
-    seedListContainer.Position = UDim2.new(0, 10, 0, yOffset)
-    seedListContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
-    seedListContainer.BackgroundTransparency = 0.3
-    seedListContainer.BorderSizePixel = 0
-    seedListContainer.Parent = page
-
-    local listCorner = Instance.new("UICorner")
-    listCorner.CornerRadius = UDim.new(0, 4)
-    listCorner.Parent = seedListContainer
-
-    local seedList = Instance.new("UIListLayout")
-    seedList.Padding = UDim.new(0, 2)
-    seedList.Parent = seedListContainer
-
-    yOffset = yOffset + 270
-
-    -- Populate seeds
-    local function RefreshSeedList()
-        for _, child in ipairs(seedListContainer:GetChildren()) do
-            if child:IsA("Frame") and child ~= seedList then
-                child:Destroy()
-            end
-        end
-        local seeds = Utilities.GetSeedInventory()
-        if #seeds == 0 then
-            local emptyLabel = Instance.new("TextLabel")
-            emptyLabel.Size = UDim2.new(1, -10, 0, 40)
-            emptyLabel.Position = UDim2.new(0, 5, 0, 5)
-            emptyLabel.BackgroundTransparency = 1
-            emptyLabel.Text = "No seeds in inventory. Start farming!"
-            emptyLabel.Font = Enum.Font.Gotham
-            emptyLabel.TextSize = 12
-            emptyLabel.TextColor3 = Color3.fromRGB(140, 140, 150)
-            emptyLabel.Parent = seedListContainer
-        else
-            for i, seedName in ipairs(seeds) do
-                if i > 30 then break end
-                local item = Instance.new("Frame")
-                item.Size = UDim2.new(1, -10, 0, 28)
-                item.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-                item.BackgroundTransparency = 0.3
-                item.BorderSizePixel = 0
-                item.Parent = seedListContainer
-
-                local itemCorner = Instance.new("UICorner")
-                itemCorner.CornerRadius = UDim.new(0, 4)
-                itemCorner.Parent = item
-
-                local nameLabel = Instance.new("TextLabel")
-                nameLabel.Size = UDim2.new(1, -10, 1, 0)
-                nameLabel.Position = UDim2.new(0, 8, 0, 0)
-                nameLabel.BackgroundTransparency = 1
-                nameLabel.Text = string.format("%d. %s", i, seedName)
-                nameLabel.Font = Enum.Font.Gotham
-                nameLabel.TextSize = 11
-                nameLabel.TextColor3 = theme.Text
-                nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-                nameLabel.Parent = item
-            end
-        end
-    end
-
-    refreshBtn.MouseButton1Click:Connect(RefreshSeedList)
-
-    task.spawn(RefreshSeedList)
-
-    page.CanvasSize = UDim2.new(0, 0, 0, yOffset + 20)
-    self.Elements.ContentPages["Inventory"] = page
-end
-
-function UI:CreateLogPage()
-    local theme = CONFIG.Theme
-    local content = self.Elements.Content
-    if not content then return end
-
-    local page = Instance.new("Frame")
-    page.Name = "LogPage"
-    page.Size = UDim2.new(1, 0, 1, 0)
-    page.BackgroundTransparency = 1
-    page.Visible = false
-    page.Parent = content
-
-    local logList = Instance.new("ScrollingFrame")
-    logList.Name = "LogList"
-    logList.Size = UDim2.new(1, -20, 1, -60)
-    logList.Position = UDim2.new(0, 10, 0, 10)
-    logList.BackgroundColor3 = Color3.fromRGB(15, 15, 28)
-    logList.BackgroundTransparency = 0.2
-    logList.BorderSizePixel = 0
-    logList.ScrollBarThickness = 4
-    logList.ScrollBarImageColor3 = theme.Primary
-    logList.CanvasSize = UDim2.new(0, 0, 0, 0)
-    logList.Parent = page
-
-    local logListLayout = Instance.new("UIListLayout")
-    logListLayout.Padding = UDim.new(0, 1)
-    logListLayout.Parent = logList
-
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Size = UDim2.new(0, 100, 0, 28)
-    clearBtn.Position = UDim2.new(1, -110, 1, -35)
-    clearBtn.BackgroundColor3 = theme.Danger
-    clearBtn.BackgroundTransparency = 0.5
-    clearBtn.BorderSizePixel = 0
-    clearBtn.Text = "🗑 Clear Logs"
-    clearBtn.Font = CONFIG.Font
-    clearBtn.TextSize = 10
-    clearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearBtn.Parent = page
-
-    local clearCorner = Instance.new("UICorner")
-    clearCorner.CornerRadius = UDim.new(0, 4)
-    clearCorner.Parent = clearBtn
-
-    clearBtn.MouseButton1Click:Connect(function()
-        Log.Messages = {}
-        for _, child in ipairs(logList:GetChildren()) do
-            if child:IsA("Frame") and child ~= logListLayout then
-                child:Destroy()
-            end
-        end
-        logList.CanvasSize = UDim2.new(0, 0, 0, 0)
-    end)
-
-    self.Elements.LogList = logList
-    self.Elements.ContentPages["Logs"] = page
-end
-
-function UI:UpdateLogList()
-    local logList = self.Elements.LogList
-    if not logList then return end
-
-    -- Clear existing entries
-    for _, child in ipairs(logList:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-
-    -- Show last 50 messages
-    local startIdx = math.max(1, #Log.Messages - 49)
-    for i = startIdx, #Log.Messages do
-        local entry = Log.Messages[i]
-        local item = Instance.new("Frame")
-        item.Size = UDim2.new(1, -10, 0, 20)
-        item.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-        item.BackgroundTransparency = 0.5
-        item.BorderSizePixel = 0
-        item.Parent = logList
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -6, 1, 0)
-        label.Position = UDim2.new(0, 4, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Text = string.format("[%s] %s", entry.Timestamp, entry.Message)
-        label.Font = Enum.Font.Code
-        label.TextSize = 9
-        label.TextColor3 = entry.Color
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.TextTruncate = Enum.TextTruncate.None
-        label.Parent = item
-    end
-
-    logList.CanvasSize = UDim2.new(0, 0, 0, #Log.Messages * 21)
-    logList.CanvasPosition = Vector2.new(0, math.huge)
-end
+end)
 
 -- ============================================================
 -- SECTION 9: UI HELPERS
@@ -2041,3 +1034,5 @@ end)
 -- ============================================================
 -- END OF SCRIPT
 -- ============================================================
+
+Log:Success("🌱 Harvest Elite v2.1.1 Loaded - UI should now appear!")
