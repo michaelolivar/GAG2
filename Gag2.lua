@@ -408,4 +408,4 @@ HideBtn.MouseButton1Click:Connect(function()
     Bubble.Visible = true
 end)
 
-Notify("✅ Harvest Elite UI Loaded", "Redesigned to match the dark mockup!")
+Notify("✅ Harvest beb", "Redesigned to match the dark mockup!")
