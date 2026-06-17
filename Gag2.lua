@@ -38,10 +38,13 @@ local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualInputManager
+pcall(function()
+    VirtualInputManager = game:GetService("VirtualInputManager")
+end)
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:FindFirstChild("PlayerGui")
 local Character
 local RootPart
 local _connections = {}
@@ -63,6 +66,8 @@ table.insert(_connections,
 )
 
 local function GetGuiParent()
+    if PlayerGui then return PlayerGui end
+
     local parent
     pcall(function()
         if gethui then
@@ -75,10 +80,14 @@ local function GetGuiParent()
         CoreGui:GetChildren()
         parent = CoreGui
     end)
-    return parent or PlayerGui
+    return parent
 end
 
 local guiParent = GetGuiParent()
+if not guiParent then
+    PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 3)
+    guiParent = GetGuiParent()
+end
 
 local function DestroyExistingGui(parent)
     if not parent then return end
@@ -102,6 +111,7 @@ Library.ResetOnSpawn = false
 Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 Library.DisplayOrder = 999999
 Library.IgnoreGuiInset = true
+Library.Enabled = true
 local parented = false
 if guiParent then
     parented = pcall(function()
@@ -182,28 +192,25 @@ MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Parent = Library
 MainFrame.Size = UDim2.new(
+    0.9,
     0,
-    0,
-    0,
+    0.85,
     0
 )
 
-TweenService:Create(
-    MainFrame,
-    TweenInfo.new(
-        0.35,
-        Enum.EasingStyle.Back,
-        Enum.EasingDirection.Out
-    ),
-    {
-        Size = UDim2.new(
-            0.9,
-            0,
-            0.85,
-            0
-        )
-    }
-):Play()
+pcall(function()
+    TweenService:Create(
+        MainFrame,
+        TweenInfo.new(
+            0.2,
+            Enum.EasingStyle.Quad,
+            Enum.EasingDirection.Out
+        ),
+        {
+            BackgroundTransparency = 0
+        }
+    ):Play()
+end)
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = MainFrame
 
@@ -229,9 +236,25 @@ end
 
 UpdateUIScale()
 
+if Camera then
+    table.insert(
+        _connections,
+        Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateUIScale)
+    )
+end
+
 table.insert(
     _connections,
-    Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateUIScale)
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        Camera = workspace.CurrentCamera
+        UpdateUIScale()
+        if Camera then
+            table.insert(
+                _connections,
+                Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateUIScale)
+            )
+        end
+    end)
 )
 
 local mainCorner = Instance.new("UICorner")
@@ -2109,7 +2132,7 @@ table.insert(_connections, Workspace.DescendantAdded:Connect(function(obj)
             end
         end
     end)
-end)
+end))
 
 -- Helper: format seconds to "H:MM:SS" or "MM:SS" string
 local function FormatTime(seconds)
@@ -2644,7 +2667,7 @@ local WeatherScanCooldown = 3
                                             if getconnections then
                                                 for _, connection in pairs(getconnections(gui.MouseButton1Click)) do connection:Fire() end
                                                 for _, connection in pairs(getconnections(gui.Activated)) do connection:Fire() end
-                                            else
+                                            elseif VirtualInputManager then
                                                 local pos = gui.AbsolutePosition + (gui.AbsoluteSize / 2)
                                                 VirtualInputManager:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
                                                 task.wait(0.05)
