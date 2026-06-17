@@ -69,13 +69,8 @@ table.insert(_connections,
 )
 
 local function GetGuiParent()
-    -- Try PlayerGui first (most reliable for Delta executor)
-    if PlayerGui then 
-        return PlayerGui 
-    end
-
-    -- Try gethui() for other executors
     local parent
+    -- Try gethui() for executors that support it (most secure)
     pcall(function()
         if gethui then
             parent = gethui()
@@ -89,8 +84,12 @@ local function GetGuiParent()
         parent = CoreGui
     end)
     if parent then return parent end
+
+    -- Try PlayerGui as last resort (often needed for Delta executor)
+    if PlayerGui then 
+        return PlayerGui 
+    end
     
-    -- Last resort: Wait for PlayerGui to load
     return nil
 end
 
@@ -132,7 +131,6 @@ Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 Library.DisplayOrder = 999999
 Library.IgnoreGuiInset = true
 Library.Enabled = true
-Library.Visible = true
 
 -- Try to parent the Library to the correct location
 local parented = false
@@ -164,7 +162,6 @@ print("✅ DevoGag2: UI created successfully!")
 print("📍 UI Parent:", Library.Parent.Name)
 print("📦 UI Location:", Library.Parent:GetFullName())
 print("📺 Library AbsoluteSize:", Library.AbsoluteSize)
-print("📊 Library Visible:", Library.Visible)
 print("🔧 Library Enabled:", Library.Enabled)
 
 -- Wait a tiny bit for rendering
