@@ -85,6 +85,10 @@ local MarketplaceService = Services.MarketplaceService
 local HttpService = Services.HttpService
 
 local LocalPlayer = Players.LocalPlayer
+while not LocalPlayer do
+    task.wait()
+    LocalPlayer = Players.LocalPlayer
+end
 local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
@@ -781,18 +785,29 @@ function UI:Initialize()
 
     -- Add to CoreGui or PlayerGui (Executor Safe)
     local success, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    if gethui then
-        screenGui.Parent = gethui()
+    local targetParent
+    
+    if type(gethui) == "function" then
+        local h = gethui()
+        if h and h:IsA("ScreenGui") then
+            -- Delta's gethui() often returns a ScreenGui. We cannot nest ScreenGui inside ScreenGui.
+            targetParent = (success and coreGui) or h.Parent or h
+        else
+            targetParent = h
+        end
     elseif success and coreGui then
-        screenGui.Parent = coreGui
+        targetParent = coreGui
     else
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChild("PlayerGui")
         if not playerGui then
             playerGui = Instance.new("PlayerGui")
             playerGui.Parent = LocalPlayer
         end
-        screenGui.Parent = playerGui
+        targetParent = playerGui
     end
+    
+    screenGui.Parent = targetParent
+    screenGui.Enabled = true
 
     self.ScreenGui = screenGui
     self.Instance = screenGui
