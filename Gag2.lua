@@ -88,6 +88,54 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
+-- FORWARD DECLARATIONS (needed before engines reference them)
+-- ============================================================
+local Log = {
+    Messages = {},
+    MaxMessages = 100,
+    LogLevel = 3,  -- 1=Error, 2=Warn, 3=Info, 4=Debug
+}
+
+function Log:Add(level, message, color)
+    local entry = {
+        Level = level,
+        Message = message,
+        Color = color or Color3.fromRGB(200, 200, 200),
+        Time = os.time(),
+        Timestamp = os.date("%H:%M:%S"),
+    }
+    table.insert(self.Messages, entry)
+    if #self.Messages > self.MaxMessages then
+        table.remove(self.Messages, 1)
+    end
+    local prefix = os.date("[%H:%M:%S]")
+    local icons = {["ERROR"] = "\226\156\150", ["WARN"] = "\226\154\160", ["INFO"] = "\226\132\185", ["DEBUG"] = "\226\151\143", ["SUCCESS"] = "\226\156\148"}
+    local icon = icons[level] or "●"
+    print(string.format("%s %s %s", prefix, icon, message))
+end
+
+function Log:Error(message) self:Add("ERROR", message, Color3.fromRGB(255, 70, 70)) end
+function Log:Warn(message) self:Add("WARN", message, Color3.fromRGB(255, 180, 50)) end
+function Log:Info(message) self:Add("INFO", message, Color3.fromRGB(100, 200, 255)) end
+function Log:Debug(message)
+    if self.LogLevel >= 4 then
+        self:Add("DEBUG", message, Color3.fromRGB(150, 150, 150))
+    end
+end
+function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
+
+local UI = {
+    ScreenGui = nil,
+    Instance = nil,
+    Elements = {},
+    Dragging = false,
+    DragOffset = Vector2.new(0, 0),
+    Minimized = false,
+    Tabs = {},
+    ActiveTab = "Main",
+}
+
+-- ============================================================
 -- SECTION 3: UTILITY FUNCTIONS
 -- ============================================================
 local Utilities = {}
@@ -104,7 +152,7 @@ function Utilities.FindRemote(remoteName)
     for _, container in ipairs(searchPaths) do
         if not container then continue end
         local found = container:FindFirstChild(remoteName, true)
-        if found and (found:IsA("RemoteEvent") or found:IsA("RemoteFunction") or found:IsA("Un replicated")) then
+        if found and (found:IsA("RemoteEvent") or found:IsA("RemoteFunction") or found:IsA("UnreliableRemoteEvent")) then
             return found
         end
     end
@@ -707,61 +755,21 @@ function AntiAFK:Stop()
 end
 
 -- ============================================================
--- SECTION 7: ADVANCED LOGGING SYSTEM
+-- SECTION 7: LOG UI UPDATE (now that UI is available)
 -- ============================================================
-local Log = {
-    Messages = {},
-    MaxMessages = 100,
-    LogLevel = 3,  -- 1=Error, 2=Warn, 3=Info, 4=Debug
-}
-
+-- Override Log:Add to include UI update
+local _origLogAdd = Log.Add
 function Log:Add(level, message, color)
-    local entry = {
-        Level = level,
-        Message = message,
-        Color = color or Color3.fromRGB(200, 200, 200),
-        Time = os.time(),
-        Timestamp = os.date("%H:%M:%S"),
-    }
-    table.insert(self.Messages, entry)
-    if #self.Messages > self.MaxMessages then
-        table.remove(self.Messages, 1)
-    end
-
-    -- Console output
-    local prefix = os.date("[%H:%M:%S]")
-    local icons = {["ERROR"] = "✖", ["WARN"] = "⚠", ["INFO"] = "ℹ", ["DEBUG"] = "●", ["SUCCESS"] = "✔"}
-    local icon = icons[level] or "●"
-    print(string.format("%s %s %s", prefix, icon, message))
-
-    -- Update UI if available
+    _origLogAdd(self, level, message, color)
+    -- Update UI log list if available
     if UI and UI.Elements and UI.Elements.LogList then
-        UI:UpdateLogList()
+        pcall(function() UI:UpdateLogList() end)
     end
 end
-
-function Log:Error(message) self:Add("ERROR", message, Color3.fromRGB(255, 70, 70)) end
-function Log:Warn(message) self:Add("WARN", message, Color3.fromRGB(255, 180, 50)) end
-function Log:Info(message) self:Add("INFO", message, Color3.fromRGB(100, 200, 255)) end
-function Log:Debug(message)
-    if self.LogLevel >= 4 then
-        self:Add("DEBUG", message, Color3.fromRGB(150, 150, 150))
-    end
-end
-function Log:Success(message) self:Add("SUCCESS", message, Color3.fromRGB(50, 255, 100)) end
 
 -- ============================================================
 -- SECTION 8: PREMIUM PROFESSIONAL UI
 -- ============================================================
-local UI = {
-    Instance = nil,
-    Elements = {},
-    Dragging = false,
-    DragOffset = Vector2.new(0, 0),
-    Minimized = false,
-    Tabs = {},
-    ActiveTab = "Main",
-}
 
 function UI:Initialize()
     -- Create ScreenGui
@@ -786,12 +794,12 @@ function UI:Initialize()
         screenGui.Parent = playerGui
     end
 
+    self.ScreenGui = screenGui
     self.Instance = screenGui
     self:CreateMainFrame()
     self:CreateTitleBar()
     self:CreateTabBar()
     self:CreateContentArea()
-    -- self:CreateStatusBar() -- Removed due to missing implementation
 
     -- Make draggable
     self:MakeDraggable()
@@ -799,7 +807,7 @@ function UI:Initialize()
     -- Animate entrance
     self:AnimateEntrance()
 
-    Log:Success("🌐 UI Initialized")
+    Log:Success("UI Initialized successfully")
 end
 
 function UI:CreateMainFrame()
@@ -848,7 +856,7 @@ function UI:CreateMainFrame()
     gradient.Parent = border
 
     self.Elements.MainFrame = main
-    self.Instance = main
+    self.Instance = main  -- Switch context to MainFrame for child UI elements
 end
 
 function UI:CreateTitleBar()
@@ -1848,8 +1856,11 @@ function UI:AnimateEntrance()
 end
 
 function UI:Destroy()
-    self.Instance:Destroy()
-    UI.Instance = nil
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
+    self.ScreenGui = nil
+    self.Instance = nil
 end
 
 -- ============================================================
@@ -1901,8 +1912,8 @@ Log:Info("📌 Report bugs: https://help.hackerai.co")
 -- UI Toggle Hotkey
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
-        if UI.Instance then
-            UI.Instance.Parent.Enabled = not UI.Instance.Parent.Enabled
+        if UI.ScreenGui then
+            UI.ScreenGui.Enabled = not UI.ScreenGui.Enabled
         end
     end
 end)
