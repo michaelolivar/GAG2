@@ -232,31 +232,61 @@ closeCorner.Parent = CloseBtn
 CloseBtn.MouseButton1Click:Connect(CleanupScript)
 CloseBtn.Activated:Connect(CleanupScript)
 
--- Minimize toggle
+-- Messenger Chat Head Icon
+local ChatHeadIcon = Instance.new("ImageButton")
+ChatHeadIcon.Name = "ChatHeadIcon"
+ChatHeadIcon.Size = UDim2.new(0, 56, 0, 56)
+ChatHeadIcon.Position = UDim2.new(0.5, -28, 0, 20)
+ChatHeadIcon.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+ChatHeadIcon.Image = "rbxassetid://132712525720069"
+ChatHeadIcon.Visible = false
+ChatHeadIcon.ZIndex = 100
+ChatHeadIcon.Parent = Library
+
+local chatHeadCorner = Instance.new("UICorner")
+chatHeadCorner.CornerRadius = UDim.new(1, 0)
+chatHeadCorner.Parent = ChatHeadIcon
+
+local chatHeadStroke = Instance.new("UIStroke")
+chatHeadStroke.Color = Color3.fromRGB(120, 80, 255)
+chatHeadStroke.Thickness = 2.5
+chatHeadStroke.Parent = ChatHeadIcon
+
+MakeDraggable(ChatHeadIcon, ChatHeadIcon)
+
+-- Minimize toggle (Chat Head Mode)
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    ContentFrame = MainFrame:FindFirstChild("ContentScroll") -- re-reference
-    for _, child in pairs(MainFrame:GetChildren()) do
-        if child.Name ~= "TitleBar" and child.Name ~= "Shadow" and not child:IsA("UICorner") and not child:IsA("UIStroke") and not child:IsA("UISizeConstraint") then
-            child.Visible = not isMinimized
-        end
+    isMinimized = true
+    MainFrame.Visible = false
+    ChatHeadIcon.Visible = true
+    -- Spawns the chat head roughly where the window was
+    local pos = MainFrame.AbsolutePosition
+    if pos.X > 0 and pos.Y > 0 then
+        ChatHeadIcon.Position = UDim2.new(0, pos.X + (MainFrame.AbsoluteSize.X / 2) - 28, 0, pos.Y)
     end
-    MainFrame.Size = isMinimized and UDim2.new(0.9, 0, 0, 42) or UDim2.new(0.9, 0, 0.85, 0)
-    MinBtn.Text = isMinimized and "+" or "—"
+end)
+
+ChatHeadIcon.MouseButton1Click:Connect(function()
+    isMinimized = false
+    MainFrame.Visible = true
+    ChatHeadIcon.Visible = false
 end)
 
 -- Make draggable via title bar (moves MainFrame)
 MakeDraggable(TitleBar, MainFrame)
 
 -- Tab system (Chiyo Left Sidebar)
-local TabContainer = Instance.new("Frame")
+local TabContainer = Instance.new("ScrollingFrame")
 TabContainer.Name = "TabContainer"
 TabContainer.Size = UDim2.new(0, 130, 1, -44)
 TabContainer.Position = UDim2.new(0, 0, 0, 44)
 TabContainer.BackgroundColor3 = Color3.fromRGB(22, 22, 28) -- Distinct sidebar color
 TabContainer.BorderSizePixel = 0
 TabContainer.ClipsDescendants = true
+TabContainer.ScrollBarThickness = 0
+TabContainer.CanvasSize = UDim2.new(0, 0, 0, 300)
+TabContainer.Visible = true
 TabContainer.Parent = MainFrame
 
 local sidebarLine = Instance.new("Frame")
@@ -305,7 +335,7 @@ local function SwitchTab(tabName)
     for _, btn in pairs(TabContainer:GetChildren()) do
         if btn:IsA("TextButton") then
             btn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
-            btn.TextColor3 = Color3.fromRGB(140, 140, 150)
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
         end
     end
     local tabBtn = TabContainer:FindFirstChild(tabName)
@@ -330,7 +360,7 @@ for i, tabName in ipairs(TabNames) do
     tabBtn.Size = UDim2.new(1, 0, 0, 32)
     tabBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
     tabBtn.Text = " " .. icon .. "  " .. tabName
-    tabBtn.TextColor3 = Color3.fromRGB(140, 140, 150)
+    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
     tabBtn.TextSize = 13
     tabBtn.Font = Enum.Font.GothamMedium
     tabBtn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1537,6 +1567,26 @@ local function FindPlayerNear(pos, radius)
         end
     end
     return nil
+end
+
+local function FindEventSeeds()
+    local seeds = {}
+    pcall(function()
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") or obj:IsA("Model") then
+                local name = obj.Name:lower()
+                -- Filter specifically for seeds that are usually dropped or spawned as events
+                if name:find("seed") or name:find("pack") or name:find("golden") or name:find("rainbow") or name:find("bird") then
+                    if obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChildWhichIsA("TouchTransmitter") then
+                        table.insert(seeds, obj)
+                    elseif name:find("golden") or name:find("rainbow") then
+                        table.insert(seeds, obj)
+                    end
+                end
+            end
+        end
+    end)
+    return seeds
 end
 
 local function GetOtherPlayersPlants()
