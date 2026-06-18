@@ -26,8 +26,8 @@ local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
 -- Configuration
 local Settings = {
-    AutoCollect = true,
-    AutoReturn = true,
+    AutoCollect = false,
+    AutoReturn = false,
     CollectGold = true,
     CollectRainbow = true,
     CollectBird = true,
@@ -982,6 +982,19 @@ end
 --  BUILDER START
 -- ============================================================
 
+-- ESP state must be declared before the UI builder so toggle/dropdown callbacks work
+local espEnabled = false
+local espTargetFruit = "All"
+
+-- ESP ScreenGui declared early so the Visuals tab toggle can reference it
+local ESPFolder = Instance.new("ScreenGui")
+ESPFolder.Name = "GaG2_ESP"
+ESPFolder.ResetOnSpawn = false
+pcall(function() ESPFolder.Parent = game:GetService("CoreGui") end)
+if not ESPFolder.Parent then
+    pcall(function() ESPFolder.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end)
+end
+
 -- Create Window
 local ui = PremiumUI:NewWindow("Grow my bebe Ed <3", "Premium with love from Devo")
 
@@ -991,21 +1004,18 @@ local collectTab = ui:AddTab("Collect", "🌱")
 -- Collect Section
 local collectSection = ui:AddSection(collectTab, "Auto Collection")
 
-ui:AddToggle(collectSection, "Enable Auto Collect", "Automatically collect event seeds", true, function(state)
+ui:AddToggle(collectSection, "Enable Auto Collect", "Automatically collect event seeds", false, function(state)
     Settings.AutoCollect = state
 end)
 
-local eventOptions = {"All", "Gold Seed", "Rainbow Seed", "Bird", "Seed Pack"}
+local eventOptions = {"All", "Golden Seed", "Rainbow Seed", "Bird", "Seed Pack"}
 Settings.TargetEventSeed = "All"
 
 ui:AddDropdown(collectSection, "Target Event Seed", eventOptions, "All", function(value)
     Settings.TargetEventSeed = value
 end)
 
--- Collection Settings
-local radiusSection = ui:AddSection(collectTab, "Collection Settings")
-
-ui:AddToggle(radiusSection, "Auto Return to Base", "Return to base when events end", true, function(state)
+ui:AddToggle(collectSection, "Auto Return to Base", "Return to base when events end", false, function(state)
     Settings.AutoReturn = state
 end)
 
@@ -1014,6 +1024,8 @@ local notifSection = ui:AddSection(collectTab, "Notifications")
 ui:AddToggle(notifSection, "Enable Notifications", "Show collection notifications", true, function(state)
     Settings.Notification = state
 end)
+
+-- (Collection Settings section removed; Auto Return merged into Collect section above)
 
 -- Tab 2: Visuals
 local visualsTab = ui:AddTab("Visuals", "👁")
@@ -1165,17 +1177,7 @@ local function sendNotification(title, text, duration)
     end)
 end
 
--- ESP System
-local ESPFolder = Instance.new("ScreenGui")
-ESPFolder.Name = "GaG2_ESP"
-ESPFolder.ResetOnSpawn = false
-pcall(function() ESPFolder.Parent = game:GetService("CoreGui") end)
-if not ESPFolder.Parent then
-    pcall(function() ESPFolder.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end)
-end
-
-local espEnabled = false
-local espTargetFruit = "All"
+-- (ESPFolder, espEnabled, espTargetFruit declared above the UI builder)
 
 local function createESP(part, textStr, color)
     local billboard = Instance.new("BillboardGui")
@@ -1312,7 +1314,7 @@ local function findSeeds()
                     if seedType:find("Gold") or seedType:find("Rainbow") or seedType:find("Bird") or seedType:find("Pack") then
                         shouldCollect = true
                     end
-                elseif Settings.TargetEventSeed == "Gold Seed" and seedType:find("Gold") then
+                elseif Settings.TargetEventSeed == "Golden Seed" and seedType:find("Gold") then
                     shouldCollect = true
                 elseif Settings.TargetEventSeed == "Rainbow Seed" and seedType:find("Rainbow") then
                     shouldCollect = true
