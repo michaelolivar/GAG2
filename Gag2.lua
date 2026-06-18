@@ -930,7 +930,7 @@ local aboutTab = ui:AddTab("About", "ℹ️")
 local aboutSection = ui:AddSection(aboutTab, "Grow a Garden 2 Premium")
 
 ui:AddLabel(aboutSection, "Version: 1.0.0", false)
-ui:AddLabel(aboutSection, "Made for authorized security testing", true)
+ui:AddLabel(aboutSection, "Made for bebe Ed <3", true)
 ui:AddLabel(aboutSection, "", true)
 
 local features = {
@@ -957,63 +957,13 @@ end)
 local function sendNotification(title, text, duration)
     if not Settings.Notification then return end
     
-    local notif = Instance.new("Frame")
-    notif.Size = UDim2.new(0, 320, 0, 50)
-    notif.Position = UDim2.new(1, 0, 0, 80)
-    notif.BackgroundColor3 = Colors.BackgroundAlt
-    notif.ClipsDescendants = true
-    notif.Parent = ui.Gui
-    ui:CreateCorner(notif, 8)
-    ui:CreateStroke(notif, Colors.PanelBorder, 1)
-    
-    -- Accent bar
-    local accentBar = Instance.new("Frame")
-    accentBar.Size = UDim2.new(0, 3, 1, 0)
-    accentBar.BackgroundColor3 = Colors.Accent
-    accentBar.BorderSizePixel = 0
-    accentBar.Parent = notif
-    ui:CreateCorner(accentBar, 1.5)
-    
-    -- Title
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -16, 0, 20)
-    titleLabel.Position = UDim2.new(0, 12, 0, 6)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 13
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.TextColor3 = Colors.Text
-    titleLabel.Parent = notif
-    
-    -- Desc
-    local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(1, -16, 0, 16)
-    descLabel.Position = UDim2.new(0, 12, 0, 26)
-    descLabel.BackgroundTransparency = 1
-    descLabel.Text = text
-    descLabel.Font = Enum.Font.Gotham
-    descLabel.TextSize = 11
-    descLabel.TextXAlignment = Enum.TextXAlignment.Left
-    descLabel.TextColor3 = Colors.TextDim
-    descLabel.Parent = notif
-    
-    -- Animate in
-    notif.Position = UDim2.new(1, 20, 0, 80)
-    TweenService:Create(notif, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-        Position = UDim2.new(1, -340, 0, 80)
-    }):Play()
-    
-    -- Remove after duration
-    task.delay(duration or 3.5, function()
-        if notif.Parent then
-            TweenService:Create(notif, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-                Position = UDim2.new(1, 20, 0, 80)
-            }):Play()
-            task.delay(0.4, function()
-                notif:Destroy()
-            end)
-        end
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Icon = "rbxassetid://14278824786",
+            Duration = duration or 3.5
+        })
     end)
 end
 
