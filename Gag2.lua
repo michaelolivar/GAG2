@@ -64,15 +64,17 @@ local Colors = {
 local PremiumUI = {}
 PremiumUI.__index = PremiumUI
 
-function PremiumUI:CreateDrag(guiObject)
+function PremiumUI:CreateDrag(dragObject, moveObject)
     local dragging = false
     local dragInput, dragStart, startPos
     
-    guiObject.InputBegan:Connect(function(input)
+    moveObject = moveObject or dragObject
+    
+    dragObject.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = guiObject.Position
+            startPos = moveObject.Position
             
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
@@ -82,7 +84,7 @@ function PremiumUI:CreateDrag(guiObject)
         end
     end)
     
-    guiObject.InputChanged:Connect(function(input)
+    dragObject.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
@@ -91,7 +93,7 @@ function PremiumUI:CreateDrag(guiObject)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            guiObject.Position = UDim2.new(
+            moveObject.Position = UDim2.new(
                 startPos.X.Scale,
                 startPos.X.Offset + delta.X,
                 startPos.Y.Scale,
@@ -307,6 +309,7 @@ function PremiumUI:NewWindow(title, subtitle)
     scrollingFrame.ScrollBarThickness = 4
     scrollingFrame.ScrollBarImageColor3 = Colors.AccentDim
     scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     scrollingFrame.Parent = contentArea
     
     -- Store references
@@ -320,7 +323,7 @@ function PremiumUI:NewWindow(title, subtitle)
     self.Minimized = false
     
     -- Drag setup
-    self:CreateDrag(titleBar)
+    self:CreateDrag(titleBar, main)
     
     -- Minimize functionality
     minimizeBtn.MouseButton1Click:Connect(function()
@@ -382,10 +385,16 @@ function PremiumUI:AddTab(name, icon)
     -- Page (hidden by default)
     local page = Instance.new("Frame")
     page.Name = name .. "Page"
-    page.Size = UDim2.new(1, 0, 1, 0)
+    page.Size = UDim2.new(1, 0, 0, 0)
+    page.AutomaticSize = Enum.AutomaticSize.Y
     page.BackgroundTransparency = 1
     page.Visible = false
     page.Parent = self.ScrollingFrame
+    
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding = UDim.new(0, 20)
+    pageLayout.Parent = page
     
     tabObj.Button = btn
     tabObj.Page = page
@@ -448,6 +457,7 @@ function PremiumUI:AddSection(pageObj, title)
     local section = Instance.new("Frame")
     section.Name = title .. "Section"
     section.Size = UDim2.new(1, 0, 0, 0)
+    section.AutomaticSize = Enum.AutomaticSize.Y
     section.BackgroundTransparency = 1
     section.Parent = pageObj.Page
     
@@ -479,6 +489,11 @@ function PremiumUI:AddSection(pageObj, title)
     content.Parent = section
     content.AutomaticSize = Enum.AutomaticSize.Y
     
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 8)
+    listLayout.Parent = content
+    
     local sectionData = {
         Section = section,
         Header = header,
@@ -494,19 +509,7 @@ function PremiumUI:AddSection(pageObj, title)
 end
 
 function PremiumUI:RepositionElements(pageObj)
-    local y = 0
-    for _, section in ipairs(pageObj.Elements) do
-        section.Section.Position = UDim2.new(0, 0, 0, y)
-        y = y + section.Content.AbsoluteSize.Y + 50
-    end
-    
-    -- Update canvas size
-    local totalHeight = y + 20
-    if totalHeight > self.ScrollingFrame.AbsoluteSize.Y then
-        self.ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-    else
-        self.ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, self.ScrollingFrame.AbsoluteSize.Y + 1)
-    end
+    -- Layout is now handled automatically by UIListLayout and AutomaticSize
 end
 
 function PremiumUI:AddToggle(sectionData, title, description, default, callback)
@@ -852,6 +855,11 @@ function PremiumUI:AddLabel(sectionData, text, isDim)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextColor3 = isDim and Colors.TextDim or Colors.Text
     label.Parent = sectionData.Content
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 14)
+    padding.Parent = label
+    
     return label
 end
 
