@@ -845,6 +845,121 @@ function PremiumUI:AddButton(sectionData, title, description, accentColor, callb
     return btn
 end
 
+function PremiumUI:AddDropdown(sectionData, title, options, default, callback)
+    local dropdown = Instance.new("Frame")
+    dropdown.Name = title .. "Dropdown"
+    dropdown.Size = UDim2.new(1, 0, 0, 52)
+    dropdown.BackgroundColor3 = Colors.Panel
+    dropdown.Parent = sectionData.Content
+    self:CreateCorner(dropdown, 8)
+    self:CreateStroke(dropdown, Colors.PanelBorder, 1)
+    dropdown.ClipsDescendants = true
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 200, 0, 20)
+    label.Position = UDim2.new(0, 14, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = title
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextColor3 = Colors.Text
+    label.Parent = dropdown
+    
+    local selectedLabel = Instance.new("TextLabel")
+    selectedLabel.Size = UDim2.new(0, 200, 0, 16)
+    selectedLabel.Position = UDim2.new(0, 14, 0, 26)
+    selectedLabel.BackgroundTransparency = 1
+    selectedLabel.Text = default or "Select..."
+    selectedLabel.Font = Enum.Font.Gotham
+    selectedLabel.TextSize = 12
+    selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+    selectedLabel.TextColor3 = Colors.Accent
+    selectedLabel.Parent = dropdown
+    
+    local arrow = Instance.new("TextLabel")
+    arrow.Size = UDim2.new(0, 30, 0, 52)
+    arrow.Position = UDim2.new(1, -40, 0, 0)
+    arrow.BackgroundTransparency = 1
+    arrow.Text = "▼"
+    arrow.Font = Enum.Font.GothamBold
+    arrow.TextSize = 14
+    arrow.TextColor3 = Colors.TextDim
+    arrow.Parent = dropdown
+    
+    local optionsContainer = Instance.new("ScrollingFrame")
+    optionsContainer.Size = UDim2.new(1, -20, 1, -60)
+    optionsContainer.Position = UDim2.new(0, 10, 0, 52)
+    optionsContainer.BackgroundTransparency = 1
+    optionsContainer.BorderSizePixel = 0
+    optionsContainer.ScrollBarThickness = 2
+    optionsContainer.ScrollBarImageColor3 = Colors.AccentDim
+    optionsContainer.Parent = dropdown
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 2)
+    listLayout.Parent = optionsContainer
+    
+    local mainBtn = Instance.new("TextButton")
+    mainBtn.Size = UDim2.new(1, 0, 0, 52)
+    mainBtn.BackgroundTransparency = 1
+    mainBtn.Text = ""
+    mainBtn.Parent = dropdown
+    
+    local isOpen = false
+    
+    local function updateOptions()
+        for _, child in ipairs(optionsContainer:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
+        
+        local y = 0
+        for _, option in ipairs(options) do
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 0, 24)
+            btn.BackgroundColor3 = Colors.BackgroundAlt
+            btn.Text = "  " .. option
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 12
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.TextColor3 = Colors.Text
+            btn.Parent = optionsContainer
+            self:CreateCorner(btn, 4)
+            
+            btn.MouseButton1Click:Connect(function()
+                selectedLabel.Text = option
+                isOpen = false
+                TweenService:Create(dropdown, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 52)}):Play()
+                arrow.Text = "▼"
+                if callback then pcall(callback, option) end
+            end)
+            y = y + 26
+        end
+        optionsContainer.CanvasSize = UDim2.new(0, 0, 0, y)
+    end
+    
+    mainBtn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        if isOpen then
+            updateOptions()
+            local expandHeight = math.clamp(52 + (#options * 26) + 10, 52, 200)
+            TweenService:Create(dropdown, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, expandHeight)}):Play()
+            arrow.Text = "▲"
+        else
+            TweenService:Create(dropdown, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 52)}):Play()
+            arrow.Text = "▼"
+        end
+    end)
+    
+    local function setOptions(newOptions)
+        options = newOptions
+        if isOpen then updateOptions() end
+    end
+    
+    return dropdown, setOptions
+end
+
 function PremiumUI:AddLabel(sectionData, text, isDim)
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 0, 20)
@@ -910,7 +1025,40 @@ ui:AddToggle(notifSection, "Enable Notifications", "Show collection notification
     Settings.Notification = state
 end)
 
--- Tab 2: Status
+-- Tab 2: Visuals
+local visualsTab = ui:AddTab("Visuals", "👁")
+local espSection = ui:AddSection(visualsTab, "Fruit ESP")
+
+ui:AddToggle(espSection, "Enable Fruit ESP", "Show seeds through walls", false, function(state)
+    espEnabled = state
+    if state then
+        updateESP()
+    else
+        ESPFolder:ClearAllChildren()
+    end
+end)
+
+local shopSeeds = {"All"}
+pcall(function()
+    local rsShop = game:GetService("ReplicatedStorage"):FindFirstChild("Shop") or game:GetService("ReplicatedStorage"):FindFirstChild("Seeds")
+    if rsShop then
+        for _, item in ipairs(rsShop:GetChildren()) do
+            if not table.find(shopSeeds, item.Name) then
+                table.insert(shopSeeds, item.Name)
+            end
+        end
+    end
+end)
+if #shopSeeds <= 1 then
+    shopSeeds = {"All", "Gold", "Rainbow", "Bird", "Seed Pack", "Tomato", "Carrot", "Potato", "Onion", "Wheat", "Corn", "Watermelon", "Pumpkin", "Strawberry", "Blueberry", "Apple", "Orange", "Banana", "Pineapple", "Grape"}
+end
+
+ui:AddDropdown(espSection, "Target Fruit", shopSeeds, "All", function(value)
+    espTargetFruit = value
+    if espEnabled then updateESP() end
+end)
+
+-- Tab 3: Status
 local statusTab = ui:AddTab("Status", "📊")
 
 local statusSection = ui:AddSection(statusTab, "Script Status")
@@ -924,7 +1072,66 @@ local eventSection = ui:AddSection(statusTab, "Event Detection")
 local currentEventLabel = ui:AddLabel(eventSection, "Current Event: None", true)
 local timeLabel = ui:AddLabel(eventSection, "Time: --:--:--", true)
 
--- Tab 3: About
+-- Tab 3: Server
+local serverTab = ui:AddTab("Server", "🌐")
+
+local serverSection = ui:AddSection(serverTab, "Server Management")
+
+ui:AddButton(serverSection, "Server Hop", "Join a different public server", Colors.Accent, function()
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Server Hop",
+            Text = "Finding a new server...",
+            Duration = 3
+        })
+    end)
+    
+    local HttpService = game:GetService("HttpService")
+    local req = request or http_request or (syn and syn.request) or (fluxus and fluxus.request)
+    
+    if req then
+        pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+            local res = req({Url = url, Method = "GET"})
+            if res and res.Body then
+                local body = HttpService:JSONDecode(res.Body)
+                if body and body.data then
+                    local servers = {}
+                    for _, v in ipairs(body.data) do
+                        if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= game.JobId then
+                            table.insert(servers, v.id)
+                        end
+                    end
+                    if #servers > 0 then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], player)
+                        return
+                    end
+                end
+            end
+        end)
+    end
+    TeleportService:Teleport(game.PlaceId, player)
+end)
+
+ui:AddButton(serverSection, "Rejoin Server", "Rejoin your current server", Colors.Warning, function()
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Rejoin",
+            Text = "Rejoining current server...",
+            Duration = 3
+        })
+    end)
+    
+    if #Players:GetPlayers() <= 1 then
+        player:Kick("\nRejoining...")
+        task.wait()
+        TeleportService:Teleport(game.PlaceId, player)
+    else
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+    end
+end)
+
+-- Tab 4: About
 local aboutTab = ui:AddTab("About", "ℹ️")
 
 local aboutSection = ui:AddSection(aboutTab, "Grow a Garden 2 Premium")
@@ -965,6 +1172,67 @@ local function sendNotification(title, text, duration)
             Duration = duration or 3.5
         })
     end)
+end
+
+-- ESP System
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "GaG2_ESP"
+pcall(function() ESPFolder.Parent = game:GetService("CoreGui") end)
+
+local espEnabled = false
+local espTargetFruit = "All"
+
+local function createESP(part, name, color)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = name
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 100, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextColor3 = color
+    label.TextStrokeTransparency = 0.2
+    label.Parent = billboard
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = name .. "_HL"
+    highlight.FillColor = color
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0.2
+    highlight.Adornee = part
+    
+    billboard.Adornee = part
+    billboard.Parent = ESPFolder
+    highlight.Parent = ESPFolder
+end
+
+function updateESP()
+    ESPFolder:ClearAllChildren()
+    if not espEnabled then return end
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj:FindFirstChild("Seed") then
+            local seedValue = obj:FindFirstChild("Seed")
+            if seedValue then
+                local seedType = tostring(seedValue.Value)
+                if espTargetFruit == "All" or seedType:find(espTargetFruit) then
+                    local color = Colors.Accent
+                    if seedType:find("Gold") then color = Colors.Gold
+                    elseif seedType:find("Rainbow") then color = Colors.Rainbow
+                    elseif seedType:find("Bird") then color = Colors.Success
+                    elseif seedType:find("Pack") then color = Colors.Warning end
+                    
+                    createESP(obj, seedType, color)
+                end
+            end
+        end
+    end
 end
 
 -- Seed detection and collection
@@ -1084,6 +1352,10 @@ end
 local function collectionLoop()
     while task.wait(0.5) do
         if not ui.Gui.Parent then break end
+        
+        if espEnabled then
+            pcall(updateESP)
+        end
         
         -- Update time
         timeLabel.Text = "Time: " .. os.date("%H:%M:%S")
