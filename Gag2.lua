@@ -1002,19 +1002,11 @@ ui:AddDropdown(collectSection, "Target Event Seed", eventOptions, "All", functio
     Settings.TargetEventSeed = value
 end)
 
--- Collection Radius
+-- Collection Settings
 local radiusSection = ui:AddSection(collectTab, "Collection Settings")
-
-ui:AddSlider(radiusSection, "Collection Radius", 30, 200, 100, " studs", function(value)
-    Settings.CollectionRadius = value
-end)
 
 ui:AddToggle(radiusSection, "Auto Return to Base", "Return to base when events end", true, function(state)
     Settings.AutoReturn = state
-end)
-
-ui:AddSlider(radiusSection, "Return Delay", 0, 10, 3, "s", function(value)
-    Settings.ReturnDelay = value
 end)
 
 -- Notifications Section
@@ -1380,7 +1372,7 @@ local function collectionLoop()
         else
             if isInEvent and Settings.AutoReturn then
                 -- Event ended, return to base after delay
-                task.delay(Settings.ReturnDelay, function()
+                task.delay(1, function()
                     local spawn = workspace:FindFirstChild("Spawn") or 
                                  workspace:FindFirstChild("SpawnLocation") or
                                  workspace:FindFirstChild("Base")
@@ -1403,9 +1395,8 @@ local function collectionLoop()
                 table.sort(seeds, function(a, b) return a.Distance < b.Distance end)
                 for _, seed in ipairs(seeds) do
                     teleportTo(seed.Object.Position)
-                    task.wait(0.15)
                     collectSeed(seed)
-                    task.wait(0.1)
+                    task.wait()
                 end
             end
         end
