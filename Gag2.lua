@@ -991,18 +991,16 @@ local collectTab = ui:AddTab("Collect", "🌱")
 -- Collect Section
 local collectSection = ui:AddSection(collectTab, "Auto Collection")
 
-local seedTypes = {
-    {title = "Gold Seeds", desc = "Collect gold seeds during Midas/Gold Moon events", key = "CollectGold", color = Colors.Gold},
-    {title = "Rainbow Seeds", desc = "Collect rainbow seeds during Rainbow Moon events", key = "CollectRainbow", color = Colors.Rainbow},
-    {title = "Bird Seeds", desc = "Collect bird event seeds", key = "CollectBird", color = Colors.Success},
-    {title = "Seed Packs", desc = "Auto collect all seed packs from events", key = "CollectSeedPack", color = Colors.Warning},
-}
+ui:AddToggle(collectSection, "Enable Auto Collect", "Automatically collect event seeds", true, function(state)
+    Settings.AutoCollect = state
+end)
 
-for _, seed in ipairs(seedTypes) do
-    ui:AddToggle(collectSection, seed.title, seed.desc, true, function(state)
-        Settings[seed.key] = state
-    end)
-end
+local eventOptions = {"All", "Gold Seed", "Rainbow Seed", "Bird", "Seed Pack"}
+Settings.TargetEventSeed = "All"
+
+ui:AddDropdown(collectSection, "Target Event Seed", eventOptions, "All", function(value)
+    Settings.TargetEventSeed = value
+end)
 
 -- Collection Radius
 local radiusSection = ui:AddSection(collectTab, "Collection Settings")
@@ -1038,19 +1036,20 @@ ui:AddToggle(espSection, "Enable Fruit ESP", "Show seeds through walls", false, 
     end
 end)
 
+local predefinedSeeds = {
+    "Carrot", "Strawberry", "Blueberry", "Tulip", "Tomato", "Apple", "Bamboo", "Corn", "Pineapple", "Mushroom", "Green Bean", "Banana", "Grape", "Coconut", "Mango", "Dragon Fruit", "Acorn", "Cherry", "Sunflower", "Venus Fly Trap", "Pomegranate", "Poison Apple", "Moon Bloom", "Dragon's Breath"
+}
+
+local tempSeeds = {}
+for _, seed in ipairs(predefinedSeeds) do
+    table.insert(tempSeeds, seed)
+end
+
+table.sort(tempSeeds)
+
 local shopSeeds = {"All"}
-pcall(function()
-    local rsShop = game:GetService("ReplicatedStorage"):FindFirstChild("Shop") or game:GetService("ReplicatedStorage"):FindFirstChild("Seeds")
-    if rsShop then
-        for _, item in ipairs(rsShop:GetChildren()) do
-            if not table.find(shopSeeds, item.Name) then
-                table.insert(shopSeeds, item.Name)
-            end
-        end
-    end
-end)
-if #shopSeeds <= 1 then
-    shopSeeds = {"All", "Gold", "Rainbow", "Bird", "Seed Pack", "Tomato", "Carrot", "Potato", "Onion", "Wheat", "Corn", "Watermelon", "Pumpkin", "Strawberry", "Blueberry", "Apple", "Orange", "Banana", "Pineapple", "Grape"}
+for _, seed in ipairs(tempSeeds) do
+    table.insert(shopSeeds, seed)
 end
 
 ui:AddDropdown(espSection, "Target Fruit", shopSeeds, "All", function(value)
@@ -1175,9 +1174,13 @@ local function sendNotification(title, text, duration)
 end
 
 -- ESP System
-local ESPFolder = Instance.new("Folder")
+local ESPFolder = Instance.new("ScreenGui")
 ESPFolder.Name = "GaG2_ESP"
+ESPFolder.ResetOnSpawn = false
 pcall(function() ESPFolder.Parent = game:GetService("CoreGui") end)
+if not ESPFolder.Parent then
+    pcall(function() ESPFolder.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end)
+end
 
 local espEnabled = false
 local espTargetFruit = "All"
@@ -1199,17 +1202,19 @@ local function createESP(part, name, color)
     label.TextStrokeTransparency = 0.2
     label.Parent = billboard
     
-    local highlight = Instance.new("Highlight")
-    highlight.Name = name .. "_HL"
-    highlight.FillColor = color
-    highlight.OutlineColor = Color3.new(1, 1, 1)
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0.2
-    highlight.Adornee = part
-    
     billboard.Adornee = part
     billboard.Parent = ESPFolder
-    highlight.Parent = ESPFolder
+    
+    pcall(function()
+        local highlight = Instance.new("Highlight")
+        highlight.Name = name .. "_HL"
+        highlight.FillColor = color
+        highlight.OutlineColor = Color3.new(1, 1, 1)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0.2
+        highlight.Adornee = part
+        highlight.Parent = ESPFolder
+    end)
 end
 
 function updateESP()
@@ -1252,22 +1257,24 @@ local function findSeeds()
                 local seedType = tostring(seedValue.Value)
                 local distance = (obj.Position - rootPos).Magnitude
                 
-                if distance <= Settings.CollectionRadius then
-                    local shouldCollect = false
-                    
-                    if seedType:find("Gold") and Settings.CollectGold then
-                        shouldCollect = true
-                    elseif seedType:find("Rainbow") and Settings.CollectRainbow then
-                        shouldCollect = true
-                    elseif seedType:find("Bird") and Settings.CollectBird then
-                        shouldCollect = true
-                    elseif seedType:find("Pack") and Settings.CollectSeedPack then
+                local shouldCollect = false
+                
+                if Settings.TargetEventSeed == "All" then
+                    if seedType:find("Gold") or seedType:find("Rainbow") or seedType:find("Bird") or seedType:find("Pack") then
                         shouldCollect = true
                     end
-                    
-                    if shouldCollect then
-                        table.insert(seeds, {Object = obj, Type = seedType, Distance = distance})
-                    end
+                elseif Settings.TargetEventSeed == "Gold Seed" and seedType:find("Gold") then
+                    shouldCollect = true
+                elseif Settings.TargetEventSeed == "Rainbow Seed" and seedType:find("Rainbow") then
+                    shouldCollect = true
+                elseif Settings.TargetEventSeed == "Bird" and seedType:find("Bird") then
+                    shouldCollect = true
+                elseif Settings.TargetEventSeed == "Seed Pack" and seedType:find("Pack") then
+                    shouldCollect = true
+                end
+                
+                if shouldCollect then
+                    table.insert(seeds, {Object = obj, Type = seedType, Distance = distance})
                 end
             end
         end
@@ -1395,6 +1402,8 @@ local function collectionLoop()
             if #seeds > 0 then
                 table.sort(seeds, function(a, b) return a.Distance < b.Distance end)
                 for _, seed in ipairs(seeds) do
+                    teleportTo(seed.Object.Position)
+                    task.wait(0.15)
                     collectSeed(seed)
                     task.wait(0.1)
                 end
