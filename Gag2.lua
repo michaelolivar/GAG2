@@ -231,7 +231,7 @@ function PremiumUI:NewWindow(title, subtitle)
     titleLabel.Size = UDim2.new(0, 200, 1, 0)
     titleLabel.Position = UDim2.new(0, 44, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title or "Grow a Garden 2"
+    titleLabel.Text = title or "Devo - Ed"
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 16
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
