@@ -173,6 +173,109 @@ local GlowBG = New("Frame", {
 })
 Corner(20, GlowBG)
 
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║                      CHAT HEAD                          ║
+-- ╚══════════════════════════════════════════════════════════╝
+local CH_SIZE = 58
+
+local ChatHead = New("Frame", {
+    Name = "ChatHead",
+    Size = UDim2.new(0, CH_SIZE, 0, CH_SIZE),
+    Position = UDim2.new(1, -(CH_SIZE + 18), 0.5, -(CH_SIZE / 2)),
+    BackgroundColor3 = T.Accent,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 200,
+    Parent = ScreenGui,
+})
+Corner(99, ChatHead)
+Gradient(T.AccentHi, T.AccentLo, 135, ChatHead)
+
+-- Outer ring
+local CHRing = New("Frame", {
+    Size = UDim2.new(1, 10, 1, 10),
+    Position = UDim2.new(0, -5, 0, -5),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ZIndex = 199,
+    Parent = ChatHead,
+})
+Corner(99, CHRing)
+Stroke(T.AccentHi, 2, 0.4, CHRing)
+
+-- Icon
+New("TextLabel", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "🌱",
+    TextSize = 24,
+    Font = Enum.Font.GothamBold,
+    ZIndex = 201,
+    Parent = ChatHead,
+})
+
+-- Status dot (top-right corner of chat head)
+local CHDot = New("Frame", {
+    Name = "CHDot",
+    Size = UDim2.new(0, 14, 0, 14),
+    Position = UDim2.new(1, -3, 0, -3),
+    BackgroundColor3 = T.TextMuted,
+    BorderSizePixel = 0,
+    ZIndex = 202,
+    Parent = ChatHead,
+})
+Corner(99, CHDot)
+New("UIStroke", { Color = T.BG, Thickness = 2.5, Parent = CHDot })
+
+-- Clickable button
+local CHBtn = New("TextButton", {
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "",
+    ZIndex = 203,
+    Parent = ChatHead,
+})
+
+-- Make chat head draggable
+MakeDraggable(ChatHead, CHBtn)
+
+-- ── Chat head helper functions ────────────────────────────
+local function ShowChatHead()
+    ChatHead.Visible = true
+    ChatHead.Size = UDim2.new(0, 0, 0, 0)
+    ChatHead.BackgroundTransparency = 1
+    -- Bounce in
+    Tween(ChatHead, { Size = UDim2.new(0, CH_SIZE + 8, 0, CH_SIZE + 8), BackgroundTransparency = 0 }, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    task.wait(0.2)
+    Tween(ChatHead, { Size = UDim2.new(0, CH_SIZE, 0, CH_SIZE) }, 0.15, Enum.EasingStyle.Quart)
+    -- Sync dot color with collect state
+    CHDot.BackgroundColor3 = Config.AutoCollect and T.Green or T.Red
+end
+
+local function HideChatHead()
+    Tween(ChatHead, { Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1 }, 0.2, Enum.EasingStyle.Quart)
+    task.delay(0.22, function() ChatHead.Visible = false end)
+end
+
+local function OpenMain()
+    HideChatHead()
+    task.wait(0.1)
+    Main.Visible = true
+    Main.Size = UDim2.new(0, 400, 0, 0)
+    Main.BackgroundTransparency = 1
+    Tween(Main, { Size = UDim2.new(0, 400, 0, 560), BackgroundTransparency = 0 }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+end
+
+local function CloseMain()
+    Tween(Main, { Size = UDim2.new(0, 400, 0, 0), BackgroundTransparency = 1 }, 0.25, Enum.EasingStyle.Quart)
+    task.delay(0.26, function()
+        Main.Visible = false
+        ShowChatHead()
+    end)
+end
+
+CHBtn.MouseButton1Click:Connect(OpenMain)
+
 -- ── HEADER ──────────────────────────────────────────────────
 local Header = New("Frame", {
     Size = UDim2.new(1, 0, 0, 58),
@@ -212,20 +315,20 @@ New("TextLabel", {
 -- Title + subtitle
 New("TextLabel", {
     Size = UDim2.new(0, 200, 0, 20), Position = UDim2.new(0, 62, 0, 10),
-    BackgroundTransparency = 1, Text = "Devo ni Ed",
+    BackgroundTransparency = 1, Text = "Grow a Garden 2",
     TextColor3 = T.Text, TextSize = 14, Font = Enum.Font.GothamBold,
     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6, Parent = Header,
 })
 New("TextLabel", {
     Size = UDim2.new(0, 200, 0, 15), Position = UDim2.new(0, 62, 0, 31),
-    BackgroundTransparency = 1, Text = "Made with love by Ed",
+    BackgroundTransparency = 1, Text = "Event Seed Collector",
     TextColor3 = T.TextSub, TextSize = 11, Font = Enum.Font.Gotham,
     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6, Parent = Header,
 })
 
 -- Version pill
 local VerPill = New("Frame", {
-    Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(1, -150, 0.5, -9),
+    Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(1, -118, 0.5, -9),
     BackgroundColor3 = T.Accent, BorderSizePixel = 0, ZIndex = 6, Parent = Header,
 })
 Corner(20, VerPill)
@@ -235,15 +338,6 @@ New("TextLabel", {
     Text = "v1.0", TextColor3 = T.White, TextSize = 10,
     Font = Enum.Font.GothamBold, ZIndex = 7, Parent = VerPill,
 })
-
--- Hide button (Chat Head)
-local HideBtn = New("TextButton", {
-    Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -100, 0.5, -14),
-    BackgroundColor3 = T.Hover, BorderSizePixel = 0,
-    Text = "👁", TextColor3 = T.TextSub, TextSize = 14,
-    Font = Enum.Font.GothamBold, ZIndex = 6, Parent = Header,
-})
-Corner(7, HideBtn)
 
 -- Minimize button
 local MinBtn = New("TextButton", {
@@ -263,7 +357,6 @@ local CloseBtn = New("TextButton", {
 })
 Corner(7, CloseBtn)
 
-HoverEffect(HideBtn, T.Hover, Color3.fromRGB(40, 40, 65))
 HoverEffect(MinBtn, T.Hover, Color3.fromRGB(40, 40, 65))
 HoverEffect(CloseBtn, T.Hover, T.Red)
 MakeDraggable(Main, Header)
@@ -573,7 +666,7 @@ New("Frame", { Size = UDim2.new(1,0,0,14), BackgroundColor3 = T.Surface,
     BorderSizePixel = 0, Parent = Footer })
 New("TextLabel", {
     Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-    Text = "🌿 ED Hub  ·  RightCtrl to show/hide",
+    Text = "🌿 GAG2 Hub  ·  RightCtrl to show/hide",
     TextColor3 = T.TextMuted, TextSize = 10, Font = Enum.Font.Gotham, Parent = Footer,
 })
 
@@ -783,80 +876,33 @@ end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     if Config.AutoCollect then StopAuto() end
+    HideChatHead()
     Tween(Main, { BackgroundTransparency = 1, Size = UDim2.new(0, 400, 0, 0) }, 0.3)
     task.wait(0.35); ScreenGui:Destroy()
 end)
 
+-- MinBtn → collapse to chat head
 MinBtn.MouseButton1Click:Connect(function()
-    State.Minimized = not State.Minimized
-    Tween(Main, { Size = UDim2.new(0, 400, 0, State.Minimized and 58 or 560) }, 0.4)
-    MinBtn.Text = State.Minimized and "□" or "—"
+    CloseMain()
 end)
 
--- ── Chat Head ───────────────────────────────────────────────
-local thumbContent = ""
-pcall(function()
-    thumbContent = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-end)
-
-local ChatHead = New("ImageButton", {
-    Name = "ChatHead",
-    Size = UDim2.new(0, 50, 0, 50),
-    Position = UDim2.new(0, 20, 0.5, -25),
-    BackgroundColor3 = T.Card,
-    Image = thumbContent ~= "" and thumbContent or "rbxassetid://14278824786",
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 50,
-    Parent = ScreenGui,
-})
-Corner(25, ChatHead)
-Stroke(T.Accent, 2, 0, ChatHead)
-
-MakeDraggable(ChatHead, ChatHead)
-
-local function ToggleChatHead(showHead)
-    if showHead then
-        Main.Visible = false
-        ChatHead.Visible = true
-        ChatHead.Size = UDim2.new(0, 0, 0, 0)
-        Tween(ChatHead, { Size = UDim2.new(0, 50, 0, 50) }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    else
-        ChatHead.Visible = false
-        Main.Visible = true
-    end
-end
-
-HideBtn.MouseButton1Click:Connect(function()
-    ToggleChatHead(true)
-end)
-
-local chatHeadDragStart = nil
-ChatHead.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        chatHeadDragStart = input.Position
-    end
-end)
-
-ChatHead.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if chatHeadDragStart and (input.Position - chatHeadDragStart).Magnitude < 10 then
-            ToggleChatHead(false)
-        end
-    end
-end)
-
--- ── Keybind: RightCtrl ────────────────────────────────────────
+-- ── Keybind: RightCtrl → toggle between full window & chat head ──
 UserInputService.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
-        ToggleChatHead(Main.Visible)
+        if Main.Visible then
+            CloseMain()
+        elseif ChatHead.Visible then
+            OpenMain()
+        else
+            OpenMain()
+        end
     end
 end)
 
 -- ── Startup animation ─────────────────────────────────────────
 Main.Size = UDim2.new(0, 400, 0, 0)
 Main.BackgroundTransparency = 1
-Tween(Main, { Size = UDim2.new(0, 400, 0, 560), BackgroundTransparency = 0 }, 0.5)
+Tween(Main, { Size = UDim2.new(0, 400, 0, 560), BackgroundTransparency = 0 }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 Log("GAG2 Hub loaded successfully!", "success")
 Log("Select seeds then toggle ON to start.", "info")
