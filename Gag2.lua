@@ -1177,21 +1177,22 @@ end
 local espEnabled = false
 local espTargetFruit = "All"
 
-local function createESP(part, name, color)
+local function createESP(part, textStr, color)
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = name
+    billboard.Name = "ESP"
     billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.new(0, 100, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.Size = UDim2.new(0, 200, 0, 60)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
     
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
-    label.Text = name
+    label.Text = textStr
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 12
+    label.TextSize = 13
     label.TextColor3 = color
     label.TextStrokeTransparency = 0.2
+    label.TextWrapped = true
     label.Parent = billboard
     
     billboard.Adornee = part
@@ -1199,7 +1200,7 @@ local function createESP(part, name, color)
     
     pcall(function()
         local highlight = Instance.new("Highlight")
-        highlight.Name = name .. "_HL"
+        highlight.Name = "ESP_HL"
         highlight.FillColor = color
         highlight.OutlineColor = Color3.new(1, 1, 1)
         highlight.FillTransparency = 0.5
@@ -1214,18 +1215,74 @@ function updateESP()
     if not espEnabled then return end
     
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj:FindFirstChild("Seed") then
+        local isModel = obj:IsA("Model")
+        local isPart = obj:IsA("BasePart")
+        
+        if isModel or isPart then
+            local fruitName = nil
+            
+            -- Method 1: Check for "Seed" value (Event seeds)
             local seedValue = obj:FindFirstChild("Seed")
-            if seedValue then
-                local seedType = tostring(seedValue.Value)
-                if espTargetFruit == "All" or seedType:find(espTargetFruit) then
-                    local color = Colors.Accent
-                    if seedType:find("Gold") then color = Colors.Gold
-                    elseif seedType:find("Rainbow") then color = Colors.Rainbow
-                    elseif seedType:find("Bird") then color = Colors.Success
-                    elseif seedType:find("Pack") then color = Colors.Warning end
+            if seedValue and seedValue:IsA("StringValue") then
+                fruitName = seedValue.Value
+            end
+            
+            -- Method 2: Check if object name matches a known fruit
+            if not fruitName and table.find(predefinedSeeds, obj.Name) then
+                fruitName = obj.Name
+            end
+            
+            -- Method 3: Fallback by checking if it has fruit properties
+            if not fruitName then
+                local hasKg = obj:FindFirstChild("Kg") or obj:FindFirstChild("kg")
+                local hasVal = obj:FindFirstChild("Value")
+                if hasKg and hasVal then
+                    fruitName = obj.Name
+                end
+            end
+            
+            if fruitName then
+                if espTargetFruit == "All" or fruitName:find(espTargetFruit) then
+                    local targetPart = isPart and obj or (isModel and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
                     
-                    createESP(obj, seedType, color)
+                    if targetPart then
+                        -- Try to find values
+                        local kgNode = obj:FindFirstChild("Kg") or obj:FindFirstChild("kg") or obj:FindFirstChild("Weight")
+                        local valNode = obj:FindFirstChild("Value") or obj:FindFirstChild("Price")
+                        
+                        local kgText = ""
+                        if kgNode and kgNode:IsA("ValueBase") then
+                            kgText = tostring(kgNode.Value) .. "kg"
+                        elseif obj:GetAttribute("Kg") then
+                            kgText = tostring(obj:GetAttribute("Kg")) .. "kg"
+                        end
+                        
+                        local valText = ""
+                        if valNode and valNode:IsA("ValueBase") then
+                            valText = "$" .. tostring(valNode.Value)
+                        elseif obj:GetAttribute("Value") then
+                            valText = "$" .. tostring(obj:GetAttribute("Value"))
+                        end
+                        
+                        local displayName = fruitName
+                        if valText ~= "" and kgText ~= "" then
+                            displayName = fruitName .. "\n" .. valText .. " | " .. kgText
+                        elseif valText ~= "" then
+                            displayName = fruitName .. "\n" .. valText
+                        elseif kgText ~= "" then
+                            displayName = fruitName .. "\n" .. kgText
+                        end
+                        
+                        local color = Colors.Accent
+                        if fruitName:find("Gold") then color = Colors.Gold
+                        elseif fruitName:find("Rainbow") then color = Colors.Rainbow
+                        elseif fruitName:find("Bird") then color = Colors.Success
+                        elseif fruitName:find("Pack") then color = Colors.Warning
+                        elseif fruitName == "Dragon Fruit" or fruitName == "Dragon's Breath" then color = Color3.fromRGB(255, 50, 100)
+                        end
+                        
+                        createESP(targetPart, displayName, color)
+                    end
                 end
             end
         end
