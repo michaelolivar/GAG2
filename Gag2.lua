@@ -1,44 +1,30 @@
--- I-run ito sa loob ng GaG2
--- Lalabas ang results bilang Roblox notifications sa screen
-
 local function notify(txt)
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "GaG2 Scan",
+        Title = "Fruit Scan",
         Text = txt,
-        Duration = 10
+        Duration = 12
     })
 end
 
 local fruitNames = {
     "Tomato","Carrot","Strawberry","Blueberry","Apple",
-    "Corn","Mushroom","Grape","Pineapple","Mango","Coconut"
+    "Corn","Mushroom","Grape","Pineapple","Mango","Coconut",
+    "Banana","Cherry","Watermelon","Bamboo"
 }
 
-local found = false
-for _, obj in ipairs(workspace:GetDescendants()) do
+for _, plantModel in ipairs(workspace:GetChildren()) do
     for _, fname in ipairs(fruitNames) do
-        if obj.Name == fname then
-            found = true
-            -- I-build ang path
-            local path = obj.Name
-            local cur = obj.Parent
-            for i = 1, 6 do
-                if cur and cur ~= game then
-                    path = cur.Name .. ">" .. path
-                    cur = cur.Parent
-                else break end
+        if plantModel.Name == fname then
+            -- I-scan ang lahat ng children ng plant
+            for _, child in ipairs(plantModel:GetChildren()) do
+                local attrs = ""
+                for k, v in pairs(child:GetAttributes()) do
+                    attrs = attrs .. k .. "=" .. tostring(v) .. " "
+                end
+                local val = child:IsA("ValueBase") and ("=" .. tostring(child.Value)) or ""
+                notify(fname .. " > " .. child.ClassName .. " '" .. child.Name .. "'" .. val .. " | " .. attrs)
+                task.wait(1.5)
             end
-            -- Kuhanin ang attributes
-            local attrs = ""
-            for k, v in pairs(obj:GetAttributes()) do
-                attrs = attrs .. k .. "=" .. tostring(v) .. " "
-            end
-            notify(path .. " | " .. attrs)
-            task.wait(1)
         end
     end
-end
-
-if not found then
-    notify("Walang nahanap! Siguraduhing may prutas sa garden mo.")
 end
