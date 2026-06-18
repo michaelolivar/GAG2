@@ -1179,112 +1179,231 @@ end
 
 -- (ESPFolder, espEnabled, espTargetFruit declared above the UI builder)
 
-local function createESP(part, textStr, color)
+-- ============================================================
+--  ESP SYSTEM — Correct workspace structure for Grow a Garden
+--
+--  Real game hierarchy (confirmed from community scripts):
+--    workspace.Farm
+--      └─ [FarmModel]              (one per player plot)
+--           └─ Important
+--                └─ Plants_Physical
+--                     └─ [PlantModel]   (e.g. "Strawberry", "Carrot")
+--                          └─ Fruits
+--                               └─ [FruitModel]  ← what we highlight
+--
+--  FruitModel.Name  = the crop name (e.g. "Strawberry")
+--  FruitModel.PrimaryPart = the visible BasePart to adorn the billboard to
+--  Attributes on FruitModel: "Weight" (number), "Value" (number),
+--  "Mutation" (string), "Age" (number)
+-- ============================================================
+
+-- Fruit color palette
+local fruitColors = {
+    ["Dragon Fruit"]    = Color3.fromRGB(255, 50,  180),
+    ["Dragon's Breath"] = Color3.fromRGB(255, 50,  100),
+    ["Poison Apple"]    = Color3.fromRGB(100, 220,  60),
+    ["Moon Bloom"]      = Color3.fromRGB(180, 100, 255),
+    ["Mushroom"]        = Color3.fromRGB(200, 140,  80),
+    ["Venus Fly Trap"]  = Color3.fromRGB(80,  200,  80),
+    ["Sunflower"]       = Color3.fromRGB(255, 230,  30),
+    ["Cherry"]          = Color3.fromRGB(220,  50,  50),
+    ["Grape"]           = Color3.fromRGB(130,  50, 200),
+    ["Mango"]           = Color3.fromRGB(255, 165,   0),
+    ["Banana"]          = Color3.fromRGB(255, 220,   0),
+    ["Coconut"]         = Color3.fromRGB(200, 160, 100),
+    ["Pineapple"]       = Color3.fromRGB(255, 210,  40),
+    ["Strawberry"]      = Color3.fromRGB(230,  50,  80),
+    ["Blueberry"]       = Color3.fromRGB(80,  100, 230),
+    ["Apple"]           = Color3.fromRGB(220,  40,  40),
+    ["Carrot"]          = Color3.fromRGB(255, 130,   0),
+    ["Corn"]            = Color3.fromRGB(255, 220,  50),
+    ["Tomato"]          = Color3.fromRGB(220,  60,  40),
+    ["Watermelon"]      = Color3.fromRGB(80,  200,  80),
+    ["Pomegranate"]     = Color3.fromRGB(180,  20,  60),
+    ["Acorn"]           = Color3.fromRGB(160, 110,  50),
+}
+
+local function getFruitColor(fruitName)
+    -- Exact match first
+    if fruitColors[fruitName] then
+        return fruitColors[fruitName]
+    end
+    -- Keyword fallback
+    local low = fruitName:lower()
+    if low:find("gold") or low:find("midas") then return Colors.Gold end
+    if low:find("rainbow") or low:find("disco") then return Colors.Rainbow end
+    if low:find("dragon") then return Color3.fromRGB(255, 50, 100) end
+    if low:find("moon") or low:find("star") then return Color3.fromRGB(180, 100, 255) end
+    if low:find("poison") then return Color3.fromRGB(100, 220, 60) end
+    return Colors.Accent
+end
+
+local function buildLabelText(fruitModel, fruitName)
+    -- Try Weight attribute (most reliable in GaG)
+    local weight = fruitModel:GetAttribute("Weight")
+    local value  = fruitModel:GetAttribute("Value")
+    local mutation = fruitModel:GetAttribute("Mutation")
+
+    -- Fallback: check Value children
+    if not weight then
+        local wNode = fruitModel:FindFirstChild("Weight") or fruitModel:FindFirstChild("Kg") or fruitModel:FindFirstChild("kg")
+        if wNode and wNode:IsA("NumberValue") then weight = wNode.Value end
+    end
+    if not value then
+        local vNode = fruitModel:FindFirstChild("Value") or fruitModel:FindFirstChild("Price")
+        if vNode and vNode:IsA("NumberValue") then value = vNode.Value end
+    end
+    if not mutation then
+        local mNode = fruitModel:FindFirstChild("Mutation")
+        if mNode and mNode:IsA("StringValue") then mutation = mNode.Value end
+    end
+
+    local lines = { fruitName }
+    if mutation and mutation ~= "" and mutation ~= "None" then
+        table.insert(lines, "✦ " .. mutation)
+    end
+    local stats = {}
+    if weight then table.insert(stats, string.format("%.1fkg", weight)) end
+    if value  then table.insert(stats, "$" .. tostring(math.floor(value))) end
+    if #stats > 0 then table.insert(lines, table.concat(stats, " | ")) end
+
+    return table.concat(lines, "\n")
+end
+
+local function createESP(fruitModel, fruitName, color)
+    local rootPart = fruitModel.PrimaryPart
+        or fruitModel:FindFirstChildWhichIsA("BasePart")
+    if not rootPart then return end
+
+    -- Billboard label
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP"
+    billboard.Name = "ESP_BB"
     billboard.AlwaysOnTop = true
-    billboard.Size = UDim2.new(0, 200, 0, 60)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    
+    billboard.Size = UDim2.new(0, 220, 0, 56)
+    billboard.StudsOffset = Vector3.new(0, 4, 0)
+    billboard.MaxDistance = 300
+    billboard.Adornee = rootPart
+
+    -- Background for readability
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    bg.BackgroundTransparency = 0.45
+    bg.BorderSizePixel = 0
+    bg.Parent = billboard
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 5)
+    bgCorner.Parent = bg
+
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Size = UDim2.new(1, -8, 1, 0)
+    label.Position = UDim2.new(0, 4, 0, 0)
     label.BackgroundTransparency = 1
-    label.Text = textStr
+    label.Text = buildLabelText(fruitModel, fruitName)
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 13
+    label.TextSize = 12
     label.TextColor3 = color
-    label.TextStrokeTransparency = 0.2
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.new(0, 0, 0)
     label.TextWrapped = true
+    label.TextYAlignment = Enum.TextYAlignment.Center
     label.Parent = billboard
-    
-    billboard.Adornee = part
+
     billboard.Parent = ESPFolder
-    
+
+    -- Highlight (Roblox built-in outline/fill, works through walls)
     pcall(function()
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "ESP_HL"
-        highlight.FillColor = color
-        highlight.OutlineColor = Color3.new(1, 1, 1)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0.2
-        highlight.Adornee = part
-        highlight.Parent = ESPFolder
+        local hl = Instance.new("Highlight")
+        hl.Name = "ESP_HL"
+        hl.FillColor = color
+        hl.OutlineColor = Color3.new(1, 1, 1)
+        hl.FillTransparency = 0.6
+        hl.OutlineTransparency = 0
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Adornee = fruitModel
+        hl.Parent = ESPFolder
     end)
+end
+
+-- ── Core traversal: walks the confirmed GaG workspace structure ──────────────
+--
+--  Path A (primary):
+--    workspace.Farm → [each Farm] → Important → Plants_Physical
+--      → [each Plant model] → Fruits → [each Fruit model]
+--
+--  Path B (fallback — loose fruits on the ground or other containers):
+--    workspace → any Model whose parent's Name == "Fruits"
+--    (handles fruits that have been harvested and dropped)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+local function shouldShowFruit(fruitName)
+    if espTargetFruit == "All" then return true end
+    -- Case-insensitive partial match so "Strawberry" matches filter "Strawberry"
+    return fruitName:lower():find(espTargetFruit:lower(), 1, true) ~= nil
+end
+
+local function tryAddFruitESP(fruitModel)
+    if not fruitModel or not fruitModel:IsA("Model") then return end
+    local fruitName = fruitModel.Name
+    if not fruitName or fruitName == "" then return end
+    if not shouldShowFruit(fruitName) then return end
+    createESP(fruitModel, fruitName, getFruitColor(fruitName))
 end
 
 function updateESP()
     ESPFolder:ClearAllChildren()
     if not espEnabled then return end
-    
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        local isModel = obj:IsA("Model")
-        local isPart = obj:IsA("BasePart")
-        
-        if isModel or isPart then
-            local fruitName = nil
-            
-            -- Method 1: Check for "Seed" value (Event seeds)
-            local seedValue = obj:FindFirstChild("Seed")
-            if seedValue and seedValue:IsA("StringValue") then
-                fruitName = seedValue.Value
-            end
-            
-            -- Method 2: Check if object name matches a known fruit
-            if not fruitName and table.find(predefinedSeeds, obj.Name) then
-                fruitName = obj.Name
-            end
-            
-            -- Method 3: Fallback by checking if it has fruit properties
-            if not fruitName then
-                local hasKg = obj:FindFirstChild("Kg") or obj:FindFirstChild("kg")
-                local hasVal = obj:FindFirstChild("Value")
-                if hasKg and hasVal then
-                    fruitName = obj.Name
+
+    -- ── Path A: Walk workspace.Farm hierarchy ────────────────────────────────
+    local farmFolder = workspace:FindFirstChild("Farm")
+    if farmFolder then
+        for _, farmModel in ipairs(farmFolder:GetChildren()) do
+            -- Each farm has an "Important" folder
+            local important = farmModel:FindFirstChild("Important")
+            if important then
+                local plantsPhysical = important:FindFirstChild("Plants_Physical")
+                if plantsPhysical then
+                    for _, plantModel in ipairs(plantsPhysical:GetChildren()) do
+                        if plantModel:IsA("Model") then
+                            -- Fruits folder inside each plant model
+                            local fruitsFolder = plantModel:FindFirstChild("Fruits")
+                            if fruitsFolder then
+                                for _, fruitModel in ipairs(fruitsFolder:GetChildren()) do
+                                    pcall(tryAddFruitESP, fruitModel)
+                                end
+                            end
+                        end
+                    end
                 end
             end
-            
-            if fruitName then
-                if espTargetFruit == "All" or fruitName:find(espTargetFruit) then
-                    local targetPart = isPart and obj or (isModel and (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")))
-                    
-                    if targetPart then
-                        -- Try to find values
-                        local kgNode = obj:FindFirstChild("Kg") or obj:FindFirstChild("kg") or obj:FindFirstChild("Weight")
-                        local valNode = obj:FindFirstChild("Value") or obj:FindFirstChild("Price")
-                        
-                        local kgText = ""
-                        if kgNode and kgNode:IsA("ValueBase") then
-                            kgText = tostring(kgNode.Value) .. "kg"
-                        elseif obj:GetAttribute("Kg") then
-                            kgText = tostring(obj:GetAttribute("Kg")) .. "kg"
-                        end
-                        
-                        local valText = ""
-                        if valNode and valNode:IsA("ValueBase") then
-                            valText = "$" .. tostring(valNode.Value)
-                        elseif obj:GetAttribute("Value") then
-                            valText = "$" .. tostring(obj:GetAttribute("Value"))
-                        end
-                        
-                        local displayName = fruitName
-                        if valText ~= "" and kgText ~= "" then
-                            displayName = fruitName .. "\n" .. valText .. " | " .. kgText
-                        elseif valText ~= "" then
-                            displayName = fruitName .. "\n" .. valText
-                        elseif kgText ~= "" then
-                            displayName = fruitName .. "\n" .. kgText
-                        end
-                        
-                        local color = Colors.Accent
-                        if fruitName:find("Gold") then color = Colors.Gold
-                        elseif fruitName:find("Rainbow") then color = Colors.Rainbow
-                        elseif fruitName:find("Bird") then color = Colors.Success
-                        elseif fruitName:find("Pack") then color = Colors.Warning
-                        elseif fruitName == "Dragon Fruit" or fruitName == "Dragon's Breath" then color = Color3.fromRGB(255, 50, 100)
-                        end
-                        
-                        createESP(targetPart, displayName, color)
+        end
+    end
+
+    -- ── Path B: Fallback scan for loose/dropped fruits ───────────────────────
+    -- Some GaG versions drop harvested fruits as loose Models in workspace.
+    -- We look for Models whose immediate parent is named "Fruits".
+    -- This is much cheaper than scanning all descendants.
+    local function scanFolderForFruits(folder)
+        if not folder then return end
+        for _, child in ipairs(folder:GetChildren()) do
+            if child:IsA("Folder") or child:IsA("Model") then
+                if child.Name == "Fruits" then
+                    for _, fruitModel in ipairs(child:GetChildren()) do
+                        pcall(tryAddFruitESP, fruitModel)
                     end
+                elseif child:IsA("Folder") then
+                    scanFolderForFruits(child)
+                end
+            end
+        end
+    end
+    -- Only scan top-level workspace children to avoid deep recursion cost
+    for _, topLevel in ipairs(workspace:GetChildren()) do
+        if topLevel.Name ~= "Farm" and (topLevel:IsA("Folder") or topLevel:IsA("Model")) then
+            local fruitsInTop = topLevel:FindFirstChild("Fruits")
+            if fruitsInTop then
+                for _, fruitModel in ipairs(fruitsInTop:GetChildren()) do
+                    pcall(tryAddFruitESP, fruitModel)
                 end
             end
         end
@@ -1406,14 +1525,20 @@ local function detectEvent()
     return nil
 end
 
--- Main collection loop
-local function collectionLoop()
-    while task.wait(0.5) do
+-- Dedicated ESP refresh loop (runs every 2s to avoid heavy workspace rescanning)
+task.spawn(function()
+    while task.wait(2) do
         if not ui.Gui.Parent then break end
-        
         if espEnabled then
             pcall(updateESP)
         end
+    end
+end)
+
+-- Main collection loop (handles events, seeds, status UI)
+local function collectionLoop()
+    while task.wait(0.5) do
+        if not ui.Gui.Parent then break end
         
         -- Update time
         timeLabel.Text = "Time: " .. os.date("%H:%M:%S")
