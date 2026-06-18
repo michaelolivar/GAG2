@@ -1,22 +1,23 @@
--- Paste this in executor while in GaG2, near a grown plant/fruit
-print("=== WORKSPACE TOP LEVEL ===")
-for _, c in ipairs(workspace:GetChildren()) do
-    print(c.ClassName, "|", c.Name, "| children:", #c:GetChildren())
-end
-
-print("\n=== SEARCHING FOR FRUIT/PLANT/CROP FOLDERS ===")
+-- Step 1: find anything named like a crop/fruit
 for _, obj in ipairs(workspace:GetDescendants()) do
-    local n = obj.Name:lower()
-    if n:find("fruit") or n:find("plant") or n:find("crop") or n:find("harvest") or n:find("farm") or n:find("garden") then
-        local p = obj.Parent
-        print(obj.ClassName, "|", obj.Name, "| parent:", p and p.Name or "nil", "| grandparent:", p and p.Parent and p.Parent.Name or "nil")
-    end
-end
-
-print("\n=== MODELS WITH PRIMARYPART (likely fruits/plants) ===")
-for _, obj in ipairs(workspace:GetDescendants()) do
-    if obj:IsA("Model") and obj.PrimaryPart then
-        local p = obj.Parent
-        print("Model:", obj.Name, "| parent:", p and p.Name or "nil", "| grandparent:", p and p.Parent and p.Parent.Name or "nil")
+    if obj.Name == "Tomato" or obj.Name == "Carrot" or obj.Name == "Strawberry" then
+        local path = obj.Name
+        local cur = obj.Parent
+        for i = 1, 6 do
+            if cur then
+                path = cur.Name .. " > " .. path
+                cur = cur.Parent
+            end
+        end
+        print(obj.ClassName .. " | " .. path)
+        -- print all attributes
+        for k, v in pairs(obj:GetAttributes()) do
+            print("  ATTR:", k, "=", v)
+        end
+        -- print all children
+        for _, child in ipairs(obj:GetChildren()) do
+            print("  CHILD:", child.ClassName, child.Name,
+                  child:IsA("ValueBase") and ("= " .. tostring(child.Value)) or "")
+        end
     end
 end
