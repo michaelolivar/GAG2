@@ -1,15 +1,14 @@
--- Run this FIRST to map the real workspace structure
-local output = {}
-for i, child in ipairs(workspace:GetChildren()) do
-    local line = child.ClassName .. " | " .. child.Name
-    local subChildren = child:GetChildren()
-    if #subChildren > 0 and #subChildren < 10 then
-        for _, sub in ipairs(subChildren) do
-            line = line .. "\n   → " .. sub.ClassName .. " | " .. sub.Name
+-- Run near a fully grown plant to find fruit objects
+for _, obj in ipairs(workspace:GetDescendants()) do
+    if obj:IsA("Model") or obj:IsA("BasePart") then
+        local parent = obj.Parent
+        if parent and (
+            parent.Name:lower():find("fruit") or
+            parent.Name:lower():find("plant") or
+            parent.Name:lower():find("crop") or
+            parent.Name:lower():find("harvest")
+        ) then
+            print("FOUND: " .. obj.ClassName .. " '" .. obj.Name .. "' inside '" .. parent.Name .. "' (parent of parent: '" .. (parent.Parent and parent.Parent.Name or "nil") .. "')")
         end
-    elseif #subChildren >= 10 then
-        line = line .. "\n   → (" .. #subChildren .. " children)"
     end
-    table.insert(output, line)
 end
-print(table.concat(output, "\n"))
