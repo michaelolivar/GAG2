@@ -868,7 +868,7 @@ end
 -- ============================================================
 
 -- Create Window
-local ui = PremiumUI:NewWindow("Grow a Garden 2", "Premium Script v1.0.0")
+local ui = PremiumUI:NewWindow("Grow my bebe Ed <3", "Premium with love from Devo")
 
 -- Tab 1: Collection
 local collectTab = ui:AddTab("Collect", "🌱")
