@@ -83,13 +83,14 @@ if not parented then
     end)
 end
 
-local function MakeDraggable(frame)
+local function MakeDraggable(dragHandle, targetFrame)
+    targetFrame = targetFrame or dragHandle
     local dragging, dragStart, startPos
-    frame.InputBegan:Connect(function(input)
+    dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = frame.Position
+            startPos = targetFrame.Position
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -97,45 +98,105 @@ local function MakeDraggable(frame)
             end)
         end
     end)
-    frame.InputChanged:Connect(function(input)
+    dragHandle.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
 end
 
+-- Dark Premium Theme Colors
+local Theme = {
+    Background = Color3.fromRGB(15, 15, 20),
+    Secondary = Color3.fromRGB(25, 25, 30),
+    Accent = Color3.fromRGB(0, 230, 118),
+    Text = Color3.fromRGB(240, 240, 240),
+    TextMuted = Color3.fromRGB(150, 150, 150),
+    Stroke = Color3.fromRGB(40, 40, 50)
+}
+
 -- Build UI
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 400, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.Size = UDim2.new(0, 450, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -250)
+MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Visible = true
 MainFrame.Parent = Library
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Theme.Stroke
+MainStroke.Thickness = 1
+MainStroke.Parent = MainFrame
+
+-- Chat Head (Messenger Style)
+local ChatHead = Instance.new("ImageButton")
+ChatHead.Name = "ChatHead"
+ChatHead.Size = UDim2.new(0, 60, 0, 60)
+ChatHead.Position = UDim2.new(0.5, -30, 0, 20)
+ChatHead.BackgroundColor3 = Theme.Background
+ChatHead.BorderSizePixel = 0
+ChatHead.Visible = false
+ChatHead.ClipsDescendants = true
+ChatHead.Parent = Library
+
+local success, avatarUrl = pcall(function()
+    return game:GetService("Players"):GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+end)
+if success and avatarUrl then
+    ChatHead.Image = avatarUrl
+else
+    ChatHead.Image = "rbxassetid://6031201550"
+end
+
+local ChatHeadCorner = Instance.new("UICorner")
+ChatHeadCorner.CornerRadius = UDim.new(1, 0)
+ChatHeadCorner.Parent = ChatHead
+
+local ChatHeadStroke = Instance.new("UIStroke")
+ChatHeadStroke.Color = Theme.Accent
+ChatHeadStroke.Thickness = 2
+ChatHeadStroke.Parent = ChatHead
+
+MakeDraggable(ChatHead)
 
 -- Title Bar
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 40)
-TitleBar.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+TitleBar.Size = UDim2.new(1, 0, 0, 50)
+TitleBar.BackgroundColor3 = Theme.Secondary
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.CornerRadius = UDim.new(0, 12)
 TitleCorner.Parent = TitleBar
 
+local TitleBottomFix = Instance.new("Frame")
+TitleBottomFix.Size = UDim2.new(1, 0, 0, 10)
+TitleBottomFix.Position = UDim2.new(0, 0, 1, -10)
+TitleBottomFix.BackgroundColor3 = Theme.Secondary
+TitleBottomFix.BorderSizePixel = 0
+TitleBottomFix.Parent = TitleBar
+
+local TitleSeparator = Instance.new("Frame")
+TitleSeparator.Size = UDim2.new(1, 0, 0, 1)
+TitleSeparator.Position = UDim2.new(0, 0, 1, 0)
+TitleSeparator.BackgroundColor3 = Theme.Stroke
+TitleSeparator.BorderSizePixel = 0
+TitleSeparator.Parent = TitleBar
+
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -10, 1, 0)
-TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.Size = UDim2.new(1, -60, 1, 0)
+TitleLabel.Position = UDim2.new(0, 20, 0, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Text = "🌱 GAG2 Red Team"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextColor3 = Theme.Accent
 TitleLabel.TextSize = 18
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -143,41 +204,72 @@ TitleLabel.Parent = TitleBar
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 30, 0, 30)
-ToggleBtn.Position = UDim2.new(1, -35, 0, 5)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-ToggleBtn.Text = "X"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.TextSize = 14
+ToggleBtn.Position = UDim2.new(1, -40, 0, 10)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+ToggleBtn.Text = "-"
+ToggleBtn.TextColor3 = Theme.Text
+ToggleBtn.TextSize = 20
 ToggleBtn.Font = Enum.Font.GothamBold
 ToggleBtn.Parent = TitleBar
 
 local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.CornerRadius = UDim.new(0, 8)
 ToggleCorner.Parent = ToggleBtn
 
-MakeDraggable(TitleBar)
+MakeDraggable(TitleBar, MainFrame)
+
+-- Toggle logic
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    ChatHead.Visible = true
+end)
+
+ChatHead.MouseButton1Click:Connect(function()
+    ChatHead.Visible = false
+    MainFrame.Visible = true
+end)
 
 -- Tab system
 local TabContainer = Instance.new("Frame")
-TabContainer.Size = UDim2.new(1, 0, 0, 35)
-TabContainer.Position = UDim2.new(0, 0, 0, 40)
-TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+TabContainer.Size = UDim2.new(1, -40, 0, 40)
+TabContainer.Position = UDim2.new(0, 20, 0, 65)
+TabContainer.BackgroundColor3 = Theme.Secondary
 TabContainer.BorderSizePixel = 0
 TabContainer.Parent = MainFrame
 
+local TabContainerCorner = Instance.new("UICorner")
+TabContainerCorner.CornerRadius = UDim.new(0, 8)
+TabContainerCorner.Parent = TabContainer
+
 local ContentFrame = Instance.new("ScrollingFrame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -95)
-ContentFrame.Position = UDim2.new(0, 10, 0, 80)
+ContentFrame.Size = UDim2.new(1, -40, 1, -125)
+ContentFrame.Position = UDim2.new(0, 20, 0, 115)
 ContentFrame.BackgroundTransparency = 1
-ContentFrame.ScrollBarThickness = 6
-ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 180, 80)
+ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarImageColor3 = Theme.Accent
 ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentFrame.BorderSizePixel = 0
 ContentFrame.Parent = MainFrame
 
--- Create tabs
-local Tabs = {}
+local function CreateTab(name)
+    local tab = Instance.new("Frame")
+    tab.Name = name
+    tab.Size = UDim2.new(1, 0, 1, 0)
+    tab.BackgroundTransparency = 1
+    tab.Visible = false
+    tab.Parent = ContentFrame
+    
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 5)
+    layout.Parent = tab
+    
+    return tab
+end
+
 local TabNames = {"Main", "Defense", "Shop", "Weather", "Info"}
 local TabIcons = {"🌱", "🛡️", "🏪", "🌤️", "ℹ️"}
+local tabWidth = 1 / #TabNames
 
 local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
@@ -188,35 +280,56 @@ local function SwitchTab(tabName)
     for _, child in pairs(ContentFrame:GetChildren()) do
         if child:IsA("Frame") and child.Name == tabName then
             child.Visible = true
+            local layout = child:FindFirstChildOfClass("UIListLayout")
+            if layout then
+                ContentFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+            end
         end
     end
     for _, btn in pairs(TabContainer:GetChildren()) do
         if btn:IsA("TextButton") then
-            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+            btn.TextColor3 = Theme.TextMuted
+            local indicator = btn:FindFirstChild("Indicator")
+            if indicator then
+                indicator.Visible = false
+            end
         end
     end
     local tabBtn = TabContainer:FindFirstChild(tabName)
     if tabBtn then
-        tabBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+        tabBtn.TextColor3 = Theme.Accent
+        local indicator = tabBtn:FindFirstChild("Indicator")
+        if indicator then
+            indicator.Visible = true
+        end
     end
 end
 
 for i, tabName in ipairs(TabNames) do
     local tabBtn = Instance.new("TextButton")
     tabBtn.Name = tabName
-    tabBtn.Size = UDim2.new(0, 80, 1, 0)
-    tabBtn.Position = UDim2.new(0, (i-1) * 80, 0, 0)
-    tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    tabBtn.Size = UDim2.new(tabWidth, 0, 1, 0)
+    tabBtn.Position = UDim2.new(tabWidth * (i-1), 0, 0, 0)
+    tabBtn.BackgroundTransparency = 1
     tabBtn.Text = TabIcons[i] .. " " .. tabName
-    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    tabBtn.TextSize = 12
+    tabBtn.TextColor3 = (i == 1) and Theme.Accent or Theme.TextMuted
+    tabBtn.TextSize = 13
     tabBtn.Font = Enum.Font.GothamSemibold
     tabBtn.BorderSizePixel = 0
     tabBtn.Parent = TabContainer
     
-    if i == 1 then
-        tabBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-    end
+    local indicator = Instance.new("Frame")
+    indicator.Name = "Indicator"
+    indicator.Size = UDim2.new(0.6, 0, 0, 2)
+    indicator.Position = UDim2.new(0.2, 0, 1, -2)
+    indicator.BackgroundColor3 = Theme.Accent
+    indicator.BorderSizePixel = 0
+    indicator.Visible = (i == 1)
+    indicator.Parent = tabBtn
+    
+    local indCorner = Instance.new("UICorner")
+    indCorner.CornerRadius = UDim.new(0, 2)
+    indCorner.Parent = indicator
     
     tabBtn.MouseButton1Click:Connect(function()
         SwitchTab(tabName)
@@ -226,40 +339,52 @@ end
 -- Helper: Create toggle row
 local function CreateToggle(tab, name, desc, default)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 45)
+    row.Size = UDim2.new(1, 0, 0, 55)
     row.BackgroundTransparency = 1
     row.Parent = tab
     
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, -5)
+    bg.Position = UDim2.new(0, 0, 0, 2)
+    bg.BackgroundColor3 = Theme.Secondary
+    bg.BorderSizePixel = 0
+    bg.Parent = row
+    
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 8)
+    bgCorner.Parent = bg
+    
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.7, -5, 1, 0)
+    label.Size = UDim2.new(0.7, -15, 0, 20)
+    label.Position = UDim2.new(0, 15, 0, 8)
     label.BackgroundTransparency = 1
     label.Text = name
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextColor3 = Theme.Text
     label.TextSize = 14
     label.Font = Enum.Font.GothamSemibold
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = row
+    label.Parent = bg
     
     local descLabel = Instance.new("TextLabel")
-    descLabel.Size = UDim2.new(0.7, -5, 0, 16)
-    descLabel.Position = UDim2.new(0, 0, 0, 22)
+    descLabel.Size = UDim2.new(0.7, -15, 0, 16)
+    descLabel.Position = UDim2.new(0, 15, 0, 28)
     descLabel.BackgroundTransparency = 1
     descLabel.Text = desc
-    descLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
-    descLabel.TextSize = 11
+    descLabel.TextColor3 = Theme.TextMuted
+    descLabel.TextSize = 12
     descLabel.Font = Enum.Font.Gotham
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
-    descLabel.Parent = row
+    descLabel.Parent = bg
     
     local toggle = Instance.new("Frame")
-    toggle.Size = UDim2.new(0, 50, 0, 24)
-    toggle.Position = UDim2.new(1, -55, 0, 10)
-    toggle.BackgroundColor3 = default and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(60, 60, 70)
+    toggle.Size = UDim2.new(0, 46, 0, 24)
+    toggle.Position = UDim2.new(1, -60, 0.5, -12)
+    toggle.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50, 50, 60)
     toggle.BorderSizePixel = 0
-    toggle.Parent = row
+    toggle.Parent = bg
     
     local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.CornerRadius = UDim.new(1, 0)
     toggleCorner.Parent = toggle
     
     local toggleBtn = Instance.new("TextButton")
@@ -276,195 +401,159 @@ local function CreateToggle(tab, name, desc, default)
     circle.Parent = toggle
     
     local circleCorner = Instance.new("UICorner")
-    circleCorner.CornerRadius = UDim.new(0, 10)
+    circleCorner.CornerRadius = UDim.new(1, 0)
     circleCorner.Parent = circle
     
     local toggled = default
     
     toggleBtn.MouseButton1Click:Connect(function()
         toggled = not toggled
-        toggle.BackgroundColor3 = toggled and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(60, 60, 70)
-        circle:TweenPosition(UDim2.new(toggled and 1 or 0, toggled and -22 or 2, 0, 2), "Out", "Quad", 0.15, true)
+        local targetColor = toggled and Theme.Accent or Color3.fromRGB(50, 50, 60)
+        local targetPos = toggled and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+        
+        game:GetService("TweenService"):Create(toggle, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
+        game:GetService("TweenService"):Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
     end)
     
     return toggleBtn, function() return toggled end
 end
 
 -- Helper: Create label row
-local function CreateLabel(tab, text, color)
+local function CreateLabel(tab, text, color, isHeader)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 30)
+    row.Size = UDim2.new(1, 0, 0, isHeader and 35 or 25)
     row.BackgroundTransparency = 1
     row.Parent = tab
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Size = UDim2.new(1, -10, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = text
-    label.TextColor3 = color or Color3.fromRGB(180, 180, 180)
-    label.TextSize = 13
-    label.Font = Enum.Font.Gotham
+    label.TextColor3 = color or Theme.TextMuted
+    label.TextSize = isHeader and 14 or 13
+    label.Font = isHeader and Enum.Font.GothamBold or Enum.Font.Gotham
+    label.TextXAlignment = isHeader and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
     label.Parent = row
     
     return label
 end
 
+-- Helper: Create Spacer
+local function CreateSpacer(tab, height)
+    local spacer = Instance.new("Frame")
+    spacer.Size = UDim2.new(1, 0, 0, height or 10)
+    spacer.BackgroundTransparency = 1
+    spacer.Parent = tab
+end
+
 -- ==========================================
 -- TAB: MAIN
 -- ==========================================
-local MainTab = Instance.new("Frame")
-MainTab.Name = "Main"
-MainTab.Size = UDim2.new(1, 0, 0, 400)
-MainTab.BackgroundTransparency = 1
-MainTab.Parent = ContentFrame
+local MainTab = CreateTab("Main")
+MainTab.Visible = true
 
-CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
-
+CreateLabel(MainTab, "AUTOMATION CONTROLS", Theme.Accent, true)
 local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Event Seeds", "Auto-collect Golden & Rainbow seeds", true)
 local _, getWeatherNotif = CreateToggle(MainTab, "Weather Notifications", "Alert on weather changes", true)
 local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
 
-CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
-
+CreateSpacer(MainTab)
+CreateLabel(MainTab, "DEFENSE CONTROLS", Color3.fromRGB(255, 80, 80), true)
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
 
-CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
-
-local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
-
--- Spacer
-local spacer = Instance.new("Frame")
-spacer.Size = UDim2.new(1, 0, 0, 20)
-spacer.BackgroundTransparency = 1
-spacer.Parent = MainTab
-
--- Reset canvas size
-local function UpdateCanvas()
-    local totalH = 0
-    for _, child in pairs(ContentFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Visible then
-            for _, row in pairs(child:GetChildren()) do
-                if row:IsA("Frame") then
-                    totalH = totalH + row.Size.Y.Offset + 5
-                end
-            end
-        end
-    end
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, totalH + 20)
-end
+CreateSpacer(MainTab)
+CreateLabel(MainTab, "STATUS", Color3.fromRGB(80, 180, 255), true)
+local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Theme.Text)
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 -- ==========================================
 -- TAB: DEFENSE
 -- ==========================================
-local DefenseTab = Instance.new("Frame")
-DefenseTab.Name = "Defense"
-DefenseTab.Size = UDim2.new(1, 0, 0, 400)
-DefenseTab.BackgroundTransparency = 1
-DefenseTab.Visible = false
-DefenseTab.Parent = ContentFrame
+local DefenseTab = CreateTab("Defense")
 
-CreateLabel(DefenseTab, "=== WEAPON SETTINGS ===", Color3.fromRGB(200, 80, 80))
-CreateLabel(DefenseTab, "✓ Shovel (Default - Free)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Crowbar (Rare - Gear Shop)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Freeze Ray (Premium - 749 Robux)", Color3.fromRGB(150, 255, 150))
-CreateLabel(DefenseTab, "✓ Power Hose (Premium - 299 Robux)", Color3.fromRGB(150, 255, 150))
+CreateLabel(DefenseTab, "WEAPON SETTINGS", Color3.fromRGB(255, 80, 80), true)
+CreateLabel(DefenseTab, "✓ Shovel (Default - Free)", Theme.Accent)
+CreateLabel(DefenseTab, "✓ Crowbar (Rare - Gear Shop)", Theme.Accent)
+CreateLabel(DefenseTab, "✓ Freeze Ray (Premium - 749 Robux)", Theme.Accent)
+CreateLabel(DefenseTab, "✓ Power Hose (Premium - 299 Robux)", Theme.Accent)
 
-CreateLabel(DefenseTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(DefenseTab, "Auto-detects thieves in your garden area", Color3.fromRGB(200, 200, 150))
-CreateLabel(DefenseTab, "and equips best available weapon to", Color3.fromRGB(200, 200, 150))
-CreateLabel(DefenseTab, "attack intruders automatically.", Color3.fromRGB(200, 200, 150))
+CreateSpacer(DefenseTab)
+CreateLabel(DefenseTab, "Auto-detects thieves in your garden area", Theme.TextMuted)
+CreateLabel(DefenseTab, "and equips best available weapon to", Theme.TextMuted)
+CreateLabel(DefenseTab, "attack intruders automatically.", Theme.TextMuted)
 
 -- ==========================================
 -- TAB: SHOP
 -- ==========================================
-local ShopTab = Instance.new("Frame")
-ShopTab.Name = "Shop"
-ShopTab.Size = UDim2.new(1, 0, 0, 400)
-ShopTab.BackgroundTransparency = 1
-ShopTab.Visible = false
-ShopTab.Parent = ContentFrame
+local ShopTab = CreateTab("Shop")
 
-CreateLabel(ShopTab, "=== SEED SHOP PREDICTIONS ===", Color3.fromRGB(255, 180, 50))
-local ShopPredictLabel = CreateLabel(ShopTab, "Monitoring shop rotations...", Color3.fromRGB(180, 180, 180))
-CreateLabel(ShopTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(ShopTab, "Seed shop restocks every ~5 minutes", Color3.fromRGB(150, 150, 150))
-CreateLabel(ShopTab, "Rare seeds: ~30-45 min cycle", Color3.fromRGB(150, 150, 150))
-CreateLabel(ShopTab, "Epic seeds: ~45-60 min cycle", Color3.fromRGB(150, 150, 150))
-CreateLabel(ShopTab, "Legendary: RNG based, low chance", Color3.fromRGB(150, 150, 150))
+CreateLabel(ShopTab, "SEED SHOP PREDICTIONS", Color3.fromRGB(255, 180, 50), true)
+local ShopPredictLabel = CreateLabel(ShopTab, "Monitoring shop rotations...", Theme.Text)
+ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+CreateSpacer(ShopTab)
+CreateLabel(ShopTab, "Seed shop restocks every ~5 minutes", Theme.TextMuted)
+CreateLabel(ShopTab, "Rare seeds: ~30-45 min cycle", Theme.TextMuted)
+CreateLabel(ShopTab, "Epic seeds: ~45-60 min cycle", Theme.TextMuted)
+CreateLabel(ShopTab, "Legendary: RNG based, low chance", Theme.TextMuted)
 
 -- ==========================================
 -- TAB: WEATHER
 -- ==========================================
-local WeatherTab = Instance.new("Frame")
-WeatherTab.Name = "Weather"
-WeatherTab.Size = UDim2.new(1, 0, 0, 400)
-WeatherTab.BackgroundTransparency = 1
-WeatherTab.Visible = false
-WeatherTab.Parent = ContentFrame
+local WeatherTab = CreateTab("Weather")
 
-CreateLabel(WeatherTab, "=== WEATHER TRACKER ===", Color3.fromRGB(80, 180, 255))
-local WeatherLabel = CreateLabel(WeatherTab, "Current: ☀️ Day", Color3.fromRGB(255, 255, 150))
-local WeatherTimerLabel = CreateLabel(WeatherTab, "Time remaining: --:--", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(WeatherTab, "Weather types:", Color3.fromRGB(150, 255, 150))
-CreateLabel(WeatherTab, "🌧️ Rain (5min) - 2x growth speed", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "⚡ Lightning (5min) - Electric mutation 80x", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "🌈 Rainbow (2min) - Rainbow mutation boost", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "❄️ Snowfall (2.5min) - Frozen mutation 5x", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "⭐ Starfall (2min) - Starstruck mutation", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(WeatherTab, "WEATHER TRACKER", Color3.fromRGB(80, 180, 255), true)
+local WeatherLabel = CreateLabel(WeatherTab, "Current: ☀️ Day", Theme.Text)
+WeatherLabel.TextXAlignment = Enum.TextXAlignment.Center
+local WeatherTimerLabel = CreateLabel(WeatherTab, "Time remaining: --:--", Theme.TextMuted)
+WeatherTimerLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+CreateSpacer(WeatherTab)
+CreateLabel(WeatherTab, "Weather types:", Theme.Accent)
+CreateLabel(WeatherTab, "🌧️ Rain (5min) - 2x growth speed", Theme.TextMuted)
+CreateLabel(WeatherTab, "⚡ Lightning (5min) - Electric mutation 80x", Theme.TextMuted)
+CreateLabel(WeatherTab, "🌈 Rainbow (2min) - Rainbow mutation boost", Theme.TextMuted)
+CreateLabel(WeatherTab, "❄️ Snowfall (2.5min) - Frozen mutation 5x", Theme.TextMuted)
+CreateLabel(WeatherTab, "⭐ Starfall (2min) - Starstruck mutation", Theme.TextMuted)
+
+CreateSpacer(WeatherTab)
 CreateLabel(WeatherTab, "Night events (2min each):", Color3.fromRGB(150, 150, 255))
-CreateLabel(WeatherTab, "🌑 Blood Moon - Bloodlit mutation", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "🌟 Gold Moon - Gold Seed spawns (15x)", Color3.fromRGB(180, 180, 180))
-CreateLabel(WeatherTab, "🌈 Rainbow Moon - Rainbow seed spawns", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "🌑 Blood Moon - Bloodlit mutation", Theme.TextMuted)
+CreateLabel(WeatherTab, "🌟 Gold Moon - Gold Seed spawns (15x)", Theme.TextMuted)
+CreateLabel(WeatherTab, "🌈 Rainbow Moon - Rainbow seed spawns", Theme.TextMuted)
 
 -- ==========================================
 -- TAB: INFO
 -- ==========================================
-local InfoTab = Instance.new("Frame")
-InfoTab.Name = "Info"
-InfoTab.Size = UDim2.new(1, 0, 0, 400)
-InfoTab.BackgroundTransparency = 1
-InfoTab.Visible = false
-InfoTab.Parent = ContentFrame
+local InfoTab = CreateTab("Info")
 
-CreateLabel(InfoTab, "=== GROW A GARDEN 2 ===", Color3.fromRGB(40, 180, 80))
-CreateLabel(InfoTab, "Red Team Edition v1.0", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(InfoTab, "GROW A GARDEN 2", Theme.Accent, true)
+CreateLabel(InfoTab, "Red Team Edition v1.0", Theme.TextMuted)
+
+CreateSpacer(InfoTab)
 CreateLabel(InfoTab, "HOW TO USE:", Color3.fromRGB(255, 200, 100))
-CreateLabel(InfoTab, "1. Equip weapons in your inventory", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "2. Toggle features on/off", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "3. Script auto-detects events", Color3.fromRGB(180, 180, 180))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(InfoTab, "1. Equip weapons in your inventory", Theme.TextMuted)
+CreateLabel(InfoTab, "2. Toggle features on/off", Theme.TextMuted)
+CreateLabel(InfoTab, "3. Script auto-detects events", Theme.TextMuted)
+
+CreateSpacer(InfoTab)
 CreateLabel(InfoTab, "Features:", Color3.fromRGB(255, 200, 100))
-CreateLabel(InfoTab, "✅ Event seed auto-collect", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Weather prediction system", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Seed shop rotation tracker", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Auto-stay at base during night", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "✅ Auto defense with weapons", Color3.fromRGB(150, 255, 150))
-CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
-CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200, 150))
-CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
+CreateLabel(InfoTab, "✅ Event seed auto-collect", Theme.TextMuted)
+CreateLabel(InfoTab, "✅ Weather prediction system", Theme.TextMuted)
+CreateLabel(InfoTab, "✅ Seed shop rotation tracker", Theme.TextMuted)
+CreateLabel(InfoTab, "✅ Auto-stay at base during night", Theme.TextMuted)
+CreateLabel(InfoTab, "✅ Auto defense with weapons", Theme.TextMuted)
 
-UpdateCanvas()
+CreateSpacer(InfoTab)
+CreateLabel(InfoTab, "Tip: Stay in your garden during", Theme.Accent)
+CreateLabel(InfoTab, "night to prevent theft!", Theme.Accent)
 
--- Toggle visibility
-local minimized = false
-ToggleBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        MainFrame.Size = UDim2.new(0, 200, 0, 40)
-        TabContainer.Visible = false
-        ContentFrame.Visible = false
-        ToggleBtn.Text = "+"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
-    else
-        MainFrame.Size = UDim2.new(0, 400, 0, 500)
-        TabContainer.Visible = true
-        ContentFrame.Visible = true
-        ToggleBtn.Text = "X"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+task.delay(0.1, function()
+    local layout = MainTab:FindFirstChildOfClass("UIListLayout")
+    if layout then
+        ContentFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
     end
 end)
 
