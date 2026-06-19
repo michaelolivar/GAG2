@@ -418,6 +418,111 @@ local function CreateToggle(tab, name, desc, default)
     return toggleBtn, function() return toggled end
 end
 
+-- Helper: Create Dropdown
+local function CreateDropdown(tab, name, options, defaultOption, callback)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 65)
+    row.BackgroundTransparency = 1
+    row.Parent = tab
+    
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, -10, 1, -5)
+    bg.Position = UDim2.new(0, 5, 0, 2)
+    bg.BackgroundColor3 = Theme.Secondary
+    bg.BorderSizePixel = 0
+    bg.ClipsDescendants = true
+    bg.Parent = row
+    
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 8)
+    bgCorner.Parent = bg
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Theme.Text
+    label.TextSize = 14
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = bg
+    
+    local selectedBtn = Instance.new("TextButton")
+    selectedBtn.Size = UDim2.new(1, -20, 0, 26)
+    selectedBtn.Position = UDim2.new(0, 10, 0, 32)
+    selectedBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    selectedBtn.Text = "  " .. defaultOption .. " ▼"
+    selectedBtn.TextColor3 = Theme.TextMuted
+    selectedBtn.TextSize = 12
+    selectedBtn.Font = Enum.Font.Gotham
+    selectedBtn.TextXAlignment = Enum.TextXAlignment.Left
+    selectedBtn.Parent = bg
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = selectedBtn
+    
+    local listFrame = Instance.new("Frame")
+    listFrame.Size = UDim2.new(1, -20, 0, #options * 26)
+    listFrame.Position = UDim2.new(0, 10, 0, 62)
+    listFrame.BackgroundTransparency = 1
+    listFrame.Parent = bg
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = listFrame
+    
+    local selectedValue = defaultOption
+    local isOpen = false
+    
+    local function UpdateCanvas()
+        local parentTab = row.Parent
+        local parentLayout = parentTab:FindFirstChildOfClass("UIListLayout")
+        if parentLayout and parentTab.Parent and parentTab.Parent:IsA("ScrollingFrame") then
+            parentTab.Parent.CanvasSize = UDim2.new(0, 0, 0, parentLayout.AbsoluteContentSize.Y + 20)
+        end
+    end
+    
+    selectedBtn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        if isOpen then
+            row.Size = UDim2.new(1, 0, 0, 70 + (#options * 26))
+            selectedBtn.Text = "  " .. selectedValue .. " ▲"
+        else
+            row.Size = UDim2.new(1, 0, 0, 65)
+            selectedBtn.Text = "  " .. selectedValue .. " ▼"
+        end
+        UpdateCanvas()
+    end)
+    
+    for _, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Size = UDim2.new(1, 0, 0, 26)
+        optBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        optBtn.Text = "  " .. opt
+        optBtn.TextColor3 = Theme.TextMuted
+        optBtn.TextSize = 12
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextXAlignment = Enum.TextXAlignment.Left
+        optBtn.Parent = listFrame
+        
+        local optBtnCorner = Instance.new("UICorner")
+        optBtnCorner.CornerRadius = UDim.new(0, 4)
+        optBtnCorner.Parent = optBtn
+        
+        optBtn.MouseButton1Click:Connect(function()
+            selectedValue = opt
+            selectedBtn.Text = "  " .. opt .. " ▼"
+            isOpen = false
+            row.Size = UDim2.new(1, 0, 0, 65)
+            UpdateCanvas()
+            if callback then callback(selectedValue) end
+        end)
+    end
+    
+    return function() return selectedValue end
+end
+
 -- Helper: Create label row
 local function CreateLabel(tab, text, color, isHeader)
     local row = Instance.new("Frame")
@@ -517,10 +622,8 @@ local MainTab = CreateTab("Main")
 MainTab.Visible = true
 
 CreateLabel(MainTab, "AUTO-COLLECT ITEMS", Theme.Accent, true)
-local _, getCollectGold = CreateToggle(MainTab, "🟡 Gold Seed", "Auto-collect Gold seeds during Gold Moon", true)
-local _, getCollectRainbow = CreateToggle(MainTab, "🌈 Rainbow Seed", "Auto-collect Rainbow seeds during Rainbow Moon", true)
-local _, getCollectBird = CreateToggle(MainTab, "🐦 Bird", "Auto-collect Birds that appear in garden", true)
-local _, getCollectSeedPack = CreateToggle(MainTab, "📦 Seed Pack", "Auto-collect Seed Packs from events", true)
+local collectOptions = {"All Collectibles", "🟡 Gold Seed", "🌈 Rainbow Seed", "🐦 Bird", "📦 Seed Pack", "None"}
+local getCollectTarget = CreateDropdown(MainTab, "Target Item", collectOptions, "All Collectibles")
 
 CreateSpacer(MainTab)
 CreateLabel(MainTab, "NOTIFICATIONS", Color3.fromRGB(80, 180, 255), true)
@@ -812,22 +915,26 @@ local function FindCollectibles()
     
     -- Build name patterns based on what's enabled
     local patterns = {}
-    if getCollectGold() then
+    local target = getCollectTarget()
+    
+    if target == "None" then return items end
+    
+    if target == "All Collectibles" or target == "🟡 Gold Seed" then
         table.insert(patterns, {"gold", "seed"})
         table.insert(patterns, {"golden", "seed"})
         table.insert(patterns, {"gold", nil}) -- standalone gold objects
     end
-    if getCollectRainbow() then
+    if target == "All Collectibles" or target == "🌈 Rainbow Seed" then
         table.insert(patterns, {"rainbow", "seed"})
         table.insert(patterns, {"rainbow", nil})
     end
-    if getCollectBird() then
+    if target == "All Collectibles" or target == "🐦 Bird" then
         table.insert(patterns, {"bird", nil})
         table.insert(patterns, {"parrot", nil})
         table.insert(patterns, {"crow", nil})
         table.insert(patterns, {"dove", nil})
     end
-    if getCollectSeedPack() then
+    if target == "All Collectibles" or target == "📦 Seed Pack" then
         table.insert(patterns, {"seed", "pack"})
         table.insert(patterns, {"seedpack", nil})
         table.insert(patterns, {"gift", nil})
@@ -852,10 +959,34 @@ local function FindCollectibles()
         return false
     end
     
-    -- Scan workspace for matching objects
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if IsTarget(obj) then
-            table.insert(items, obj)
+    -- Priority 1: Check known folders
+    local searchFolders = {"Seeds", "Drops", "EventSeeds", "Collectables", "DroppedItems", "Objects"}
+    for _, folderName in ipairs(searchFolders) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, obj in pairs(folder:GetDescendants()) do
+                if IsTarget(obj) then
+                    table.insert(items, obj)
+                end
+            end
+        end
+    end
+    
+    -- Priority 2: If no seeds found in folders, scan workspace (but only top-level children's descendants)
+    if #items == 0 then
+        for _, obj in pairs(Workspace:GetChildren()) do
+            if obj:IsA("Model") or obj:IsA("Folder") then
+                -- Skip big models like Map, Terrain, etc
+                if obj.Name ~= "Map" and obj.Name ~= "Terrain" and obj.Name ~= "Plots" then
+                    for _, child in pairs(obj:GetDescendants()) do
+                        if IsTarget(child) then
+                            table.insert(items, child)
+                        end
+                    end
+                end
+            elseif IsTarget(obj) then
+                table.insert(items, obj)
+            end
         end
     end
     
@@ -1100,8 +1231,7 @@ local function MainLoop()
         
         -- 1. Auto-Collect Items (Gold Seed, Rainbow Seed, Bird, Seed Pack)
         pcall(function()
-            local anyEnabled = getCollectGold() or getCollectRainbow() or getCollectBird() or getCollectSeedPack()
-            if anyEnabled then
+            if getCollectTarget() ~= "None" then
                 local items = FindCollectibles()
                 for _, item in ipairs(items) do
                     if not item or not item.Parent then continue end
