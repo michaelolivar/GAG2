@@ -245,7 +245,7 @@ local ContentFrame = Instance.new("ScrollingFrame")
 ContentFrame.Size = UDim2.new(1, -40, 1, -125)
 ContentFrame.Position = UDim2.new(0, 20, 0, 115)
 ContentFrame.BackgroundTransparency = 1
-ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarThickness = 0
 ContentFrame.ScrollBarImageColor3 = Theme.Accent
 ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ContentFrame.BorderSizePixel = 0
@@ -485,6 +485,31 @@ local function CreateButton(tab, text, callback)
     return btn
 end
 
+-- Helper: Create 3-Column Grid for Seeds
+local function CreateSeedGrid(tab, items)
+    for i = 1, #items, 3 do
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1, 0, 0, 16)
+        row.BackgroundTransparency = 1
+        row.Parent = tab
+        
+        for j = 0, 2 do
+            if items[i + j] then
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(0.33, 0, 1, 0)
+                label.Position = UDim2.new(0.33 * j, 0, 0, 0)
+                label.BackgroundTransparency = 1
+                label.Text = items[i + j]
+                label.TextColor3 = Theme.TextMuted
+                label.TextSize = 11
+                label.Font = Enum.Font.Gotham
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.Parent = row
+            end
+        end
+    end
+end
+
 -- ==========================================
 -- TAB: MAIN
 -- ==========================================
@@ -536,20 +561,19 @@ ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Center
 CreateSpacer(ShopTab)
 CreateLabel(ShopTab, "SEED ROTATIONS:", Theme.Accent)
 local CommonLabel = CreateLabel(ShopTab, "⚪ Common: Always Available", Color3.fromRGB(200, 200, 200))
-CreateLabel(ShopTab, "    🥕 Carrot   🍓 Strawberry   🫐 Blueberry", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🥕 Carrot", "🍓 Strawberry", "🫐 Blueberry"})
 local UncommonLabel = CreateLabel(ShopTab, "🟢 Uncommon: --:--", Color3.fromRGB(100, 255, 100))
-CreateLabel(ShopTab, "    🌷 Tulip   🍅 Tomato   🍎 Apple", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🌷 Tulip", "🍅 Tomato", "🍎 Apple"})
 local RareLabel = CreateLabel(ShopTab, "🔵 Rare: --:--", Color3.fromRGB(100, 150, 255))
-CreateLabel(ShopTab, "    🎋 Bamboo   🌽 Corn   🌵 Cactus   🍍 Pineapple", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🎋 Bamboo", "🌽 Corn", "🌵 Cactus", "🍍 Pineapple"})
 local EpicLabel = CreateLabel(ShopTab, "🟣 Epic: --:--", Color3.fromRGB(200, 100, 255))
-CreateLabel(ShopTab, "    🍄 Mushroom   🌿 Green Bean   🍌 Banana", Theme.TextMuted)
-CreateLabel(ShopTab, "    🍇 Grape   🥥 Coconut   🥭 Mango", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🍄 Mushroom", "🌿 Green Bean", "🍌 Banana", "🍇 Grape", "🥥 Coconut", "🥭 Mango"})
 local LegendaryLabel = CreateLabel(ShopTab, "🟡 Legendary: --:--", Color3.fromRGB(255, 215, 0))
-CreateLabel(ShopTab, "    🐉 Dragon Fruit   🌰 Acorn   🍒 Cherry   🌻 Sunflower", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🐉 Dragon Fruit", "🌰 Acorn", "🍒 Cherry", "🌻 Sunflower"})
 local MythicLabel = CreateLabel(ShopTab, "🔴 Mythic: --:--", Color3.fromRGB(255, 80, 80))
-CreateLabel(ShopTab, "    🪴 Venus Fly Trap   🍎 Pomegranate   🍏 Poison Apple", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🪴 Venus Fly Trap", "🍎 Pomegranate", "🍏 Poison Apple"})
 local SuperLabel = CreateLabel(ShopTab, "💎 Super: --:--", Color3.fromRGB(80, 255, 255))
-CreateLabel(ShopTab, "    🌕 Moon Bloom   🐲 Dragon's Breath", Theme.TextMuted)
+CreateSeedGrid(ShopTab, {"🌕 Moon Bloom", "🐲 Dragon's Breath"})
 
 -- ==========================================
 -- TAB: WEATHER
