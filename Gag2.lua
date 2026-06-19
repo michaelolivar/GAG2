@@ -494,10 +494,22 @@ local ShopPredictLabel = CreateLabel(ShopTab, "Monitoring shop rotations...", Th
 ShopPredictLabel.TextXAlignment = Enum.TextXAlignment.Center
 
 CreateSpacer(ShopTab)
-CreateLabel(ShopTab, "Seed shop restocks every ~5 minutes", Theme.TextMuted)
-CreateLabel(ShopTab, "Rare seeds: ~30-45 min cycle", Theme.TextMuted)
-CreateLabel(ShopTab, "Epic seeds: ~45-60 min cycle", Theme.TextMuted)
-CreateLabel(ShopTab, "Legendary: RNG based, low chance", Theme.TextMuted)
+CreateLabel(ShopTab, "SEED ROTATIONS:", Theme.Accent)
+local CommonLabel = CreateLabel(ShopTab, "⚪ Common: Always Available", Color3.fromRGB(200, 200, 200))
+CreateLabel(ShopTab, "    🥕 Carrot   🍓 Strawberry   🫐 Blueberry", Theme.TextMuted)
+local UncommonLabel = CreateLabel(ShopTab, "🟢 Uncommon: --:--", Color3.fromRGB(100, 255, 100))
+CreateLabel(ShopTab, "    🌷 Tulip   🍅 Tomato   🍎 Apple", Theme.TextMuted)
+local RareLabel = CreateLabel(ShopTab, "🔵 Rare: --:--", Color3.fromRGB(100, 150, 255))
+CreateLabel(ShopTab, "    🎋 Bamboo   🌽 Corn   🌵 Cactus   🍍 Pineapple", Theme.TextMuted)
+local EpicLabel = CreateLabel(ShopTab, "🟣 Epic: --:--", Color3.fromRGB(200, 100, 255))
+CreateLabel(ShopTab, "    🍄 Mushroom   🌿 Green Bean   🍌 Banana", Theme.TextMuted)
+CreateLabel(ShopTab, "    🍇 Grape   🥥 Coconut   🥭 Mango", Theme.TextMuted)
+local LegendaryLabel = CreateLabel(ShopTab, "🟡 Legendary: --:--", Color3.fromRGB(255, 215, 0))
+CreateLabel(ShopTab, "    🐉 Dragon Fruit   🌰 Acorn   🍒 Cherry   🌻 Sunflower", Theme.TextMuted)
+local MythicLabel = CreateLabel(ShopTab, "🔴 Mythic: --:--", Color3.fromRGB(255, 80, 80))
+CreateLabel(ShopTab, "    🪴 Venus Fly Trap   🍎 Pomegranate   🍏 Poison Apple", Theme.TextMuted)
+local SuperLabel = CreateLabel(ShopTab, "💎 Super: --:--", Color3.fromRGB(80, 255, 255))
+CreateLabel(ShopTab, "    🌕 Moon Bloom   🐲 Dragon's Breath", Theme.TextMuted)
 
 -- ==========================================
 -- TAB: WEATHER
@@ -958,22 +970,35 @@ local function MainLoop()
             
             -- 3. Seed Shop Prediction
             if getShopNotif() then
-                -- The seed shop restocks every ~5 minutes (300 seconds)
-                local shopCycle = tick() % 300
-                local nextRestock = 300 - shopCycle
-                local restockMins = math.floor(nextRestock / 60)
-                local restockSecs = math.floor(nextRestock % 60)
+                local now = os.time()
                 
-                -- Predict rare seed windows
-                local rareWindow = tick() % 1800 -- 30 min cycle for rares
-                local epicWindow = tick() % 2700 -- 45 min cycle for epics
+                local function FormatTime(secs)
+                    if secs < 60 then return "SOON!" end
+                    local h = math.floor(secs / 3600)
+                    local m = math.floor((secs % 3600) / 60)
+                    local s = math.floor(secs % 60)
+                    if h > 0 then
+                        return string.format("%02d:%02d:%02d", h, m, s)
+                    else
+                        return string.format("%02d:%02d", m, s)
+                    end
+                end
                 
-                local prediction = string.format("Next restock: %dm %ds | Rare: %s | Epic: %s",
-                    restockMins, restockSecs,
-                    (rareWindow < 60) and "SOON!" or (1800 - rareWindow < 120) and "SOON!" or "waiting",
-                    (epicWindow < 60) and "SOON!" or (2700 - epicWindow < 120) and "SOON!" or "waiting"
-                )
-                ShopPredictLabel.Text = prediction
+                local function GetCycle(cycleSecs)
+                    local remain = cycleSecs - (now % cycleSecs)
+                    return FormatTime(remain)
+                end
+                
+                local nextRestock = 300 - (now % 300)
+                ShopPredictLabel.Text = string.format("Next General Restock: %02d:%02d", math.floor(nextRestock / 60), math.floor(nextRestock % 60))
+                
+                CommonLabel.Text = "⚪ Common: Always Available"
+                UncommonLabel.Text = "🟢 Uncommon: " .. GetCycle(900)
+                RareLabel.Text = "🔵 Rare: " .. GetCycle(1800)
+                EpicLabel.Text = "🟣 Epic: " .. GetCycle(2700)
+                LegendaryLabel.Text = "🟡 Legendary: " .. GetCycle(3600)
+                MythicLabel.Text = "🔴 Mythic: " .. GetCycle(7200)
+                SuperLabel.Text = "💎 Super: " .. GetCycle(14400)
             end
             
             -- 4. Auto Stay Base at Night
