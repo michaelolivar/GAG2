@@ -516,8 +516,14 @@ end
 local MainTab = CreateTab("Main")
 MainTab.Visible = true
 
-CreateLabel(MainTab, "AUTOMATION CONTROLS", Theme.Accent, true)
-local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Event Seeds", "Auto-collect Golden & Rainbow seeds", true)
+CreateLabel(MainTab, "AUTO-COLLECT ITEMS", Theme.Accent, true)
+local _, getCollectGold = CreateToggle(MainTab, "🟡 Gold Seed", "Auto-collect Gold seeds during Gold Moon", true)
+local _, getCollectRainbow = CreateToggle(MainTab, "🌈 Rainbow Seed", "Auto-collect Rainbow seeds during Rainbow Moon", true)
+local _, getCollectBird = CreateToggle(MainTab, "🐦 Bird", "Auto-collect Birds that appear in garden", true)
+local _, getCollectSeedPack = CreateToggle(MainTab, "📦 Seed Pack", "Auto-collect Seed Packs from events", true)
+
+CreateSpacer(MainTab)
+CreateLabel(MainTab, "NOTIFICATIONS", Color3.fromRGB(80, 180, 255), true)
 local _, getWeatherNotif = CreateToggle(MainTab, "Weather Notifications", "Alert on weather changes", true)
 local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
 
@@ -799,51 +805,61 @@ local function DetectWeather()
     return "Day"
 end
 
--- Find event seeds by scanning known folders, then fallback to workspace
-local function FindEventSeeds()
-    local seeds = {}
+-- Find collectible items based on enabled filters
+local function FindCollectibles()
+    local items = {}
     local checked = {}
     
-    -- Helper: check if an object looks like an event seed
-    local function IsSeed(obj)
-        if checked[obj] then return false end
-        checked[obj] = true
-        local name = obj.Name:lower()
-        -- Match event seeds: Gold Seed, Rainbow Seed, Event Seed, dropped seeds
-        local isEventSeed = (name:find("gold") or name:find("rainbow") or name:find("event")) and
-                           (name:find("seed") or name:find("drop") or name:find("item") or name:find("collect"))
-        -- Also match standalone "Seed" objects that are pickable
-        local isPickable = name:find("seed") and (
-            obj:FindFirstChildWhichIsA("ProximityPrompt") or
-            obj:FindFirstChildWhichIsA("ClickDetector") or
-            obj:FindFirstChild("TouchInterest")
-        )
-        return isEventSeed or isPickable
+    -- Build name patterns based on what's enabled
+    local patterns = {}
+    if getCollectGold() then
+        table.insert(patterns, {"gold", "seed"})
+        table.insert(patterns, {"golden", "seed"})
+        table.insert(patterns, {"gold", nil}) -- standalone gold objects
+    end
+    if getCollectRainbow() then
+        table.insert(patterns, {"rainbow", "seed"})
+        table.insert(patterns, {"rainbow", nil})
+    end
+    if getCollectBird() then
+        table.insert(patterns, {"bird", nil})
+        table.insert(patterns, {"parrot", nil})
+        table.insert(patterns, {"crow", nil})
+        table.insert(patterns, {"dove", nil})
+    end
+    if getCollectSeedPack() then
+        table.insert(patterns, {"seed", "pack"})
+        table.insert(patterns, {"seedpack", nil})
+        table.insert(patterns, {"gift", nil})
+        table.insert(patterns, {"package", nil})
     end
     
-    -- Priority 1: Check known folders
-    local searchFolders = {"Seeds", "Drops", "EventSeeds", "Collectables", "DroppedItems", "Objects"}
-    for _, folderName in ipairs(searchFolders) do
-        local folder = Workspace:FindFirstChild(folderName)
-        if folder then
-            for _, obj in pairs(folder:GetDescendants()) do
-                if (obj:IsA("BasePart") or obj:IsA("Model")) and IsSeed(obj) then
-                    table.insert(seeds, obj)
+    if #patterns == 0 then return items end
+    
+    -- Check if object name matches any enabled pattern
+    local function IsTarget(obj)
+        if checked[obj] then return false end
+        checked[obj] = true
+        if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
+        local name = obj.Name:lower()
+        for _, pattern in ipairs(patterns) do
+            if name:find(pattern[1]) then
+                if pattern[2] == nil or name:find(pattern[2]) then
+                    return true
                 end
             end
         end
+        return false
     end
     
-    -- Priority 2: If no seeds found in folders, scan workspace (but only top-level children's descendants)
-    if #seeds == 0 then
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if (obj:IsA("BasePart") or obj:IsA("Model")) and IsSeed(obj) then
-                table.insert(seeds, obj)
-            end
+    -- Scan workspace for matching objects
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if IsTarget(obj) then
+            table.insert(items, obj)
         end
     end
     
-    return seeds
+    return items
 end
 
 -- Collect seed using the correct interaction method
@@ -1082,27 +1098,27 @@ local function MainLoop()
         end)
         if not RootPart then continue end
         
-        -- 1. Auto-Collect Event Seeds
+        -- 1. Auto-Collect Items (Gold Seed, Rainbow Seed, Bird, Seed Pack)
         pcall(function()
-            if getAutoCollect() then
-                local seeds = FindEventSeeds()
-                for _, seed in ipairs(seeds) do
-                    if not seed or not seed.Parent then continue end
-                    -- Get seed position
-                    local seedPos = nil
-                    if seed:IsA("BasePart") then
-                        seedPos = seed.CFrame
-                    elseif seed:IsA("Model") then
-                        local part = seed.PrimaryPart or seed:FindFirstChildWhichIsA("BasePart")
-                        if part then seedPos = part.CFrame end
+            local anyEnabled = getCollectGold() or getCollectRainbow() or getCollectBird() or getCollectSeedPack()
+            if anyEnabled then
+                local items = FindCollectibles()
+                for _, item in ipairs(items) do
+                    if not item or not item.Parent then continue end
+                    -- Get item position
+                    local itemPos = nil
+                    if item:IsA("BasePart") then
+                        itemPos = item.CFrame
+                    elseif item:IsA("Model") then
+                        local part = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+                        if part then itemPos = part.CFrame end
                     end
-                    if seedPos and RootPart then
-                        -- Teleport directly to the seed (no distance limit for event seeds)
-                        RootPart.CFrame = seedPos * CFrame.new(0, 2, 0)
+                    if itemPos and RootPart then
+                        RootPart.CFrame = itemPos * CFrame.new(0, 2, 0)
                         task.wait(0.15)
-                        CollectSeed(seed)
-                        StatusLabel.Text = "🎯 Collected " .. seed.Name
-                        task.wait(0.1) -- Minimal wait between seeds
+                        CollectSeed(item)
+                        StatusLabel.Text = "🎯 Collected " .. item.Name
+                        task.wait(0.1)
                     end
                 end
             end
