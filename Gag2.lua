@@ -447,6 +447,44 @@ local function CreateSpacer(tab, height)
     spacer.Parent = tab
 end
 
+-- Helper: Create Button
+local function CreateButton(tab, text, callback)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 45)
+    row.BackgroundTransparency = 1
+    row.Parent = tab
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, -5)
+    btn.Position = UDim2.new(0, 0, 0, 2)
+    btn.BackgroundColor3 = Theme.Secondary
+    btn.Text = text
+    btn.TextColor3 = Theme.Text
+    btn.TextSize = 14
+    btn.Font = Enum.Font.GothamSemibold
+    btn.BorderSizePixel = 0
+    btn.Parent = row
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+    
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Color = Theme.Stroke
+    btnStroke.Thickness = 1
+    btnStroke.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        game:GetService("TweenService"):Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 40, 50)}):Play()
+        task.delay(0.1, function()
+            game:GetService("TweenService"):Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.Secondary}):Play()
+        end)
+        if callback then callback() end
+    end)
+    
+    return btn
+end
+
 -- ==========================================
 -- TAB: MAIN
 -- ==========================================
@@ -462,6 +500,31 @@ CreateSpacer(MainTab)
 CreateLabel(MainTab, "DEFENSE CONTROLS", Color3.fromRGB(255, 80, 80), true)
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
+
+CreateSpacer(MainTab)
+CreateLabel(MainTab, "SERVER CONTROLS", Color3.fromRGB(200, 100, 255), true)
+CreateButton(MainTab, "🔄 Rejoin Server", function()
+    local TeleportService = game:GetService("TeleportService")
+    if TeleportService then
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, game:GetService("Players").LocalPlayer)
+    end
+end)
+CreateButton(MainTab, "🌐 Server Hop", function()
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    local serversApi = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?sortOrder=Desc&limit=100"
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(serversApi))
+    end)
+    if success and result and result.data then
+        for _, server in ipairs(result.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, game:GetService("Players").LocalPlayer)
+                break
+            end
+        end
+    end
+end)
 
 CreateSpacer(MainTab)
 CreateLabel(MainTab, "STATUS", Color3.fromRGB(80, 180, 255), true)
