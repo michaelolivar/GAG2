@@ -698,18 +698,22 @@ local function FindGameObject(path)
     return obj
 end
 
--- Detect weather by checking Lighting and sky changes
+-- Weather state
 local currentWeather = "Day"
 local weatherStartTime = tick()
+local cachedBase = nil
+local lastBaseScan = 0
+local lastStayTeleport = 0
+
+-- Correct GAG2 weather durations (from wiki)
 local weatherDurations = {
-    Day = 530,         -- ~8m 50s
+    Day = 450,         -- 7m 30s
     Rain = 300,        -- 5min
     Lightning = 300,   -- 5min
-    Rainbow = 120,     -- 2min
+    Rainbow = 300,     -- 5min
     Snowfall = 150,    -- 2m 30s
     Starfall = 120,    -- 2min
-    Night = 240,       -- 4min
-    Sunset = 40,       -- 40s
+    Night = 120,       -- 2min
     BloodMoon = 120,   -- 2min
     GoldMoon = 120,    -- 2min
     RainbowMoon = 120, -- 2min
@@ -718,7 +722,6 @@ local weatherDurations = {
 local weatherIcons = {
     Day = "☀️",
     Night = "🌙",
-    Sunset = "🌅",
     Rain = "🌧️",
     Lightning = "⚡",
     Rainbow = "🌈",
@@ -729,127 +732,165 @@ local weatherIcons = {
     RainbowMoon = "🌈"
 }
 
--- Detect weather by clock time and sky properties
+-- Detect weather by Lighting children, Atmosphere, and ClockTime
 local function DetectWeather()
-    local timeOfDay = Lighting:GetMinutesAfterMidnight() or 0
     local clockTime = Lighting.ClockTime or 12
     local brightness = Lighting.Brightness or 1
+    local ambient = Lighting.Ambient or Color3.new(0, 0, 0)
     local fogColor = Lighting.FogColor or Color3.new(0.5, 0.5, 0.5)
-    local fogEnd = Lighting.FogEnd or 1000
+    local fogEnd = Lighting.FogEnd or 10000
     
-    -- Night detection (game night is roughly 4 minutes)
+    -- Method 1: Check for named weather objects in Lighting (most reliable)
+    for _, child in pairs(Lighting:GetChildren()) do
+        local n = child.Name:lower()
+        if n:find("blood") then return "BloodMoon"
+        elseif n:find("gold") or n:find("midas") then return "GoldMoon"
+        elseif n:find("rainbowmoon") then return "RainbowMoon"
+        elseif n:find("rainbow") and not n:find("moon") then return "Rainbow"
+        elseif n:find("lightning") or n:find("thunder") or n:find("storm") then return "Lightning"
+        elseif n:find("rain") and not n:find("bow") then return "Rain"
+        elseif n:find("snow") or n:find("blizzard") then return "Snowfall"
+        elseif n:find("star") then return "Starfall"
+        end
+    end
+    
+    -- Method 2: Check Atmosphere object for weather effects
+    local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atmo then
+        local density = atmo.Density or 0
+        local haze = atmo.Haze or 0
+        if density > 0.5 and haze > 5 then
+            -- Heavy atmosphere = likely Rain or Snowfall
+            if fogColor.B > 0.6 and fogColor.R < 0.4 then
+                return "Rain"
+            elseif fogColor.R > 0.7 and fogColor.G > 0.7 and fogColor.B > 0.7 then
+                return "Snowfall"
+            end
+        end
+    end
+    
+    -- Method 3: Night detection by ClockTime
     if clockTime < 6 or clockTime > 20 then
-        -- Check for special night events by sky color
-        if fogColor.R > 0.7 and fogColor.G < 0.3 and fogColor.B < 0.3 then
+        -- Check for special moon events by color
+        if fogColor.R > 0.6 and fogColor.G < 0.3 and fogColor.B < 0.3 then
             return "BloodMoon"
-        elseif brightness > 0.5 and fogColor.R > 0.8 and fogColor.G > 0.7 then
+        elseif fogColor.R > 0.7 and fogColor.G > 0.6 and fogColor.B < 0.3 then
             return "GoldMoon"
-        elseif fogColor.R > 0.5 and fogColor.G < 0.3 and fogColor.B > 0.6 then
+        elseif ambient.R > 0.3 and ambient.G < 0.2 and ambient.B > 0.4 then
             return "RainbowMoon"
         end
         return "Night"
     end
     
-    -- Daytime weather detection
-    -- Rain: cloudy, blue-gray fog, lower brightness
-    if brightness < 0.4 and fogColor.R < 0.4 and fogColor.G < 0.4 and fogColor.B > 0.4 then
-        -- Check if thunder/lightning particles exist
-        local hasLightning = false
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if v.Name:lower():find("lightning") or v.Name:lower():find("thunder") then
-                hasLightning = true
-                break
-            end
-        end
-        if hasLightning then
-            return "Lightning"
-        end
+    -- Method 4: Daytime weather by fog/brightness
+    if brightness < 0.5 and fogEnd < 500 then
         return "Rain"
     end
-    
-    -- Rainbow: distinct rainbow sky, high brightness
-    if fogColor.R > 0.6 and fogColor.G > 0.3 and fogColor.B > 0.6 then
+    if fogColor.R > 0.5 and fogColor.G > 0.3 and fogColor.B > 0.5 and brightness > 1 then
         return "Rainbow"
     end
-    
-    -- Snowfall/Blizzard: white fog, cold colors
-    if fogColor.R > 0.7 and fogColor.G > 0.7 and fogColor.B > 0.8 and brightness < 0.6 then
+    if fogColor.R > 0.7 and fogColor.G > 0.7 and fogColor.B > 0.8 and fogEnd < 300 then
         return "Snowfall"
     end
-    
-    -- Starfall: dark blue-purple sky with stars
-    if fogColor.R < 0.3 and fogColor.G < 0.2 and fogColor.B > 0.5 and brightness > 0.3 then
+    if fogColor.R < 0.2 and fogColor.G < 0.15 and fogColor.B > 0.4 then
         return "Starfall"
-    end
-    
-    -- Sunset transition
-    if clockTime >= 19 and clockTime < 20 then
-        return "Sunset"
     end
     
     return "Day"
 end
 
--- Find event seeds (Golden/Rainbow) by scanning for pickable objects
+-- Find event seeds by scanning known folders, then fallback to workspace
 local function FindEventSeeds()
     local seeds = {}
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
-            local name = obj.Name:lower()
-            -- Golden seed check
-            if (name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
-                    table.insert(seeds, obj)
-                end
-            end
-            -- Rainbow seed check
-            if (name:find("rainbow") or name:find("rain")) and (name:find("seed") or name:find("fruit") or name:find("plant")) then
-                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
+    local checked = {}
+    
+    -- Helper: check if an object looks like an event seed
+    local function IsSeed(obj)
+        if checked[obj] then return false end
+        checked[obj] = true
+        local name = obj.Name:lower()
+        -- Match event seeds: Gold Seed, Rainbow Seed, Event Seed, dropped seeds
+        local isEventSeed = (name:find("gold") or name:find("rainbow") or name:find("event")) and
+                           (name:find("seed") or name:find("drop") or name:find("item") or name:find("collect"))
+        -- Also match standalone "Seed" objects that are pickable
+        local isPickable = name:find("seed") and (
+            obj:FindFirstChildWhichIsA("ProximityPrompt") or
+            obj:FindFirstChildWhichIsA("ClickDetector") or
+            obj:FindFirstChild("TouchInterest")
+        )
+        return isEventSeed or isPickable
+    end
+    
+    -- Priority 1: Check known folders
+    local searchFolders = {"Seeds", "Drops", "EventSeeds", "Collectables", "DroppedItems", "Objects"}
+    for _, folderName in ipairs(searchFolders) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, obj in pairs(folder:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and IsSeed(obj) then
                     table.insert(seeds, obj)
                 end
             end
         end
     end
+    
+    -- Priority 2: If no seeds found in folders, scan workspace (but only top-level children's descendants)
+    if #seeds == 0 then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and IsSeed(obj) then
+                table.insert(seeds, obj)
+            end
+        end
+    end
+    
     return seeds
 end
 
--- Collect seed (simulate click/interact)
+-- Collect seed using the correct interaction method
 local function CollectSeed(seedObj)
+    local collected = false
     pcall(function()
-        -- Try ClickDetector
-        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
-        if detector then
-            fireclickdetector(detector)
-            return true
+        -- Get the actual part to interact with
+        local target = seedObj
+        if seedObj:IsA("Model") then
+            target = seedObj.PrimaryPart or seedObj:FindFirstChildWhichIsA("BasePart") or seedObj
         end
         
-        -- Try ProximityPrompt
-        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
+        -- Method 1: ProximityPrompt (primary method in GAG2)
+        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt", true)
         if prompt then
             fireproximityprompt(prompt)
-            return true
+            collected = true
+            return
         end
         
-        -- Try TouchInterest
-        local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter")
-        if touch then
-            -- Move character to touch it
-            if RootPart then
-                RootPart.CFrame = seedObj.CFrame * CFrame.new(0, 2, 0)
+        -- Method 2: ClickDetector
+        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector", true)
+        if detector then
+            fireclickdetector(detector)
+            collected = true
+            return
+        end
+        
+        -- Method 3: firetouchinterest (touch-based collection)
+        if target:IsA("BasePart") and RootPart then
+            if firetouchinterest then
+                firetouchinterest(RootPart, target, 0)
                 task.wait(0.1)
+                firetouchinterest(RootPart, target, 1)
+                collected = true
+                return
             end
-            return true
         end
         
-        -- Try RemoteEvent
-        for _, remote in pairs(seedObj:GetDescendants()) do
-            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
-                remote:FireServer(seedObj)
-                return true
-            end
+        -- Method 4: Direct teleport to touch it
+        if target:IsA("BasePart") and RootPart then
+            RootPart.CFrame = target.CFrame * CFrame.new(0, 0, 0)
+            task.wait(0.15)
+            collected = true
         end
     end)
-    return false
+    return collected
 end
 
 -- Teleport to position
@@ -859,31 +900,74 @@ local function TeleportTo(pos)
     end
 end
 
--- Find base/garden plot
+-- Find base/garden plot (with caching)
 local function FindMyBase()
-    -- Try various common patterns for player plots
-    local playerName = LocalPlayer.Name
+    -- Return cached result if recent (cache for 30 seconds)
+    if cachedBase and cachedBase.Parent and (tick() - lastBaseScan) < 30 then
+        return cachedBase
+    end
     
-    -- Search workspace for garden areas
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        local name = obj.Name:lower()
-        if (name:find("garden") or name:find("plot") or name:find("base") or name:find("home")) then
-            if name:find(playerName:sub(1, 5):lower()) or name:find("player") then
+    local playerName = LocalPlayer.Name
+    local playerId = tostring(LocalPlayer.UserId)
+    local displayName = LocalPlayer.DisplayName
+    
+    -- Method 1: Check Workspace.Plots (standard GAG2 structure)
+    local plotFolders = {"Plots", "PlayerPlots", "Gardens", "Map", "Bases"}
+    for _, folderName in ipairs(plotFolders) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, plot in pairs(folder:GetChildren()) do
+                local pName = plot.Name
+                -- Match by UserId, Username, or DisplayName
+                if pName == playerName or pName == playerId or pName == displayName then
+                    cachedBase = plot
+                    lastBaseScan = tick()
+                    return plot
+                end
+                -- Check if plot has an attribute identifying the owner
+                local ownerId = plot:GetAttribute("Owner") or plot:GetAttribute("PlayerName") or plot:GetAttribute("UserId")
+                if ownerId and (tostring(ownerId) == playerId or tostring(ownerId) == playerName) then
+                    cachedBase = plot
+                    lastBaseScan = tick()
+                    return plot
+                end
+            end
+            -- Also check subchildren for player-named models
+            for _, plot in pairs(folder:GetDescendants()) do
+                if (plot:IsA("Model") or plot:IsA("Folder")) and (plot.Name == playerName or plot.Name == playerId) then
+                    cachedBase = plot
+                    lastBaseScan = tick()
+                    return plot
+                end
+            end
+        end
+    end
+    
+    -- Method 2: Search workspace top-level for player-named model
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if (obj:IsA("Model") or obj:IsA("Folder")) then
+            local n = obj.Name
+            if n == playerName or n == playerId or n:find(playerName) then
+                cachedBase = obj
+                lastBaseScan = tick()
                 return obj
             end
         end
     end
     
-    -- Fallback: look for the "Garden" or "Teleport" button UI
-    for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
-        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
-            local txt = gui.Text:lower()
-            if txt:find("garden") or txt:find("home") or txt:find("base") then
-                return gui
+    -- Method 3: Broader search for garden/plot objects containing player reference
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if (obj:IsA("Model") or obj:IsA("Folder")) then
+            local n = obj.Name:lower()
+            if (n:find("plot") or n:find("garden")) and (n:find(playerName:lower()) or n:find(playerId)) then
+                cachedBase = obj
+                lastBaseScan = tick()
+                return obj
             end
         end
     end
     
+    lastBaseScan = tick()
     return nil
 end
 
@@ -892,7 +976,18 @@ local function FindThreatsInBase()
     local base = FindMyBase()
     if not base then return {} end
     
-    local basePos = base:IsA("BasePart") and base.Position or (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
+    -- Get base position from Model or BasePart
+    local basePos = nil
+    if base:IsA("BasePart") then
+        basePos = base.Position
+    elseif base:IsA("Model") and base.PrimaryPart then
+        basePos = base.PrimaryPart.Position
+    else
+        local firstPart = base:FindFirstChildWhichIsA("BasePart", true)
+        if firstPart then
+            basePos = firstPart.Position
+        end
+    end
     if not basePos then return {} end
     
     local threats = {}
@@ -911,30 +1006,26 @@ end
 
 -- Equip and use weapon
 local function EquipWeapon(weaponName)
-    -- Find weapon in backpack
-    local backpack = LocalPlayer.Backpack
-    if not backpack then return false end
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return nil end
     
-    for _, item in pairs(backpack:GetChildren()) do
-        local itemName = item.Name:lower()
-        local targetName = weaponName:lower()
-        if itemName:find(targetName) or targetName:find(itemName) then
-            -- Equip it
-            LocalPlayer.Character.Humanoid:EquipTool(item)
-            task.wait(0.3)
-            return item
+    -- Check if already equipped in character
+    for _, tool in pairs(char:GetChildren()) do
+        if tool:IsA("Tool") and tool.Name:lower():find(weaponName:lower()) then
+            return tool
         end
     end
     
-    -- Check if already equipped in character
-    if Character then
-        for _, tool in pairs(Character:GetChildren()) do
-            if tool:IsA("Tool") then
-                local toolName = tool.Name:lower()
-                local targetName = weaponName:lower()
-                if toolName:find(targetName) or targetName:find(toolName) then
-                    return tool
-                end
+    -- Find weapon in backpack and equip
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and item.Name:lower():find(weaponName:lower()) then
+                humanoid:EquipTool(item)
+                task.wait(0.3)
+                return item
             end
         end
     end
@@ -945,41 +1036,26 @@ end
 -- Attack a player/thief
 local function AttackThief(thief)
     if not thief.Character or not thief.Character:FindFirstChild("Humanoid") then return end
+    if not RootPart then return end
     
     local targetRoot = thief.Character:FindFirstChild("HumanoidRootPart")
     if not targetRoot then return end
     
-    -- Face the target
-    if RootPart then
-        local lookCF = CFrame.lookAt(RootPart.Position, targetRoot.Position)
-        RootPart.CFrame = lookCF
-    end
+    -- Step 1: Move close to the target FIRST
+    RootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
+    task.wait(0.1)
     
-    -- Try each weapon in priority order
+    -- Step 2: Try each weapon in priority order
     for _, weaponName in ipairs(Config.DefenseWeapons) do
         local weapon = EquipWeapon(weaponName)
         if weapon then
-            -- Activate weapon
-            if weapon:FindFirstChild("ClickDetector") then
-                fireclickdetector(weapon.ClickDetector)
-            elseif weapon:FindFirstChildWhichIsA("RemoteEvent") then
-                local remote = weapon:FindFirstChildWhichIsA("RemoteEvent")
-                remote:FireServer(thief)
-            end
+            -- Face the target
+            RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
             
-            -- Try to use tool on target
-            weapon:Activate()
-            task.wait(0.1)
-            
-            -- If shovel/crowbar, try to hit
-            local handle = weapon:FindFirstChild("Handle")
-            if handle then
-                -- Move close to target
-                if RootPart then
-                    RootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-                end
-                weapon:Activate()
-            end
+            -- Activate weapon (swing/use)
+            pcall(function() weapon:Activate() end)
+            task.wait(0.15)
+            pcall(function() weapon:Activate() end)
             
             StatusLabel.Text = "⚔️ Attacking " .. thief.Name .. " with " .. weaponName
             break
@@ -987,28 +1063,7 @@ local function AttackThief(thief)
     end
 end
 
--- Parse weather message from chat or UI
-local function ParseWeatherFromGame()
-    -- Try to read from screen UI
-    for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
-        if gui:IsA("TextLabel") or gui:IsA("TextButton") then
-            local txt = gui.Text or ""
-            if txt:find("Weather") or txt:find("weather") then
-                return txt
-            end
-        end
-    end
-    
-    -- Try game messages
-    local success, result = pcall(function()
-        return Lighting:GetAttribute("Weather") or Lighting:GetAttribute("weather") or Lighting:GetAttribute("CurrentWeather")
-    end)
-    if success and result then
-        return tostring(result)
-    end
-    
-    return nil
-end
+
 
 -- ==========================================
 -- MAIN LOOP
@@ -1016,31 +1071,54 @@ end
 
 local function MainLoop()
     while task.wait(1) do
+        -- Safely refresh character references
         pcall(function()
-            -- 1. Auto-Collect Event Seeds
+            if not Character or not Character.Parent then
+                Character = LocalPlayer.Character
+            end
+            if Character and (not RootPart or not RootPart.Parent) then
+                RootPart = Character:FindFirstChild("HumanoidRootPart")
+            end
+        end)
+        if not RootPart then continue end
+        
+        -- 1. Auto-Collect Event Seeds
+        pcall(function()
             if getAutoCollect() then
                 local seeds = FindEventSeeds()
                 for _, seed in ipairs(seeds) do
-                    local dist = (seed.Position - RootPart.Position).Magnitude
-                    if dist < 100 then
-                        TeleportTo(seed.CFrame * CFrame.new(0, 2, 0))
-                        task.wait(0.1)
+                    if not seed or not seed.Parent then continue end
+                    -- Get seed position
+                    local seedPos = nil
+                    if seed:IsA("BasePart") then
+                        seedPos = seed.CFrame
+                    elseif seed:IsA("Model") then
+                        local part = seed.PrimaryPart or seed:FindFirstChildWhichIsA("BasePart")
+                        if part then seedPos = part.CFrame end
+                    end
+                    if seedPos and RootPart then
+                        -- Teleport directly to the seed (no distance limit for event seeds)
+                        RootPart.CFrame = seedPos * CFrame.new(0, 2, 0)
+                        task.wait(0.15)
                         CollectSeed(seed)
                         StatusLabel.Text = "🎯 Collected " .. seed.Name
-                        task.wait(0.5)
+                        task.wait(0.1) -- Minimal wait between seeds
                     end
                 end
             end
-            
-            -- 2. Weather Detection & Prediction
+        end)
+        
+        -- 2. Weather Detection & Notification
+        pcall(function()
             if getWeatherNotif() then
                 local detectedWeather = DetectWeather()
-                local gameWeather = ParseWeatherFromGame()
                 
-                if gameWeather then
-                    -- Use game's weather text if available
+                -- Also try reading game's own weather attribute
+                local gameAttr = Lighting:GetAttribute("Weather") or Lighting:GetAttribute("weather") or Lighting:GetAttribute("CurrentWeather")
+                if gameAttr then
+                    local attrStr = tostring(gameAttr):lower()
                     for weatherName, _ in pairs(weatherDurations) do
-                        if gameWeather:lower():find(weatherName:lower()) then
+                        if attrStr:find(weatherName:lower()) then
                             detectedWeather = weatherName
                             break
                         end
@@ -1052,14 +1130,22 @@ local function MainLoop()
                     weatherStartTime = tick()
                     local icon = weatherIcons[currentWeather] or "❓"
                     WeatherLabel.Text = "Current: " .. icon .. " " .. currentWeather
+                    StatusLabel.Text = "🌤️ Weather: " .. icon .. " " .. currentWeather
                     
-                    -- Log weather change
-                    StatusLabel.Text = "🌤️ Weather changed: " .. currentWeather
-                    
-                    -- Notify player via chat
-                    if currentWeather == "Rainbow" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
-                        -- Special alert for event spawn weathers
-                        StatusLabel.Text = "⭐ EVENT WEATHER: " .. currentWeather .. " - Seeds may spawn!"
+                    -- Chat notification for important weather events
+                    local isEventWeather = (currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" or 
+                                           currentWeather == "BloodMoon" or currentWeather == "Rainbow" or 
+                                           currentWeather == "Starfall")
+                    if isEventWeather then
+                        StatusLabel.Text = "⭐ EVENT: " .. icon .. " " .. currentWeather .. " - Seeds may spawn!"
+                        pcall(function()
+                            game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+                                Text = "⭐ " .. currentWeather .. " detected! Event seeds may spawn!",
+                                Color = Color3.fromRGB(255, 215, 0),
+                                Font = Enum.Font.GothamBold,
+                                TextSize = 16
+                            })
+                        end)
                     end
                 end
                 
@@ -1071,8 +1157,10 @@ local function MainLoop()
                 local secs = math.floor(remaining % 60)
                 WeatherTimerLabel.Text = string.format("Time remaining: %02d:%02d", mins, secs)
             end
-            
-            -- 3. Seed Shop Prediction
+        end)
+        
+        -- 3. Seed Shop Prediction
+        pcall(function()
             if getShopNotif() then
                 local now = os.time()
                 
@@ -1094,7 +1182,7 @@ local function MainLoop()
                 end
                 
                 local nextRestock = 300 - (now % 300)
-                ShopPredictLabel.Text = string.format("Next General Restock: %02d:%02d", math.floor(nextRestock / 60), math.floor(nextRestock % 60))
+                ShopPredictLabel.Text = string.format("Next Restock: %02d:%02d", math.floor(nextRestock / 60), math.floor(nextRestock % 60))
                 
                 CommonLabel.Text = "⚪ Common: Always Available"
                 UncommonLabel.Text = "🟢 Uncommon: " .. GetCycle(900)
@@ -1104,26 +1192,42 @@ local function MainLoop()
                 MythicLabel.Text = "🔴 Mythic: " .. GetCycle(7200)
                 SuperLabel.Text = "💎 Super: " .. GetCycle(14400)
             end
-            
-            -- 4. Auto Stay Base at Night
-            if getAutoStay() and currentWeather:find("Night") or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
+        end)
+        
+        -- 4. Auto Stay Base at Night (FIXED operator precedence)
+        pcall(function()
+            local isNightPhase = (currentWeather == "Night" or currentWeather == "BloodMoon" or 
+                                  currentWeather == "GoldMoon" or currentWeather == "RainbowMoon")
+            if getAutoStay() and isNightPhase then
+                -- Cooldown: don't teleport more than once every 5 seconds
+                if (tick() - lastStayTeleport) < 5 then return end
+                
                 local base = FindMyBase()
                 if base then
-                    local basePos = base:IsA("BasePart") and base.Position or 
-                        (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
+                    local basePos = nil
+                    if base:IsA("BasePart") then
+                        basePos = base.Position
+                    elseif base:IsA("Model") and base.PrimaryPart then
+                        basePos = base.PrimaryPart.Position
+                    else
+                        local firstPart = base:FindFirstChildWhichIsA("BasePart", true)
+                        if firstPart then basePos = firstPart.Position end
+                    end
                     
                     if basePos and RootPart then
                         local distFromBase = (RootPart.Position - basePos).Magnitude
-                        if distFromBase > 15 then
-                            -- Teleport back to base
+                        if distFromBase > 30 then
                             TeleportTo(basePos + Vector3.new(0, 3, 0))
+                            lastStayTeleport = tick()
                             StatusLabel.Text = "🌙 Night - Returned to base"
                         end
                     end
                 end
             end
-            
-            -- 5. Auto Defense
+        end)
+        
+        -- 5. Auto Defense
+        pcall(function()
             if getAutoDefense() then
                 local threats = FindThreatsInBase()
                 if #threats > 0 then
@@ -1133,10 +1237,14 @@ local function MainLoop()
                     end
                 end
             end
-            
-            -- Update base status label
-            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") then
-                StatusLabel.Text = "✅ Active | " .. currentWeather .. " | Monitoring..."
+        end)
+        
+        -- Update status label (only if no active event)
+        pcall(function()
+            local txt = StatusLabel.Text
+            if not txt:find("⚔️") and not txt:find("🎯") and not txt:find("🌙") and not txt:find("⭐") then
+                local icon = weatherIcons[currentWeather] or "❓"
+                StatusLabel.Text = "✅ Active | " .. icon .. " " .. currentWeather .. " | Monitoring..."
             end
         end)
     end
@@ -1146,7 +1254,8 @@ end
 LocalPlayer.CharacterAdded:Connect(function(char)
     Character = char
     RootPart = char:WaitForChild("HumanoidRootPart")
-    task.wait(2) -- Wait for game to load
+    cachedBase = nil -- Reset base cache on respawn
+    task.wait(2)
 end)
 
 -- Start the script
@@ -1158,17 +1267,18 @@ WeatherLabel.Text = "Current: ☀️ Day"
 WeatherTimerLabel.Text = "Time remaining: --:--"
 
 -- Print status to chat
-local StarterGui = game:GetService("StarterGui")
-StarterGui:SetCore("ChatMakeSystemMessage", {
-    Text = "🌱 GAG2 Red Team Script loaded! Features: Auto-Collect, Weather, Shop, Night Defense",
-    Color = Color3.fromRGB(40, 180, 80),
-    Font = Enum.Font.GothamBold,
-    TextSize = 16
-})
+pcall(function()
+    game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+        Text = "🌱 GAG2 Red Team Script loaded! All 5 features active.",
+        Color = Color3.fromRGB(40, 180, 80),
+        Font = Enum.Font.GothamBold,
+        TextSize = 16
+    })
+end)
 
 print("🌱 GAG2 Red Team Script loaded successfully!")
-print("✅ Auto-Collect Event Seeds")
-print("✅ Weather Prediction")
-print("✅ Seed Shop Prediction")
-print("✅ Auto Stay Base at Night")
-print("✅ Auto Defense (Shovel/Crowbar/Freeze Ray/Power Hose)")
+print("✅ Auto-Collect Event Seeds (ProximityPrompt + TouchInterest)")
+print("✅ Weather Detection & Notification (Lighting-based)")
+print("✅ Weather Prediction (Correct durations)")
+print("✅ Auto Stay Base at Night (Fixed)")
+print("✅ Auto Defense (Move→Equip→Attack)")
