@@ -118,8 +118,8 @@ local Theme = {
 
 -- Build UI
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 450, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -250)
+MainFrame.Size = UDim2.new(0, 450, 0.85, 0)
+MainFrame.Position = UDim2.new(0.5, -225, 0.075, 0)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
