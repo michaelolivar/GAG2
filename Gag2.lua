@@ -267,8 +267,8 @@ local function CreateTab(name)
     return tab
 end
 
-local TabNames = {"Main", "Defense", "Shop", "Weather", "Info"}
-local TabIcons = {"🌱", "🛡️", "🏪", "🌤️", "ℹ️"}
+local TabNames = {"Main", "Defense", "Shop", "Weather", "Server", "Info"}
+local TabIcons = {"🌱", "🛡️", "🏪", "🌤️", "🌐", "ℹ️"}
 local tabWidth = 1 / #TabNames
 
 local function SwitchTab(tabName)
@@ -501,30 +501,7 @@ CreateLabel(MainTab, "DEFENSE CONTROLS", Color3.fromRGB(255, 80, 80), true)
 local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
 local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
 
-CreateSpacer(MainTab)
-CreateLabel(MainTab, "SERVER CONTROLS", Color3.fromRGB(200, 100, 255), true)
-CreateButton(MainTab, "🔄 Rejoin Server", function()
-    local TeleportService = game:GetService("TeleportService")
-    if TeleportService then
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, game:GetService("Players").LocalPlayer)
-    end
-end)
-CreateButton(MainTab, "🌐 Server Hop", function()
-    local HttpService = game:GetService("HttpService")
-    local TeleportService = game:GetService("TeleportService")
-    local serversApi = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?sortOrder=Desc&limit=100"
-    local success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(serversApi))
-    end)
-    if success and result and result.data then
-        for _, server in ipairs(result.data) do
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, game:GetService("Players").LocalPlayer)
-                break
-            end
-        end
-    end
-end)
+
 
 CreateSpacer(MainTab)
 CreateLabel(MainTab, "STATUS", Color3.fromRGB(80, 180, 255), true)
@@ -598,6 +575,46 @@ CreateLabel(WeatherTab, "Night events (2min each):", Color3.fromRGB(150, 150, 25
 CreateLabel(WeatherTab, "🌑 Blood Moon - Bloodlit mutation", Theme.TextMuted)
 CreateLabel(WeatherTab, "🌟 Gold Moon - Gold Seed spawns (15x)", Theme.TextMuted)
 CreateLabel(WeatherTab, "🌈 Rainbow Moon - Rainbow seed spawns", Theme.TextMuted)
+
+-- ==========================================
+-- TAB: SERVER
+-- ==========================================
+local ServerTab = CreateTab("Server")
+
+CreateLabel(ServerTab, "SERVER CONTROLS", Color3.fromRGB(200, 100, 255), true)
+CreateButton(ServerTab, "🔄 Rejoin Server", function()
+    local TeleportService = game:GetService("TeleportService")
+    local Players = game:GetService("Players")
+    if #Players:GetPlayers() <= 1 then
+        Players.LocalPlayer:Kick("\nRejoining...")
+        task.wait()
+        TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
+    else
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, Players.LocalPlayer)
+    end
+end)
+
+CreateButton(ServerTab, "🌐 Server Hop", function()
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    local serversApi = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?sortOrder=Desc&limit=100"
+    local success, response = pcall(function()
+        return game:HttpGet(serversApi)
+    end)
+    if success and response then
+        local data = HttpService:JSONDecode(response)
+        if data and data.data then
+            for _, server in ipairs(data.data) do
+                if type(server) == "table" and server.playing and server.maxPlayers and server.playing < server.maxPlayers - 1 and server.id ~= game.JobId then
+                    pcall(function()
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, game:GetService("Players").LocalPlayer)
+                    end)
+                    task.wait(1)
+                end
+            end
+        end
+    end
+end)
 
 -- ==========================================
 -- TAB: INFO
