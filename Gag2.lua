@@ -1,1081 +1,872 @@
--- ╔═══════════════════════════════════════════════════════════╗
--- ║         GAG2 Hub  |  Grow a Garden 2 Script              ║
--- ║         Auto Event Seed Collector  |  v1.0               ║
--- ║         Premium SpeedHub-Style UI                        ║
--- ╚═══════════════════════════════════════════════════════════╝
+--[[
+╔══════════════════════════════════════════════════════════════╗
+║             GROW A GARDEN 2 - Devo GAG2                     ║
+║         Delta Executor Fix • Accurate Weather               ║
+╚══════════════════════════════════════════════════════════════╝
+Features:
+  1. Event Seeds Auto Collect (Golden Seed, Rainbow Seed)
+  2. Weather Prediction - reads game UI
+  3. Seed Shop Prediction
+  4. Auto Stay Base at Night
+  5. Auto Defense (Shovel, Crowbar, Freeze Ray, Power Hose)
+--]]
 
--- ╔═ SERVICES ═══════════════════════════════════════════════╗
-local Players          = game:GetService("Players")
-local RunService       = game:GetService("RunService")
-local TweenService     = game:GetService("TweenService")
+-- Configuration
+local Config = {
+    AutoCollectSeeds = true,
+    AutoDefense = true,
+    AutoStayBase = true,
+    NotifyWeather = true,
+    NotifyShop = true,
+    DefenseWeapons = {"Freeze Ray","Power Hose","Crowbar","Shovel"},
+    DefenseRange = 30,
+    WeaponCooldown = 2,
+}
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CoreGui          = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
--- ╚══════════════════════════════════════════════════════════╝
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local RootPart = Character:WaitForChild("HumanoidRootPart")
 
--- ╔═ CONFIG ═════════════════════════════════════════════════╗
-local Config = {
-    AutoCollect   = false,
-    CollectDelay  = 0.4,     -- Delay between collections (seconds)
-    ScanInterval  = 1.2,     -- How often to scan for seeds (seconds)
-    TeleportMode  = true,    -- Teleport to seed vs walk
-    SelectedSeeds = {
-        ["Gold Seed"]    = false,
-        ["Rainbow Seed"] = false,
-        ["Bird"]         = false,
-        ["Seed Pack"]    = false,
-    },
+-- Cleanup old
+pcall(function()
+    if CoreGui:FindFirstChild("GAG2RedTeam") then CoreGui:FindFirstChild("GAG2RedTeam"):Destroy() end
+    if LocalPlayer.PlayerGui:FindFirstChild("GAG2RedTeam") then LocalPlayer.PlayerGui:FindFirstChild("GAG2RedTeam"):Destroy() end
+end)
+
+-- ==========================================
+-- DELTA-COMPATIBLE UI PARENTING
+-- ==========================================
+local Library = Instance.new("ScreenGui")
+Library.Name = "GAG2RedTeam"
+Library.ResetOnSpawn = false
+Library.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Library.DisplayOrder = 999999
+
+-- Delta Executor fix: try multiple parents
+local parented = false
+local parentTargets = {
+    game:GetService("CoreGui"),
+    LocalPlayer:FindFirstChild("PlayerGui"),
+    LocalPlayer.PlayerGui,
+    Instance.new("ScreenGui")
 }
 
-local State = {
-    Collected   = 0,
-    LogCount    = 0,
-    Minimized   = false,
-    DropOpen    = false,
-    AllSelected = false,
+for _, target in ipairs(parentTargets) do
+    if target then
+        local ok = pcall(function()
+            Library.Parent = target
+        end)
+        if ok then
+            parented = true
+            if target.Name == "ScreenGui" then
+                target.Name = "GAG2Container"
+                target.ResetOnSpawn = false
+                target.Parent = CoreGui
+            end
+            break
+        end
+    end
+end
+
+-- Ultimate fallback
+if not parented then
+    pcall(function()
+        local plrGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+        Library.Parent = plrGui
+    end)
+end
+
+-- ==========================================
+-- Weather System - Reads from game UI/Remotes
+-- ==========================================
+local currentWeather = "Day"
+local weatherStartTime = tick()
+local weatherEndTime = 0
+local weatherDuration = 160
+local weatherConnected = false
+
+local WeatherInfo = {
+    Day =         {icon="☀️", color=Color3.fromRGB(255,220,80),  desc="Normal growth"},
+    Night =       {icon="🌙", color=Color3.fromRGB(140,140,220), desc="Stealing active!"},
+    Rain =        {icon="🌧️", color=Color3.fromRGB(100,180,255), desc="2x growth speed"},
+    Lightning =   {icon="⚡", color=Color3.fromRGB(255,255,80),  desc="Electric mutation (80x)"},
+    Rainbow =     {icon="🌈", color=Color3.fromRGB(255,130,255), desc="Rainbow luck boosted"},
+    Snowfall =    {icon="❄️", color=Color3.fromRGB(200,230,255), desc="Frozen mutation (5x)"},
+    Starfall =    {icon="⭐", color=Color3.fromRGB(255,230,150), desc="Starstruck mutation"},
+    BloodMoon =   {icon="🌑", color=Color3.fromRGB(220,60,60),   desc="Bloodlit mutation"},
+    GoldMoon =    {icon="🌟", color=Color3.fromRGB(255,210,60),  desc="✦ GOLD SEEDS SPAWNING ✦"},
+    RainbowMoon = {icon="🌈", color=Color3.fromRGB(100,255,200), desc="✦ RAINBOW SEEDS SPAWNING ✦"},
 }
--- ╚══════════════════════════════════════════════════════════╝
 
--- ╔═ SEED DEFINITIONS ═══════════════════════════════════════╗
-local SeedList = {
-    { name = "Gold Seed",    icon = "⭐", color = Color3.fromRGB(255, 200, 0),   keywords = {"goldseed","gold seed","golden seed","gold_seed","eventgoldseed","goldenseed"} },
-    { name = "Rainbow Seed", icon = "🌈", color = Color3.fromRGB(180, 100, 255), keywords = {"rainbowseed","rainbow seed","rainbow_seed","eventrainbowseed"} },
-    { name = "Bird",         icon = "🐦", color = Color3.fromRGB(80,  160, 255), keywords = {"birdseed","bird seed","bird_seed","eventbird","birdegg","bird egg"} },
-    { name = "Seed Pack",    icon = "📦", color = Color3.fromRGB(50,  210, 120), keywords = {"seedpack","seed pack","seed_pack","eventseedpack","seedbundle"} },
-}
--- ╚══════════════════════════════════════════════════════════╝
+local WeatherMap = {}
+for k,v in pairs(WeatherInfo) do
+    WeatherMap[k:lower():gsub("%s+","")] = k
+end
+WeatherMap["thunderstorm"] = "Lightning"
+WeatherMap["thunder"] = "Lightning"
+WeatherMap["blizzard"] = "Snowfall"
+WeatherMap["snow"] = "Snowfall"
+WeatherMap["midas"] = "GoldMoon"
+WeatherMap["goldmoon"] = "GoldMoon"
+WeatherMap["gold moon"] = "GoldMoon"
+WeatherMap["bloodmoon"] = "BloodMoon"
+WeatherMap["blood moon"] = "BloodMoon"
+WeatherMap["rainbowmoon"] = "RainbowMoon"
+WeatherMap["rainbow moon"] = "RainbowMoon"
+WeatherMap["sunny"] = "Day"
 
--- ╔═ THEME ══════════════════════════════════════════════════╗
-local T = {
-    BG          = Color3.fromRGB(9,   9,  14),
-    Surface     = Color3.fromRGB(14,  14, 22),
-    Card        = Color3.fromRGB(18,  18, 30),
-    Hover       = Color3.fromRGB(26,  26, 42),
-    Border      = Color3.fromRGB(35,  35, 55),
-    AccentHi    = Color3.fromRGB(110, 120, 255),
-    Accent      = Color3.fromRGB(88,  98,  242),
-    AccentLo    = Color3.fromRGB(60,  68,  210),
-    Text        = Color3.fromRGB(235, 235, 245),
-    TextSub     = Color3.fromRGB(130, 130, 160),
-    TextMuted   = Color3.fromRGB(75,  75,  105),
-    Green       = Color3.fromRGB(52,  199, 110),
-    Yellow      = Color3.fromRGB(255, 185, 50),
-    Red         = Color3.fromRGB(235, 60,  65),
-    White       = Color3.fromRGB(255, 255, 255),
-}
--- ╚══════════════════════════════════════════════════════════╝
-
--- ╔═ UTILITY ════════════════════════════════════════════════╗
-local function New(class, props, children)
-    local i = Instance.new(class)
-    for k, v in pairs(props or {}) do i[k] = v end
-    for _, c in ipairs(children or {}) do c.Parent = i end
-    return i
+-- READ weather from game's WeatherEventStarted remote
+local function ConnectWeatherRemote()
+    local ok, remote = pcall(function()
+        return ReplicatedStorage:WaitForChild("GameEvents", 5):WaitForChild("WeatherEventStarted", 5)
+    end)
+    
+    if ok and remote then
+        local conn = remote.OnClientEvent:Connect(function(eventName, lengthSec)
+            pcall(function()
+                if type(eventName) ~= "string" then return end
+                local normalized = WeatherMap[eventName:lower():gsub("%s+","")]
+                if not normalized then
+                    for k,v in pairs(WeatherMap) do
+                        if eventName:lower():find(k) then normalized = v; break end
+                    end
+                end
+                if not normalized then normalized = eventName end
+                
+                local dur = (type(lengthSec) == "number" and lengthSec > 0) and lengthSec or 120
+                currentWeather = normalized
+                weatherDuration = dur
+                weatherStartTime = tick()
+                weatherEndTime = tick() + dur
+                weatherConnected = true
+                
+                -- Update UI
+                local info = WeatherInfo[currentWeather] or WeatherInfo.Day
+                WeatherLabel.Text = "Current: " .. info.icon .. " " .. currentWeather
+                WeatherLabel.TextColor3 = info.color
+                
+                -- Special alerts
+                if currentWeather == "GoldMoon" then
+                    StatusLabel.Text = "🌟 GOLD MOON - Golden seeds spawning!"
+                elseif currentWeather == "RainbowMoon" then
+                    StatusLabel.Text = "🌈 RAINBOW MOON - Rainbow seeds spawning!"
+                elseif currentWeather == "Rainbow" then
+                    StatusLabel.Text = "🌈 RAINBOW - Rainbow mutation boosted!"
+                elseif currentWeather == "Lightning" then
+                    StatusLabel.Text = "⚡ LIGHTNING - Electric mutation (80x)!"
+                else
+                    StatusLabel.Text = "🌤️ Weather: " .. currentWeather
+                end
+            end)
+        end)
+        _connections[#_connections+1] = conn
+    end
 end
 
-local function Tween(obj, props, dur, style, dir)
-    TweenService:Create(obj, TweenInfo.new(
-        dur or 0.25,
-        style or Enum.EasingStyle.Quart,
-        dir   or Enum.EasingDirection.Out
-    ), props):Play()
+-- FALLBACK: Read weather from game UI (weather icon in bottom-right)
+local function ReadWeatherFromGameUI()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return nil end
+    
+    for _, gui in pairs(playerGui:GetDescendants()) do
+        if gui:IsA("ImageLabel") or gui:IsA("TextLabel") then
+            local name = gui.Name:lower()
+            local text = (gui:IsA("TextLabel") and gui.Text:lower()) or name
+            
+            if text:find("weather") or text:find("event") or name:find("weathericon") or name:find("weather_icon") then
+                -- Check tooltip or nearby text
+                local parent = gui.Parent
+                if parent then
+                    for _, child in pairs(parent:GetDescendants()) do
+                        if child:IsA("TextLabel") and child ~= gui then
+                            local txt = child.Text
+                            for k,v in pairs(WeatherInfo) do
+                                if txt:lower():find(k:lower()) then
+                                    return k
+                                end
+                            end
+                        end
+                    end
+                end
+                -- Check the image name itself
+                local image = gui.Image:lower()
+                for k,v in pairs(WeatherInfo) do
+                    if image:find(k:lower()) then return k end
+                end
+            end
+            
+            -- Check all TextLabels for weather name
+            if gui:IsA("TextLabel") then
+                local txt = gui.Text
+                for k,v in pairs(WeatherInfo) do
+                    if txt:lower():find(k:lower()) and not txt:lower():find("next") then
+                        return k
+                    end
+                end
+            end
+        end
+    end
+    return nil
 end
 
-local function Corner(r, parent)
-    return New("UICorner", { CornerRadius = UDim.new(0, r), Parent = parent })
+-- FALLBACK: ClockTime-based detection
+local function FallbackDetect()
+    local ct = Lighting.ClockTime or 12
+    local isNight = ct < 5.5 or ct > 18.5
+    
+    -- Check particles
+    local found = nil
+    for _,v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") and v.Enabled then
+            local n = (v.Name.." "..(v.Parent and v.Parent.Name or "")):lower()
+            if n:find("lightning") then found="Lightning";break end
+            if n:find("rain") and not n:find("bow") then found="Rain";break end
+            if n:find("snow") or n:find("blizzard") then found="Snowfall";break end
+            if n:find("starfall") then found="Starfall";break end
+            if n:find("rainbow") and not n:find("rain") then found="Rainbow";break end
+        end
+    end
+    if found then return found end
+    
+    -- Check ambient for moon events
+    if isNight then
+        local amb = Lighting.Ambient or Color3.new()
+        if amb.R > 0.35 and amb.G < 0.06 and amb.B < 0.06 then return "BloodMoon" end
+        if amb.R > 0.35 and amb.G > 0.25 and amb.B < 0.06 then return "GoldMoon" end
+        if amb.R < 0.2 and amb.G > 0.2 and amb.B > 0.35 then return "RainbowMoon" end
+        return "Night"
+    end
+    
+    return "Day"
 end
 
-local function Stroke(color, thick, trans, parent)
-    return New("UIStroke", {
-        Color = color, Thickness = thick,
-        Transparency = trans or 0, Parent = parent
-    })
-end
-
-local function Gradient(c1, c2, rot, parent)
-    return New("UIGradient", {
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, c1),
-            ColorSequenceKeypoint.new(1, c2),
-        }),
-        Rotation = rot or 0,
-        Parent = parent,
-    })
-end
-
--- onClick (optional) only fires if release happens within DRAG_THRESHOLD px
--- of press point, so dragging never accidentally triggers a click action.
--- Also clamps the frame so it can never be dragged off-screen — critical on
--- small mobile displays where it's easy to lose the panel past the edge.
-local DRAG_THRESHOLD = 6
-
-local function ClampOffset(frame, scaleX, scaleY, offsetX, offsetY)
-    local camera = workspace.CurrentCamera
-    if not camera then return offsetX, offsetY end
-    local vp = camera.ViewportSize
-    local absSize = frame.AbsoluteSize
-    local ap = frame.AnchorPoint
-
-    local minOffX = -scaleX * vp.X + ap.X * absSize.X
-    local maxOffX = vp.X - absSize.X - scaleX * vp.X + ap.X * absSize.X
-    local minOffY = -scaleY * vp.Y + ap.Y * absSize.Y
-    local maxOffY = vp.Y - absSize.Y - scaleY * vp.Y + ap.Y * absSize.Y
-
-    local clampedX = math.clamp(offsetX, math.min(minOffX, maxOffX), math.max(minOffX, maxOffX))
-    local clampedY = math.clamp(offsetY, math.min(minOffY, maxOffY), math.max(minOffY, maxOffY))
-    return clampedX, clampedY
-end
-
-local function MakeDraggable(frame, handle, onClick)
-    local drag, mouseStart, frameStart, moved = false, nil, nil, false
-    handle.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1
-            or inp.UserInputType == Enum.UserInputType.Touch then
-            drag = true
-            moved = false
-            mouseStart = inp.Position
-            frameStart = frame.Position
-            inp.Changed:Connect(function()
-                if inp.UserInputState == Enum.UserInputState.End then
-                    drag = false
-                    if onClick and not moved then onClick() end
+-- ==========================================
+-- BUILD UI
+-- ==========================================
+local function MakeDraggable(frame)
+    local dragging, dragStart, startPos
+    local c1 = frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
                 end
             end)
         end
     end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if drag and (inp.UserInputType == Enum.UserInputType.MouseMovement
-            or inp.UserInputType == Enum.UserInputType.Touch) then
-            local d = inp.Position - mouseStart
-            if math.abs(d.X) > DRAG_THRESHOLD or math.abs(d.Y) > DRAG_THRESHOLD then
-                moved = true
+    table.insert(_connections, c1)
+    
+    local c2 = frame.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    table.insert(_connections, c2)
+end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 400, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Parent = Library
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -10, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🌱 GAG2 Red Team"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 18
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 30, 0, 30)
+ToggleBtn.Position = UDim2.new(1, -35, 0, 5)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleBtn.Text = "X"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Parent = TitleBar
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 6)
+ToggleCorner.Parent = ToggleBtn
+
+MakeDraggable(TitleBar)
+
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, 0, 0, 35)
+TabContainer.Position = UDim2.new(0, 0, 0, 40)
+TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+TabContainer.BorderSizePixel = 0
+TabContainer.Parent = MainFrame
+
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Size = UDim2.new(1, -20, 1, -95)
+ContentFrame.Position = UDim2.new(0, 10, 0, 80)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ScrollBarThickness = 6
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 180, 80)
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentFrame.Parent = MainFrame
+
+local TabNames = {"Main", "Defense", "Shop", "Weather", "Info"}
+local TabIcons = {"🌱", "🛡️", "🏪", "🌤️", "ℹ️"}
+
+local function SwitchTab(tabName)
+    for _, child in pairs(ContentFrame:GetChildren()) do
+        if child:IsA("Frame") then child.Visible = false end
+    end
+    for _, child in pairs(ContentFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name == tabName then child.Visible = true end
+    end
+    for _, btn in pairs(TabContainer:GetChildren()) do
+        if btn:IsA("TextButton") then btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45) end
+    end
+    local tabBtn = TabContainer:FindFirstChild(tabName)
+    if tabBtn then tabBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80) end
+end
+
+for i, tabName in ipairs(TabNames) do
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Name = tabName
+    tabBtn.Size = UDim2.new(0, 80, 1, 0)
+    tabBtn.Position = UDim2.new(0, (i-1) * 80, 0, 0)
+    tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    tabBtn.Text = TabIcons[i] .. " " .. tabName
+    tabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    tabBtn.TextSize = 12
+    tabBtn.Font = Enum.Font.GothamSemibold
+    tabBtn.BorderSizePixel = 0
+    tabBtn.Parent = TabContainer
+    if i == 1 then tabBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80) end
+    tabBtn.MouseButton1Click:Connect(function() SwitchTab(tabName) end)
+end
+
+-- CreateToggle helper
+local function CreateToggle(tab, name, desc, default)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 45)
+    row.BackgroundTransparency = 1
+    row.Parent = tab
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, -5, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextSize = 14
+    label.Font = Enum.Font.GothamSemibold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = row
+    
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Size = UDim2.new(0.7, -5, 0, 16)
+    descLabel.Position = UDim2.new(0, 0, 0, 22)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = desc
+    descLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
+    descLabel.TextSize = 11
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.Parent = row
+    
+    local toggle = Instance.new("Frame")
+    toggle.Size = UDim2.new(0, 50, 0, 24)
+    toggle.Position = UDim2.new(1, -55, 0, 10)
+    toggle.BackgroundColor3 = default and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(60, 60, 70)
+    toggle.BorderSizePixel = 0
+    toggle.Parent = row
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.Parent = toggle
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Text = ""
+    toggleBtn.Parent = toggle
+    
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.new(0, 20, 0, 20)
+    circle.Position = default and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    circle.BorderSizePixel = 0
+    circle.Parent = toggle
+    
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(0, 10)
+    circleCorner.Parent = circle
+    
+    local toggled = default
+    
+    toggleBtn.MouseButton1Click:Connect(function()
+        toggled = not toggled
+        toggle.BackgroundColor3 = toggled and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(60, 60, 70)
+        circle.Position = toggled and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+    end)
+    
+    return toggleBtn, function() return toggled end
+end
+
+local function CreateLabel(tab, text, color)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, text == "" and 10 or 28)
+    row.BackgroundTransparency = 1
+    row.Parent = tab
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or Color3.fromRGB(180, 180, 180)
+    label.TextSize = 13
+    label.Font = Enum.Font.Gotham
+    label.Parent = row
+    
+    return label
+end
+
+-- ==========================================
+-- BUILD ALL TABS
+-- ==========================================
+
+-- MAIN TAB
+local MainTab = Instance.new("Frame")
+MainTab.Name = "Main"
+MainTab.Size = UDim2.new(1, 0, 0, 400)
+MainTab.BackgroundTransparency = 1
+MainTab.Parent = ContentFrame
+
+CreateLabel(MainTab, "=== AUTOMATION CONTROLS ===", Color3.fromRGB(40, 180, 80))
+
+local _, getAutoCollect = CreateToggle(MainTab, "Auto-Collect Event Seeds", "Auto-collect Golden & Rainbow seeds", true)
+local _, getWeatherNotif = CreateToggle(MainTab, "Weather Notifications", "Alert on weather changes", true)
+local _, getShopNotif = CreateToggle(MainTab, "Shop Predictions", "Track seed shop rotations", true)
+
+CreateLabel(MainTab, "=== DEFENSE CONTROLS ===", Color3.fromRGB(200, 80, 80))
+
+local _, getAutoDefense = CreateToggle(MainTab, "Auto Defense", "Auto-attack thieves in your base", true)
+local _, getAutoStay = CreateToggle(MainTab, "Auto Stay at Base", "Return to base at night", true)
+
+CreateLabel(MainTab, "=== STATUS ===", Color3.fromRGB(80, 180, 255))
+
+local StatusLabel = CreateLabel(MainTab, "Script Active | Waiting...", Color3.fromRGB(180, 180, 180))
+
+local spacer = Instance.new("Frame")
+spacer.Size = UDim2.new(1, 0, 0, 20)
+spacer.BackgroundTransparency = 1
+spacer.Parent = MainTab
+
+-- DEFENSE TAB
+local DefenseTab = Instance.new("Frame")
+DefenseTab.Name = "Defense"
+DefenseTab.Size = UDim2.new(1, 0, 0, 400)
+DefenseTab.BackgroundTransparency = 1
+DefenseTab.Visible = false
+DefenseTab.Parent = ContentFrame
+
+CreateLabel(DefenseTab, "=== WEAPON SETTINGS ===", Color3.fromRGB(200, 80, 80))
+CreateLabel(DefenseTab, "✓ Shovel (Default - Free)", Color3.fromRGB(150, 255, 150))
+CreateLabel(DefenseTab, "✓ Crowbar (Rare - Gear Shop)", Color3.fromRGB(150, 255, 150))
+CreateLabel(DefenseTab, "✓ Freeze Ray (Premium - 749 Robux)", Color3.fromRGB(150, 255, 150))
+CreateLabel(DefenseTab, "✓ Power Hose (Premium - 299 Robux)", Color3.fromRGB(150, 255, 150))
+CreateLabel(DefenseTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(DefenseTab, "Auto-detects thieves in your garden area", Color3.fromRGB(200, 200, 150))
+CreateLabel(DefenseTab, "and equips best available weapon to", Color3.fromRGB(200, 200, 150))
+CreateLabel(DefenseTab, "attack intruders automatically.", Color3.fromRGB(200, 200, 150))
+
+-- SHOP TAB
+local ShopTab = Instance.new("Frame")
+ShopTab.Name = "Shop"
+ShopTab.Size = UDim2.new(1, 0, 0, 400)
+ShopTab.BackgroundTransparency = 1
+ShopTab.Visible = false
+ShopTab.Parent = ContentFrame
+
+CreateLabel(ShopTab, "=== SEED SHOP PREDICTIONS ===", Color3.fromRGB(255, 180, 50))
+local ShopPredictLabel = CreateLabel(ShopTab, "Monitoring shop rotations...", Color3.fromRGB(180, 180, 180))
+CreateLabel(ShopTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(ShopTab, "Seed shop restocks every ~5 minutes", Color3.fromRGB(150, 150, 150))
+CreateLabel(ShopTab, "Rare seeds: ~30-45 min cycle", Color3.fromRGB(150, 150, 150))
+CreateLabel(ShopTab, "Epic seeds: ~45-60 min cycle", Color3.fromRGB(150, 150, 150))
+CreateLabel(ShopTab, "Legendary: RNG based, low chance", Color3.fromRGB(150, 150, 150))
+
+-- WEATHER TAB
+local WeatherTab = Instance.new("Frame")
+WeatherTab.Name = "Weather"
+WeatherTab.Size = UDim2.new(1, 0, 0, 400)
+WeatherTab.BackgroundTransparency = 1
+WeatherTab.Visible = false
+WeatherTab.Parent = ContentFrame
+
+CreateLabel(WeatherTab, "=== WEATHER TRACKER ===", Color3.fromRGB(80, 180, 255))
+local WeatherLabel = CreateLabel(WeatherTab, "Current: ☀️ Day", Color3.fromRGB(255, 255, 150))
+local WeatherTimerLabel = CreateLabel(WeatherTab, "Time remaining: --:--", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(WeatherTab, "=== WEATHER TYPES ===", Color3.fromRGB(150, 255, 150))
+CreateLabel(WeatherTab, "🌧️ Rain - 2x growth speed", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "⚡ Lightning - Electric mutation (80x)", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "🌈 Rainbow - Rainbow mutation boost", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "❄️ Snowfall - Frozen mutation (5x)", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "⭐ Starfall - Starstruck mutation", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(WeatherTab, "=== NIGHT EVENTS ===", Color3.fromRGB(150, 150, 255))
+CreateLabel(WeatherTab, "🌑 Blood Moon - Bloodlit mutation", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "🌟 Gold Moon - Golden seeds spawn!", Color3.fromRGB(180, 180, 180))
+CreateLabel(WeatherTab, "🌈 Rainbow Moon - Rainbow seeds spawn!", Color3.fromRGB(180, 180, 180))
+
+-- INFO TAB
+local InfoTab = Instance.new("Frame")
+InfoTab.Name = "Info"
+InfoTab.Size = UDim2.new(1, 0, 0, 400)
+InfoTab.BackgroundTransparency = 1
+InfoTab.Visible = false
+InfoTab.Parent = ContentFrame
+
+CreateLabel(InfoTab, "=== GROW A GARDEN 2 ===", Color3.fromRGB(40, 180, 80))
+CreateLabel(InfoTab, "Red Team Edition v1.0", Color3.fromRGB(180, 180, 180))
+CreateLabel(InfoTab, "Delta Executor Compatible", Color3.fromRGB(180, 180, 180))
+CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(InfoTab, "FEATURES:", Color3.fromRGB(255, 200, 100))
+CreateLabel(InfoTab, "✅ Event seed auto-collect", Color3.fromRGB(150, 255, 150))
+CreateLabel(InfoTab, "✅ Weather prediction system", Color3.fromRGB(150, 255, 150))
+CreateLabel(InfoTab, "✅ Seed shop rotation tracker", Color3.fromRGB(150, 255, 150))
+CreateLabel(InfoTab, "✅ Auto-stay at base during night", Color3.fromRGB(150, 255, 150))
+CreateLabel(InfoTab, "✅ Auto defense with weapons", Color3.fromRGB(150, 255, 150))
+CreateLabel(InfoTab, "", Color3.fromRGB(255,255,255))
+CreateLabel(InfoTab, "Tip: Stay in your garden during", Color3.fromRGB(200, 200, 150))
+CreateLabel(InfoTab, "night to prevent theft!", Color3.fromRGB(200, 200, 150))
+
+-- Canvas update
+local function UpdateCanvas()
+    local totalH = 0
+    for _, child in pairs(ContentFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Visible then
+            for _, row in pairs(child:GetChildren()) do
+                if row:IsA("Frame") then totalH = totalH + row.Size.Y.Offset + 5 end
             end
-            local offX, offY = ClampOffset(
-                frame, frameStart.X.Scale, frameStart.Y.Scale,
-                frameStart.X.Offset + d.X, frameStart.Y.Offset + d.Y
-            )
-            frame.Position = UDim2.new(frameStart.X.Scale, offX, frameStart.Y.Scale, offY)
         end
-    end)
+    end
+    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, totalH + 20)
 end
+UpdateCanvas()
 
-
-local function HoverEffect(btn, normal, hover)
-    btn.MouseEnter:Connect(function() Tween(btn, { BackgroundColor3 = hover }, 0.15) end)
-    btn.MouseLeave:Connect(function() Tween(btn, { BackgroundColor3 = normal }, 0.15) end)
-end
--- ╚══════════════════════════════════════════════════════════╝
-
--- ╔═ DESTROY OLD INSTANCE ═══════════════════════════════════╗
-if CoreGui:FindFirstChild("GAG2Hub") then
-    CoreGui:FindFirstChild("GAG2Hub"):Destroy()
-end
--- ╚══════════════════════════════════════════════════════════╝
-
--- ╔══════════════════════════════════════════════════════════╗
--- ║                        MAIN GUI                         ║
--- ╚══════════════════════════════════════════════════════════╝
-local ScreenGui = New("ScreenGui", {
-    Name = "GAG2Hub", ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    ResetOnSpawn = false, IgnoreGuiInset = true, Parent = CoreGui,
-})
-
--- ── Main Frame ──────────────────────────────────────────────
-local BASE_W, BASE_H = 400, 560  -- design-time reference size
-
-local Main = New("Frame", {
-    Name = "Main",
-    Size = UDim2.new(0, BASE_W, 0, BASE_H),
-    Position = UDim2.new(0.5, 0, 0.5, 0),
-    AnchorPoint = Vector2.new(0.5, 0.5),  -- center anchor so UIScale shrinks evenly
-    BackgroundColor3 = T.BG,
-    BorderSizePixel = 0,
-    ClipsDescendants = false,
-    Parent = ScreenGui,
-})
-Corner(14, Main)
-Stroke(T.Border, 1, 0.2, Main)
-
--- Responsive scale: shrinks the whole panel to fit small mobile screens
--- without needing to rebuild every internal offset.
-local MainScale = New("UIScale", { Scale = 1, Parent = Main })
-
-local function UpdateResponsiveScale()
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-    local vp = camera.ViewportSize
-    if vp.X <= 0 or vp.Y <= 0 then return end
-    local marginX, marginY = 20, 24  -- breathing room from screen edges
-    local scaleX = (vp.X - marginX) / BASE_W
-    local scaleY = (vp.Y - marginY) / BASE_H
-    local scale = math.clamp(math.min(scaleX, scaleY, 1), 0.55, 1)
-    Tween(MainScale, { Scale = scale }, 0.25)
-end
-
-UpdateResponsiveScale()
-workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    if workspace.CurrentCamera then
-        workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateResponsiveScale)
-        UpdateResponsiveScale()
+-- Toggle minimize
+local minimized = false
+ToggleBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        MainFrame.Size = UDim2.new(0, 200, 0, 40)
+        TabContainer.Visible = false
+        ContentFrame.Visible = false
+        ToggleBtn.Text = "+"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 80)
+    else
+        MainFrame.Size = UDim2.new(0, 400, 0, 500)
+        TabContainer.Visible = true
+        ContentFrame.Visible = true
+        ToggleBtn.Text = "X"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     end
 end)
-if workspace.CurrentCamera then
-    workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateResponsiveScale)
-end
 
--- Outer ambient glow
-local GlowBG = New("Frame", {
-    Size = UDim2.new(1, 60, 1, 60),
-    Position = UDim2.new(0, -30, 0, -30),
-    BackgroundColor3 = T.Accent,
-    BackgroundTransparency = 0.88,
-    BorderSizePixel = 0,
-    ZIndex = -1,
-    Parent = Main,
-})
-Corner(20, GlowBG)
+-- ==========================================
+-- CORE FEATURES
+-- ==========================================
 
--- ╔══════════════════════════════════════════════════════════╗
--- ║                      CHAT HEAD                          ║
--- ╚══════════════════════════════════════════════════════════╝
-local CH_SIZE = 58
+-- Track connections
+local _connections = {}
 
-local ChatHead = New("Frame", {
-    Name = "ChatHead",
-    Size = UDim2.new(0, CH_SIZE, 0, CH_SIZE),
-    Position = UDim2.new(1, -(CH_SIZE + 18), 0.5, -(CH_SIZE / 2)),
-    BackgroundColor3 = T.Accent,
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 200,
-    Parent = ScreenGui,
-})
-Corner(99, ChatHead)
-Gradient(T.AccentHi, T.AccentLo, 135, ChatHead)
-
--- Outer ring
-local CHRing = New("Frame", {
-    Size = UDim2.new(1, 10, 1, 10),
-    Position = UDim2.new(0, -5, 0, -5),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    ZIndex = 199,
-    Parent = ChatHead,
-})
-Corner(99, CHRing)
-Stroke(T.AccentHi, 2, 0.4, CHRing)
-
--- Icon
-New("TextLabel", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    Text = "🌱",
-    TextSize = 24,
-    Font = Enum.Font.GothamBold,
-    ZIndex = 201,
-    Parent = ChatHead,
-})
-
--- Status dot (top-right corner of chat head)
-local CHDot = New("Frame", {
-    Name = "CHDot",
-    Size = UDim2.new(0, 14, 0, 14),
-    Position = UDim2.new(1, -3, 0, -3),
-    BackgroundColor3 = T.TextMuted,
-    BorderSizePixel = 0,
-    ZIndex = 202,
-    Parent = ChatHead,
-})
-Corner(99, CHDot)
-New("UIStroke", { Color = T.BG, Thickness = 2.5, Parent = CHDot })
-
--- Clickable button
-local CHBtn = New("TextButton", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    Text = "",
-    ZIndex = 203,
-    Parent = ChatHead,
-})
-
--- ── Chat head helper functions ────────────────────────────
-local function ShowChatHead()
-    ChatHead.Visible = true
-    ChatHead.Size = UDim2.new(0, 0, 0, 0)
-    ChatHead.BackgroundTransparency = 1
-    -- Bounce in
-    Tween(ChatHead, { Size = UDim2.new(0, CH_SIZE + 8, 0, CH_SIZE + 8), BackgroundTransparency = 0 }, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    task.wait(0.2)
-    Tween(ChatHead, { Size = UDim2.new(0, CH_SIZE, 0, CH_SIZE) }, 0.15, Enum.EasingStyle.Quart)
-    -- Sync dot color with collect state
-    CHDot.BackgroundColor3 = Config.AutoCollect and T.Green or T.Red
-end
-
-local function HideChatHead()
-    Tween(ChatHead, { Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1 }, 0.2, Enum.EasingStyle.Quart)
-    task.delay(0.22, function() ChatHead.Visible = false end)
-end
-
-local function OpenMain()
-    HideChatHead()
-    task.wait(0.1)
-    Main.Visible = true
-    Main.Size = UDim2.new(0, 400, 0, 0)
-    Main.BackgroundTransparency = 1
-    Tween(Main, { Size = UDim2.new(0, 400, 0, 560), BackgroundTransparency = 0 }, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-end
-
-local function CloseMain()
-    Tween(Main, { Size = UDim2.new(0, 400, 0, 0), BackgroundTransparency = 1 }, 0.25, Enum.EasingStyle.Quart)
-    task.delay(0.26, function()
-        Main.Visible = false
-        ShowChatHead()
-    end)
-end
-
-MakeDraggable(ChatHead, CHBtn, OpenMain)
-
--- ── HEADER ──────────────────────────────────────────────────
-local Header = New("Frame", {
-    Size = UDim2.new(1, 0, 0, 58),
-    BackgroundColor3 = T.Surface,
-    BorderSizePixel = 0,
-    ZIndex = 5,
-    Parent = Main,
-})
-Corner(14, Header)
--- Fix bottom corners
-New("Frame", { Size = UDim2.new(1,0,0,14), Position = UDim2.new(0,0,1,-14),
-    BackgroundColor3 = T.Surface, BorderSizePixel = 0, ZIndex = 5, Parent = Header })
-
--- Accent line
-local AccentBar = New("Frame", {
-    Size = UDim2.new(1, 0, 0, 2),
-    Position = UDim2.new(0, 0, 1, -1),
-    BackgroundColor3 = T.Accent,
-    BorderSizePixel = 0, ZIndex = 6, Parent = Header,
-})
-Gradient(T.AccentHi, T.AccentLo, 0, AccentBar)
-
--- Logo
-local LogoBox = New("Frame", {
-    Size = UDim2.new(0, 38, 0, 38),
-    Position = UDim2.new(0, 13, 0.5, -19),
-    BackgroundColor3 = T.Accent,
-    BorderSizePixel = 0, ZIndex = 6, Parent = Header,
-})
-Corner(9, LogoBox)
-Gradient(T.AccentHi, T.AccentLo, 135, LogoBox)
-New("TextLabel", {
-    Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-    Text = "🌱", TextSize = 18, Font = Enum.Font.GothamBold, ZIndex = 7, Parent = LogoBox,
-})
-
--- Title + subtitle
-New("TextLabel", {
-    Size = UDim2.new(0, 200, 0, 20), Position = UDim2.new(0, 62, 0, 10),
-    BackgroundTransparency = 1, Text = "Grow a Garden 2",
-    TextColor3 = T.Text, TextSize = 14, Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6, Parent = Header,
-})
-New("TextLabel", {
-    Size = UDim2.new(0, 200, 0, 15), Position = UDim2.new(0, 62, 0, 31),
-    BackgroundTransparency = 1, Text = "Event Seed Collector",
-    TextColor3 = T.TextSub, TextSize = 11, Font = Enum.Font.Gotham,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 6, Parent = Header,
-})
-
--- Version pill
-local VerPill = New("Frame", {
-    Size = UDim2.new(0, 44, 0, 18), Position = UDim2.new(1, -118, 0.5, -9),
-    BackgroundColor3 = T.Accent, BorderSizePixel = 0, ZIndex = 6, Parent = Header,
-})
-Corner(20, VerPill)
-Gradient(T.AccentHi, T.AccentLo, 90, VerPill)
-New("TextLabel", {
-    Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-    Text = "v1.0", TextColor3 = T.White, TextSize = 10,
-    Font = Enum.Font.GothamBold, ZIndex = 7, Parent = VerPill,
-})
-
--- Minimize button
-local MinBtn = New("TextButton", {
-    Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -68, 0.5, -14),
-    BackgroundColor3 = T.Hover, BorderSizePixel = 0,
-    Text = "—", TextColor3 = T.TextSub, TextSize = 14,
-    Font = Enum.Font.GothamBold, ZIndex = 6, Parent = Header,
-})
-Corner(7, MinBtn)
-
--- Close button
-local CloseBtn = New("TextButton", {
-    Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -36, 0.5, -14),
-    BackgroundColor3 = T.Hover, BorderSizePixel = 0,
-    Text = "✕", TextColor3 = T.TextSub, TextSize = 11,
-    Font = Enum.Font.GothamBold, ZIndex = 6, Parent = Header,
-})
-Corner(7, CloseBtn)
-
-HoverEffect(MinBtn, T.Hover, Color3.fromRGB(40, 40, 65))
-HoverEffect(CloseBtn, T.Hover, T.Red)
-MakeDraggable(Main, Header)
-
--- ── BODY (clips content when minimized) ─────────────────────
-local Body = New("Frame", {
-    Name = "Body",
-    Size = UDim2.new(1, -20, 1, -78),
-    Position = UDim2.new(0, 10, 0, 66),
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    ClipsDescendants = true, Parent = Main,
-})
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  1.  STATUS CARD                                        ║
--- ╚═════════════════════════════════════════════════════════╝
-local StatusCard = New("Frame", {
-    Size = UDim2.new(1, 0, 0, 62),
-    BackgroundColor3 = T.Card, BorderSizePixel = 0, Parent = Body,
-})
-Corner(11, StatusCard)
-Stroke(T.Border, 1, 0.5, StatusCard)
-
-local StatusDot = New("Frame", {
-    Size = UDim2.new(0, 9, 0, 9), Position = UDim2.new(0, 14, 0.5, -4),
-    BackgroundColor3 = T.Red, BorderSizePixel = 0, Parent = StatusCard,
-})
-Corner(99, StatusDot)
-
-local StatusTitle = New("TextLabel", {
-    Size = UDim2.new(1, -100, 0, 20), Position = UDim2.new(0, 32, 0, 11),
-    BackgroundTransparency = 1, Text = "Auto Collect: Inactive",
-    TextColor3 = T.Text, TextSize = 13, Font = Enum.Font.GothamBold,
-    TextXAlignment = Enum.TextXAlignment.Left, Parent = StatusCard,
-})
-local StatusSub = New("TextLabel", {
-    Size = UDim2.new(1, -100, 0, 14), Position = UDim2.new(0, 32, 0, 34),
-    BackgroundTransparency = 1, Text = "0 seeds collected this session",
-    TextColor3 = T.TextSub, TextSize = 11, Font = Enum.Font.Gotham,
-    TextXAlignment = Enum.TextXAlignment.Left, Parent = StatusCard,
-})
-
--- Toggle pill
-local ToggleTrack = New("TextButton", {
-    Size = UDim2.new(0, 72, 0, 30), Position = UDim2.new(1, -82, 0.5, -15),
-    BackgroundColor3 = T.Red, BorderSizePixel = 0,
-    Text = "OFF", TextColor3 = T.White, TextSize = 11,
-    Font = Enum.Font.GothamBold, Parent = StatusCard,
-})
-Corner(8, ToggleTrack)
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  2.  SECTION LABEL                                      ║
--- ╚═════════════════════════════════════════════════════════╝
-local function SectionLabel(text, ypos)
-    return New("TextLabel", {
-        Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 2, 0, ypos),
-        BackgroundTransparency = 1, Text = text,
-        TextColor3 = T.TextMuted, TextSize = 10, Font = Enum.Font.GothamBold,
-        TextXAlignment = Enum.TextXAlignment.Left, Parent = Body,
-    })
-end
-
-SectionLabel("EVENT SEEDS", 72)
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  3.  DROPDOWN MENU                                      ║
--- ╚═════════════════════════════════════════════════════════╝
-local ITEM_H    = 46
-local DROP_CLOSED = 48
-local DROP_OPEN   = DROP_CLOSED + 8 + (#SeedList * ITEM_H) + 8
-
-local DropWrap = New("Frame", {
-    Name = "DropWrap",
-    Size = UDim2.new(1, 0, 0, DROP_CLOSED),
-    Position = UDim2.new(0, 0, 0, 90),
-    BackgroundColor3 = T.Card,
-    BorderSizePixel = 0, ClipsDescendants = true,
-    ZIndex = 20, Parent = Body,
-})
-Corner(11, DropWrap)
-local DropStroke = Stroke(T.Accent, 1, 0.6, DropWrap)
-
--- Dropdown header row
-local DropHeader = New("TextButton", {
-    Size = UDim2.new(1, 0, 0, DROP_CLOSED),
-    BackgroundTransparency = 1, Text = "",
-    ZIndex = 21, Parent = DropWrap,
-})
-
--- Icon inside header
-local DropIconBox = New("Frame", {
-    Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 10, 0.5, -16),
-    BackgroundColor3 = T.Accent, BorderSizePixel = 0, ZIndex = 22, Parent = DropHeader,
-})
-Corner(8, DropIconBox)
-Gradient(T.AccentHi, T.AccentLo, 135, DropIconBox)
-New("TextLabel", {
-    Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-    Text = "🌱", TextSize = 15, Font = Enum.Font.GothamBold, ZIndex = 23, Parent = DropIconBox,
-})
-
-local DropLabel = New("TextLabel", {
-    Size = UDim2.new(1, -90, 0, DROP_CLOSED),
-    Position = UDim2.new(0, 52, 0, 0),
-    BackgroundTransparency = 1, Text = "Select Seeds to Collect",
-    TextColor3 = T.Text, TextSize = 13, Font = Enum.Font.GothamSemibold,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 22, Parent = DropHeader,
-})
-
-local DropArrow = New("TextLabel", {
-    Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -32, 0.5, -12),
-    BackgroundTransparency = 1, Text = "▾",
-    TextColor3 = T.TextSub, TextSize = 14, Font = Enum.Font.GothamBold,
-    ZIndex = 22, Parent = DropHeader,
-})
-
--- Separator
-New("Frame", {
-    Size = UDim2.new(1, -24, 0, 1), Position = UDim2.new(0, 12, 0, DROP_CLOSED),
-    BackgroundColor3 = T.Border, BorderSizePixel = 0, ZIndex = 21, Parent = DropWrap,
-})
-
--- ── Seed rows ────────────────────────────────────────────────
-local SeedChecks = {}  -- { row, checkBg, checkMark, checked }
-
-for idx, seed in ipairs(SeedList) do
-    local rowY = DROP_CLOSED + 8 + (idx - 1) * ITEM_H
-
-    local Row = New("Frame", {
-        Size = UDim2.new(1, -20, 0, ITEM_H - 4),
-        Position = UDim2.new(0, 10, 0, rowY),
-        BackgroundColor3 = T.Hover, BackgroundTransparency = 1,
-        BorderSizePixel = 0, ZIndex = 22, Parent = DropWrap,
-    })
-    Corner(9, Row)
-
-    local RowBtn = New("TextButton", {
-        Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-        Text = "", ZIndex = 23, Parent = Row,
-    })
-
-    -- Color pip
-    local Pip = New("Frame", {
-        Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0, 10, 0.5, -4),
-        BackgroundColor3 = seed.color, BorderSizePixel = 0, ZIndex = 23, Parent = Row,
-    })
-    Corner(99, Pip)
-
-    -- Emoji
-    New("TextLabel", {
-        Size = UDim2.new(0, 28, 1, 0), Position = UDim2.new(0, 24, 0, 0),
-        BackgroundTransparency = 1, Text = seed.icon, TextSize = 16,
-        Font = Enum.Font.GothamBold, ZIndex = 23, Parent = Row,
-    })
-
-    -- Name
-    New("TextLabel", {
-        Size = UDim2.new(1, -90, 1, 0), Position = UDim2.new(0, 58, 0, 0),
-        BackgroundTransparency = 1, Text = seed.name,
-        TextColor3 = T.Text, TextSize = 13, Font = Enum.Font.GothamSemibold,
-        TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23, Parent = Row,
-    })
-
-    -- Checkbox
-    local CheckBg = New("Frame", {
-        Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -32, 0.5, -11),
-        BackgroundColor3 = T.Surface, BorderSizePixel = 0, ZIndex = 23, Parent = Row,
-    })
-    Corner(6, CheckBg)
-    Stroke(T.Border, 1.5, 0, CheckBg)
-
-    local CheckMark = New("TextLabel", {
-        Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-        Text = "", TextColor3 = T.White, TextSize = 13,
-        Font = Enum.Font.GothamBold, ZIndex = 24, Parent = CheckBg,
-    })
-
-    SeedChecks[seed.name] = { Row = Row, Bg = CheckBg, Mark = CheckMark, Checked = false }
-
-    local function UpdateCheck(on)
-        SeedChecks[seed.name].Checked = on
-        Config.SelectedSeeds[seed.name] = on
-        Tween(CheckBg, { BackgroundColor3 = on and T.Accent or T.Surface }, 0.2)
-        CheckMark.Text = on and "✓" or ""
-        Tween(Row, { BackgroundTransparency = on and 0 or 1 }, 0.2)
-        -- Update label
-        local ct, names = 0, {}
-        for k, v in pairs(Config.SelectedSeeds) do
-            if v then ct += 1; table.insert(names, k) end
+-- Find event seeds
+local function FindEventSeeds()
+    local seeds = {}
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Part") or obj:IsA("MeshPart") or obj:IsA("Model") then
+            local name = obj.Name:lower()
+            local isTarget = ((name:find("gold") or name:find("golden")) and (name:find("seed") or name:find("fruit")))
+                or ((name:find("rainbow")) and (name:find("seed") or name:find("fruit")))
+            
+            if isTarget then
+                if obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchInterest") or obj:FindFirstChild("ProximityPrompt") then
+                    table.insert(seeds, obj)
+                end
+            end
         end
-        DropLabel.Text = ct == 0 and "Select Seeds to Collect"
-            or ct == 1 and names[1]
-            or ct .. " Seeds Selected"
     end
-
-    RowBtn.MouseButton1Click:Connect(function()
-        UpdateCheck(not SeedChecks[seed.name].Checked)
-    end)
-    RowBtn.MouseEnter:Connect(function()
-        if not SeedChecks[seed.name].Checked then
-            Tween(Row, { BackgroundTransparency = 0.5 }, 0.15)
-        end
-    end)
-    RowBtn.MouseLeave:Connect(function()
-        if not SeedChecks[seed.name].Checked then
-            Tween(Row, { BackgroundTransparency = 1 }, 0.15)
-        end
-    end)
+    return seeds
 end
 
--- Dropdown open / close
-DropHeader.MouseButton1Click:Connect(function()
-    State.DropOpen = not State.DropOpen
-    Tween(DropWrap, { Size = UDim2.new(1, 0, 0, State.DropOpen and DROP_OPEN or DROP_CLOSED) }, 0.3)
-    Tween(DropArrow, { Rotation = State.DropOpen and 180 or 0 }, 0.3)
-    Tween(DropStroke, { Transparency = State.DropOpen and 0.2 or 0.6 }, 0.2)
-end)
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  4.  ACTION BUTTONS                                     ║
--- ╚═════════════════════════════════════════════════════════╝
-SectionLabel("ACTIONS", 156)
-
-local BtnRow = New("Frame", {
-    Size = UDim2.new(1, 0, 0, 42), Position = UDim2.new(0, 0, 0, 174),
-    BackgroundTransparency = 1, Parent = Body,
-})
-
--- Collect Once
-local CollectBtn = New("TextButton", {
-    Size = UDim2.new(0.5, -5, 1, 0),
-    BackgroundColor3 = T.Accent, BorderSizePixel = 0,
-    Text = "✨  Collect Once", TextColor3 = T.White,
-    TextSize = 12, Font = Enum.Font.GothamBold, Parent = BtnRow,
-})
-Corner(10, CollectBtn)
-Gradient(T.AccentHi, T.AccentLo, 90, CollectBtn)
-
--- Select All / Clear
-local SelectAllBtn = New("TextButton", {
-    Size = UDim2.new(0.5, -5, 1, 0), Position = UDim2.new(0.5, 5, 0, 0),
-    BackgroundColor3 = T.Card, BorderSizePixel = 0,
-    Text = "☑  Select All", TextColor3 = T.TextSub,
-    TextSize = 12, Font = Enum.Font.GothamSemibold, Parent = BtnRow,
-})
-Corner(10, SelectAllBtn)
-Stroke(T.Border, 1, 0, SelectAllBtn)
-
-HoverEffect(CollectBtn, T.Accent, T.AccentHi)
-HoverEffect(SelectAllBtn, T.Card, T.Hover)
-
--- Debug Scan (diagnostic helper — lists matching objects & remotes)
-local DebugBtn = New("TextButton", {
-    Size = UDim2.new(1, 0, 0, 32), Position = UDim2.new(0, 0, 0, 222),
-    BackgroundColor3 = T.Card, BorderSizePixel = 0,
-    Text = "🔍  Run Debug Scan (Diagnose Event Seeds)", TextColor3 = T.TextSub,
-    TextSize = 11, Font = Enum.Font.GothamSemibold, Parent = Body,
-})
-Corner(9, DebugBtn)
-Stroke(T.Border, 1, 0.3, DebugBtn)
-HoverEffect(DebugBtn, T.Card, T.Hover)
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  5.  ACTIVITY LOG                                       ║
--- ╚═════════════════════════════════════════════════════════╝
-SectionLabel("ACTIVITY LOG", 264)
-
-local LogScroll = New("ScrollingFrame", {
-    Size = UDim2.new(1, 0, 0, 150),
-    Position = UDim2.new(0, 0, 0, 282),
-    BackgroundColor3 = T.Card, BorderSizePixel = 0,
-    ScrollBarThickness = 3, ScrollBarImageColor3 = T.Accent,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ClipsDescendants = true,
-    Parent = Body,
-})
-Corner(11, LogScroll)
-Stroke(T.Border, 1, 0.5, LogScroll)
-
-local LogLayout = New("UIListLayout", {
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 1), Parent = LogScroll,
-})
-New("UIPadding", {
-    PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10),
-    PaddingTop = UDim.new(0, 7),   PaddingBottom = UDim.new(0, 7),
-    Parent = LogScroll,
-})
-
-local function Log(msg, ltype)
-    State.LogCount += 1
-    local colors = { info = T.TextSub, success = T.Green, warn = T.Yellow, err = T.Red }
-    local icons  = { info = "·", success = "✓", warn = "⚠", err = "✗" }
-    local ts = os.date("%H:%M:%S")
-    New("TextLabel", {
-        Size = UDim2.new(1, 0, 0, 17), BackgroundTransparency = 1,
-        Text = string.format("[%s] %s  %s", ts, icons[ltype] or "·", msg),
-        TextColor3 = colors[ltype] or T.TextSub,
-        TextSize = 11, Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        LayoutOrder = State.LogCount, Parent = LogScroll,
-    })
-    LogScroll.CanvasSize = UDim2.new(0, 0, 0, LogLayout.AbsoluteContentSize.Y + 14)
-    LogScroll.CanvasPosition = Vector2.new(0, math.huge)
-end
-
--- ╔═════════════════════════════════════════════════════════╗
--- ║  6.  FOOTER                                             ║
--- ╚═════════════════════════════════════════════════════════╝
-local Footer = New("Frame", {
-    Size = UDim2.new(1, 0, 0, 28),
-    Position = UDim2.new(0, 0, 1, -28),
-    BackgroundColor3 = T.Surface, BorderSizePixel = 0, Parent = Main,
-})
-Corner(14, Footer)
-New("Frame", { Size = UDim2.new(1,0,0,14), BackgroundColor3 = T.Surface,
-    BorderSizePixel = 0, Parent = Footer })
-New("TextLabel", {
-    Size = UDim2.new(1,0,1,0), BackgroundTransparency = 1,
-    Text = "🌿 GAG2 Hub  ·  RightCtrl to show/hide",
-    TextColor3 = T.TextMuted, TextSize = 10, Font = Enum.Font.Gotham, Parent = Footer,
-})
-
--- ══════════════════════════════════════════════════════════════
---  LOGIC
--- ══════════════════════════════════════════════════════════════
-
--- ── Seed scanner ─────────────────────────────────────────────
-local function HasSelection()
-    for _, v in pairs(Config.SelectedSeeds) do if v then return true end end
+local function CollectSeed(seedObj)
+    pcall(function()
+        local detector = seedObj:FindFirstChildWhichIsA("ClickDetector")
+        if detector then fireclickdetector(detector); return true end
+        local prompt = seedObj:FindFirstChildWhichIsA("ProximityPrompt")
+        if prompt then fireproximityprompt(prompt); return true end
+        local touch = seedObj:FindFirstChildWhichIsA("TouchTransmitter")
+        if touch and RootPart then
+            RootPart.CFrame = seedObj.CFrame * CFrame.new(0, 2, 0)
+            task.wait(0.1)
+            return true
+        end
+    end)
     return false
 end
 
-local function MatchesSeed(name)
-    local lower = name:lower()
-    for seedName, enabled in pairs(Config.SelectedSeeds) do
-        if enabled then
-            for _, kw in ipairs((function()
-                for _, s in ipairs(SeedList) do
-                    if s.name == seedName then return s.keywords end
-                end
-                return {}
-            end)()) do
-                if lower:find(kw, 1, true) then return seedName end
+local function TeleportTo(pos)
+    if RootPart then RootPart.CFrame = CFrame.new(pos) end
+end
+
+local function FindMyBase()
+    local playerName = LocalPlayer.Name
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        local name = obj.Name:lower()
+        if (name:find("garden") or name:find("plot") or name:find("base")) then
+            if name:find(playerName:sub(1, 5):lower()) then return obj end
+        end
+    end
+    for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+            local txt = gui.Text:lower()
+            if txt:find("garden") or txt:find("home") or txt:find("base") then return gui end
+        end
+    end
+    return nil
+end
+
+local function FindThreatsInBase()
+    local base = FindMyBase()
+    if not base then return {} end
+    local basePos = base:IsA("BasePart") and base.Position or (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
+    if not basePos then return {} end
+    local threats = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (player.Character.HumanoidRootPart.Position - basePos).Magnitude
+            if dist < Config.DefenseRange then table.insert(threats, player) end
+        end
+    end
+    return threats
+end
+
+local function EquipWeapon(weaponName)
+    local backpack = LocalPlayer.Backpack
+    if not backpack then return false end
+    local targetName = weaponName:lower()
+    for _, item in pairs(backpack:GetChildren()) do
+        if item.Name:lower():find(targetName) or targetName:find(item.Name:lower()) then
+            LocalPlayer.Character.Humanoid:EquipTool(item)
+            task.wait(0.3)
+            return item
+        end
+    end
+    if Character then
+        for _, tool in pairs(Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                local tn = tool.Name:lower()
+                if tn:find(targetName) or targetName:find(tn) then return tool end
             end
         end
     end
     return nil
 end
 
-local function MatchesAttributes(obj)
-    local ok, attrs = pcall(function() return obj:GetAttributes() end)
-    if not ok or not attrs then return nil end
-    for _, v in pairs(attrs) do
-        if typeof(v) == "string" then
-            local m = MatchesSeed(v)
-            if m then return m end
+local function AttackThief(thief)
+    if not thief.Character or not thief.Character:FindFirstChild("Humanoid") then return end
+    local targetRoot = thief.Character:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then return end
+    if RootPart then
+        RootPart.CFrame = CFrame.lookAt(RootPart.Position, targetRoot.Position)
+    end
+    for _, weaponName in ipairs(Config.DefenseWeapons) do
+        local weapon = EquipWeapon(weaponName)
+        if weapon then
+            if weapon:FindFirstChild("ClickDetector") then fireclickdetector(weapon.ClickDetector) end
+            weapon:Activate()
+            task.wait(0.1)
+            local handle = weapon:FindFirstChild("Handle")
+            if handle then
+                if RootPart then RootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3) end
+                weapon:Activate()
+            end
+            StatusLabel.Text = "⚔️ Attacking " .. thief.Name .. " with " .. weaponName
+            break
         end
     end
-    return nil
 end
 
-local function ScanWorkspace()
-    local found = {}
-    local function Recurse(obj)
-        local matched = MatchesSeed(obj.Name) or MatchesAttributes(obj)
-        if matched and (obj:IsA("BasePart") or obj:IsA("Model")) then
-            table.insert(found, { obj = obj, seedName = matched })
-        end
-        for _, c in ipairs(obj:GetChildren()) do Recurse(c) end
-    end
-    Recurse(workspace)
-    return found
-end
+-- ==========================================
+-- MAIN LOOP
+-- ==========================================
 
--- ── Collect one seed ─────────────────────────────────────────
-local function CollectOne(seedObj, seedName)
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-
-    local pos
-    if seedObj:IsA("Model") then
-        local ok, p = pcall(function() return seedObj:GetPivot().Position end)
-        pos = ok and p or (seedObj:FindFirstChildWhichIsA("BasePart") and seedObj:FindFirstChildWhichIsA("BasePart").Position)
-    else
-        pos = seedObj.Position
-    end
-    if not pos then return false end
-
-    -- Teleport
-    if Config.TeleportMode then
-        root.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-        task.wait(0.1)
-    end
-
-    -- Try proximity prompt
-    local function TryProximity(obj)
-        for _, d in ipairs(obj:GetDescendants()) do
-            if d:IsA("ProximityPrompt") then
-                pcall(function() fireproximityprompt(d) end); return true
-            end
-        end
-        return false
-    end
-
-    -- Try click detector
-    local function TryClick(obj)
-        for _, d in ipairs(obj:GetDescendants()) do
-            if d:IsA("ClickDetector") then
-                pcall(function() fireClickDetector(d) end); return true
-            end
-        end
-        if obj:IsA("ClickDetector") then
-            pcall(function() fireClickDetector(obj) end); return true
-        end
-        return false
-    end
-
-    -- Try remote events (broad sweep — exact remote name depends on the game's
-    -- own implementation, which we can't see ahead of time)
-    local function TryRemote(obj)
-        local remoteNames = {
-            "Collect","CollectSeed","CollectItem","CollectEvent","CollectEventSeed",
-            "PickupItem","Pickup","PickUp","GrabSeed","TakeSeed","GetSeed",
-            "EventCollect","ClaimSeed","ClaimItem","Claim","ClaimEvent",
-            "Interact","InteractSeed","UseSeed","HarvestSeed","Harvest",
-        }
-        for _, container in ipairs({ ReplicatedStorage, workspace }) do
-            for _, name in ipairs(remoteNames) do
-                local r = container:FindFirstChild(name, true)
-                if r and (r:IsA("RemoteEvent") or r:IsA("RemoteFunction")) then
-                    pcall(function()
-                        if r:IsA("RemoteEvent") then r:FireServer(obj)
-                        else r:InvokeServer(obj) end
-                    end)
-                    return true
-                end
-            end
-        end
-        return false
-    end
-
-    if not TryProximity(seedObj) then
-        if not TryClick(seedObj) then
-            TryRemote(seedObj)
-        end
-    end
-
-    return true
-end
-
--- ── Auto-claim event popups ────────────────────────────────────
--- Many games show a "Claim" button in a ScreenGui popup when an Event item
--- drops, instead of (or in addition to) a physical pickup in Workspace.
--- This scans PlayerGui for visible claim/collect buttons and clicks them.
-local function TryAutoClaimGui()
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if not pg then return 0 end
-    local claimedCount = 0
-    for _, d in ipairs(pg:GetDescendants()) do
-        if (d:IsA("TextButton") or d:IsA("ImageButton")) and d.Visible then
-            local txt = ((d:IsA("TextButton") and d.Text) or "") .. " " .. d.Name
-            local lower = txt:lower()
-            if lower:find("claim", 1, true) or lower:find("collectevent", 1, true) then
-                local ok = pcall(function() firesignal(d.MouseButton1Click) end)
-                if ok then claimedCount += 1 end
-            end
-        end
-    end
-    return claimedCount
-end
-
--- ── Auto collect thread ───────────────────────────────────────
-local autoThread = nil
-
-local function StopAuto()
-    Config.AutoCollect = false
-    if autoThread then task.cancel(autoThread); autoThread = nil end
-    Tween(ToggleTrack, { BackgroundColor3 = T.Red }, 0.25)
-    ToggleTrack.Text = "OFF"
-    Tween(StatusDot, { BackgroundColor3 = T.Red }, 0.25)
-    StatusTitle.Text = "Auto Collect: Inactive"
-    StatusTitle.TextColor3 = T.Text
-    Log("Auto collect stopped.", "info")
-end
-
-local function StartAuto()
-    if not HasSelection() then
-        Log("No seeds selected! Pick at least one.", "warn"); return
-    end
-    Config.AutoCollect = true
-    Tween(ToggleTrack, { BackgroundColor3 = T.Green }, 0.25)
-    ToggleTrack.Text = "ON"
-    Tween(StatusDot, { BackgroundColor3 = T.Green }, 0.25)
-    StatusTitle.Text = "Auto Collect: Active"
-    StatusTitle.TextColor3 = T.Green
-    Log("Auto collect started!", "success")
-
-    autoThread = task.spawn(function()
-        while Config.AutoCollect do
-            if not HasSelection() then
-                Log("No seeds selected, pausing...", "warn"); task.wait(2); continue
-            end
-
-            -- Some games show a "Claim" popup for event drops instead of (or
-            -- alongside) a physical pickup — check for that every cycle.
-            local claimed = TryAutoClaimGui()
-            if claimed > 0 then
-                State.Collected += claimed
-                StatusSub.Text = State.Collected .. " seeds collected this session"
-                Log(("Auto-claimed %d popup reward(s)"):format(claimed), "success")
-            end
-
-            local seeds = ScanWorkspace()
-            if #seeds > 0 then
-                Log(("Found %d event seed(s)!"):format(#seeds), "success")
-                for _, s in ipairs(seeds) do
-                    if not Config.AutoCollect then break end
-                    local ok, err = pcall(CollectOne, s.obj, s.seedName)
-                    if ok then
-                        State.Collected += 1
-                        StatusSub.Text = State.Collected .. " seeds collected this session"
-                        Log(("Collected: %s"):format(s.seedName), "success")
-                    else
-                        Log(("Error: %s"):format(tostring(err):sub(1,40)), "err")
+local function MainLoop()
+    while task.wait(1) do
+        pcall(function()
+            -- WEATHER: Try remote first, then game UI, then fallback
+            if not weatherConnected then
+                local fromUI = ReadWeatherFromGameUI()
+                local detected = fromUI or FallbackDetect()
+                
+                if detected ~= currentWeather then
+                    currentWeather = detected
+                    weatherStartTime = tick()
+                    weatherDuration = 120
+                    if currentWeather == "Day" then weatherDuration = 160
+                    elseif currentWeather == "Night" then weatherDuration = 80 end
+                    
+                    local info = WeatherInfo[currentWeather] or WeatherInfo.Day
+                    WeatherLabel.Text = "Current: " .. info.icon .. " " .. currentWeather
+                    WeatherLabel.TextColor3 = info.color
+                    StatusLabel.Text = "🌤️ Weather: " .. currentWeather
+                    
+                    if currentWeather == "GoldMoon" or currentWeather == "RainbowMoon" then
+                        StatusLabel.Text = "⭐ EVENT: " .. currentWeather .. " - Seeds spawning!"
                     end
-                    task.wait(Config.CollectDelay)
                 end
-            else
-                Log("Scanning for event seeds...", "info")
             end
-            task.wait(Config.ScanInterval)
-        end
-    end)
-end
-
--- ── Debug Scan ──────────────────────────────────────────────────
--- Diagnostic helper: lists every Workspace object whose name matches loose
--- "event item" heuristics, plus every RemoteEvent/RemoteFunction found in
--- ReplicatedStorage. Use this to find the real object/remote names if
--- auto-collect isn't picking up an active Event — then update the keyword
--- or remoteNames lists to match.
-local function DebugScan()
-    Log("── Debug Scan started ──", "info")
-    local heuristics = {"seed","egg","event","gift","crate","capsule","pack","bird","gold","rainbow","drop","spawn","claim"}
-    local count = 0
-    local function Recurse(obj)
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            local lname = obj.Name:lower()
-            for _, h in ipairs(heuristics) do
-                if lname:find(h, 1, true) then
-                    count += 1
-                    if count <= 25 then
-                        Log(("Found: %s [%s]"):format(obj.Name, obj.ClassName), "info")
+            
+            -- Update timer
+            local duration = weatherDuration
+            local elapsed = tick() - weatherStartTime
+            local remaining = math.max(0, duration - elapsed)
+            local mins = math.floor(remaining / 60)
+            local secs = math.floor(remaining % 60)
+            WeatherTimerLabel.Text = string.format("Time remaining: %02d:%02d", mins, secs)
+            
+            -- Auto-Collect
+            if getAutoCollect() then
+                local seeds = FindEventSeeds()
+                for _, seed in ipairs(seeds) do
+                    local dist = (seed.Position - RootPart.Position).Magnitude
+                    if dist < 100 then
+                        TeleportTo(seed.CFrame * CFrame.new(0, 2, 0))
+                        task.wait(0.1)
+                        CollectSeed(seed)
+                        StatusLabel.Text = "🎯 Collected " .. seed.Name
+                        task.wait(0.5)
                     end
-                    break
                 end
             end
-        end
-        for _, c in ipairs(obj:GetChildren()) do Recurse(c) end
-    end
-    Recurse(workspace)
-    Log(("Workspace scan done — %d possible match(es)"):format(count), "success")
-
-    Log("── Remotes in ReplicatedStorage ──", "info")
-    local rcount = 0
-    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
-        if d:IsA("RemoteEvent") or d:IsA("RemoteFunction") then
-            rcount += 1
-            if rcount <= 20 then
-                Log(("%s: %s"):format(d.ClassName, d.Name), "info")
+            
+            -- Shop Prediction
+            if getShopNotif() then
+                local shopCycle = tick() % 300
+                local nextRestock = 300 - shopCycle
+                local restockMins = math.floor(nextRestock / 60)
+                local restockSecs = math.floor(nextRestock % 60)
+                local rareWindow = tick() % 1800
+                local epicWindow = tick() % 2700
+                local prediction = string.format("Next restock: %dm %ds | Rare: %s | Epic: %s",
+                    restockMins, restockSecs,
+                    (rareWindow < 60) and "SOON!" or (1800 - rareWindow < 120) and "SOON!" or "waiting",
+                    (epicWindow < 60) and "SOON!" or (2700 - epicWindow < 120) and "SOON!" or "waiting"
+                )
+                ShopPredictLabel.Text = prediction
             end
-        end
+            
+            -- Auto Stay Base at Night
+            if getAutoStay() then
+                local isNight = currentWeather == "Night" or currentWeather == "BloodMoon" or currentWeather == "GoldMoon" or currentWeather == "RainbowMoon"
+                if isNight then
+                    local base = FindMyBase()
+                    if base then
+                        local basePos = base:IsA("BasePart") and base.Position or (base:FindFirstChildWhichIsA("BasePart") and base:FindFirstChildWhichIsA("BasePart").Position or nil)
+                        if basePos and RootPart then
+                            local distFromBase = (RootPart.Position - basePos).Magnitude
+                            if distFromBase > 15 then
+                                TeleportTo(basePos + Vector3.new(0, 3, 0))
+                                StatusLabel.Text = "🌙 Night - Returned to base"
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Auto Defense
+            if getAutoDefense() then
+                local threats = FindThreatsInBase()
+                if #threats > 0 then
+                    for _, thief in ipairs(threats) do
+                        AttackThief(thief)
+                        task.wait(Config.WeaponCooldown)
+                    end
+                end
+            end
+            
+            -- Update status
+            if not StatusLabel.Text:find("⚔️") and not StatusLabel.Text:find("🎯") and not StatusLabel.Text:find("🌙") and not StatusLabel.Text:find("⭐") then
+                StatusLabel.Text = "✅ Active | " .. currentWeather .. " | Monitoring..."
+            end
+        end)
     end
-    Log(("Total remotes found: %d"):format(rcount), "success")
-    Log("Tip: share these names so the keyword/remote lists can be tuned.", "warn")
 end
 
-DebugBtn.MouseButton1Click:Connect(DebugScan)
-
--- ── Button wiring ─────────────────────────────────────────────
-ToggleTrack.MouseButton1Click:Connect(function()
-    if Config.AutoCollect then StopAuto() else StartAuto() end
+-- Character respawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+    RootPart = char:WaitForChild("HumanoidRootPart")
+    task.wait(2)
 end)
 
-CollectBtn.MouseButton1Click:Connect(function()
-    if not HasSelection() then
-        Log("No seeds selected! Pick at least one.", "warn"); return
-    end
-    Log("Running one-time collect...", "info")
-    task.spawn(function()
-        local claimed = TryAutoClaimGui()
-        if claimed > 0 then
-            State.Collected += claimed
-            StatusSub.Text = State.Collected .. " seeds collected this session"
-            Log(("Auto-claimed %d popup reward(s)"):format(claimed), "success")
-        end
-        local seeds = ScanWorkspace()
-        if #seeds == 0 then Log("No event seeds found in Workspace.", "warn"); return end
-        Log(("Found %d seed(s). Collecting..."):format(#seeds), "success")
-        for _, s in ipairs(seeds) do
-            pcall(CollectOne, s.obj, s.seedName)
-            State.Collected += 1
-            StatusSub.Text = State.Collected .. " seeds collected this session"
-            Log(("Collected: %s"):format(s.seedName), "success")
-            task.wait(Config.CollectDelay)
-        end
-    end)
+-- Connect to weather remote
+task.spawn(function()
+    task.wait(3)
+    ConnectWeatherRemote()
 end)
 
-SelectAllBtn.MouseButton1Click:Connect(function()
-    State.AllSelected = not State.AllSelected
-    for _, seed in ipairs(SeedList) do
-        local sc = SeedChecks[seed.name]
-        sc.Checked = State.AllSelected
-        Config.SelectedSeeds[seed.name] = State.AllSelected
-        Tween(sc.Bg, { BackgroundColor3 = State.AllSelected and T.Accent or T.Surface }, 0.2)
-        sc.Mark.Text = State.AllSelected and "✓" or ""
-        Tween(sc.Row, { BackgroundTransparency = State.AllSelected and 0 or 1 }, 0.2)
-    end
-    DropLabel.Text = State.AllSelected and "All Seeds Selected" or "Select Seeds to Collect"
-    SelectAllBtn.Text = State.AllSelected and "✕  Clear All" or "☑  Select All"
+-- Start main loop
+task.spawn(MainLoop)
+
+-- Initial
+StatusLabel.Text = "✅ Script loaded | Waiting for events..."
+WeatherLabel.Text = "Current: ☀️ Day"
+WeatherLabel.TextColor3 = Color3.fromRGB(255, 220, 80)
+WeatherTimerLabel.Text = "Time remaining: --:--"
+
+-- Chat notification
+pcall(function()
+    StarterGui:SetCore("ChatMakeSystemMessage", {
+        Text = "🌱 GAG2 Red Team Script loaded! Delta Compatible | 5 Features Active",
+        Color = Color3.fromRGB(40, 180, 80),
+        Font = Enum.Font.GothamBold,
+        TextSize = 16
+    })
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    if Config.AutoCollect then StopAuto() end
-    HideChatHead()
-    Tween(Main, { BackgroundTransparency = 1, Size = UDim2.new(0, 400, 0, 0) }, 0.3)
-    task.wait(0.35); ScreenGui:Destroy()
-end)
-
--- MinBtn → collapse to chat head
-MinBtn.MouseButton1Click:Connect(function()
-    CloseMain()
-end)
-
--- ── Keybind: RightCtrl → toggle between full window & chat head ──
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
-        if Main.Visible then
-            CloseMain()
-        elseif ChatHead.Visible then
-            OpenMain()
-        else
-            OpenMain()
-        end
-    end
-end)
-
--- ── Startup animation ─────────────────────────────────────────
-Main.Size = UDim2.new(0, 400, 0, 0)
-Main.BackgroundTransparency = 1
-Tween(Main, { Size = UDim2.new(0, 400, 0, 560), BackgroundTransparency = 0 }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-
-Log("GAG2 Hub loaded successfully!", "success")
-Log("Select seeds then toggle ON to start.", "info")
-
-print("[ GAG2 Hub ] Loaded  |  RightCtrl = toggle visibility")
+print("🌱 GAG2 Red Team Script loaded successfully!")
