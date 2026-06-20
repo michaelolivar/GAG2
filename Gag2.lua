@@ -1,1118 +1,806 @@
 --[[
-╔══════════════════════════════════════════════════════════════╗
-║             GROW A GARDEN 2 - Devo GAG2                     ║
-║         Delta Executor • Drawing API • Fixed UI             ║
-╚══════════════════════════════════════════════════════════════╝
---]]
+  Grow a Garden 2 - Red Team Script
+  Features:
+  1. Auto Collect Event Seeds (Gold Seed, Rainbow Seed, Bird, Seed Pack)
+  2. Fast Move (Adjustable movement speed)
+  3. Dark Mode UI with premium experience
+  4. Minimize & Close buttons
+  5. Chat head when minimized
+  6. Fully draggable UI
+  7. Auto-fit for PC, iPad, iPhone, Android
+]]
 
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local VirtualUser = game:GetService("VirtualUser")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local StarterGui = game:GetService("StarterGui")
-local HttpService = game:GetService("HttpService")
-local Chat = game:GetService("Chat")
 
-local LP = Players.LocalPlayer
-local char = LP.Character or LP.CharacterAdded:Wait()
-local root = char:WaitForChild("HumanoidRootPart")
-local ScreenSize = workspace.CurrentCamera.ViewportSize
+-- Player / Character
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
--- ==========================================
--- WEATHER DATA - EXACT GAME NAMES
--- ==========================================
--- The game sends these exact weather names via WeatherEventStarted remote:
--- "Sunny", "Rain", "Lightning", "Rainbow", "Snowfall", "Starfall", "Blood Moon", "Gold Moon", "Rainbow Moon"
--- Night = clock time < 5.5 or > 18.5
+-- GUI System
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GrowAGarden2_Script"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999
 
-local currentWeather = "Sunny"
-local weatherStartTime = tick()
-local weatherDuration = 300
-local weatherConnected = false
-local isNight = false
+-- Safe parent (pc vs mobile wrapper)
+local function safeParent(gui)
+    local success, err = pcall(function()
+        gui.Parent = CoreGui
+    end)
+    if not success then
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
 
-local WeatherDB = {
-    Sunny       = {icon="☀️", color=Color3.fromRGB(255,220,80),  dur=999, desc="Normal growth"},
-    Rain        = {icon="🌧️", color=Color3.fromRGB(100,180,255), dur=300, desc="2x growth speed"},
-    Lightning   = {icon="⚡", color=Color3.fromRGB(255,255,80),  dur=300, desc="Electric mutation (80x)"},
-    Rainbow     = {icon="🌈", color=Color3.fromRGB(255,130,255), dur=300, desc="Rainbow luck +10x"},
-    Snowfall    = {icon="❄️", color=Color3.fromRGB(200,230,255), dur=150, desc="Frozen mutation (3x)"},
-    Starfall    = {icon="⭐", color=Color3.fromRGB(255,230,150), dur=120, desc="Starstruck mutation"},
-    ["Blood Moon"] = {icon="🌑", color=Color3.fromRGB(220,60,60),   dur=120, desc="Bloodlit mutation (night)"},
-    ["Gold Moon"]  = {icon="🌟", color=Color3.fromRGB(255,210,60),  dur=120, desc="✦ Gold Seeds spawning ✦"},
-    ["Rainbow Moon"] = {icon="🌈", color=Color3.fromRGB(100,255,200), dur=120, desc="✦ Rainbow Seeds spawning ✦"},
-    Night       = {icon="🌙", color=Color3.fromRGB(140,140,220), dur=80,  desc="Stealing active!"},
+-- Screen size detection
+local function getScreenScale()
+    local vp = workspace.CurrentCamera.ViewportSize
+    local baseWidth = 430
+    local baseHeight = 932
+    local scaleX = vp.X / baseWidth
+    local scaleY = vp.Y / baseHeight
+    return math.min(scaleX, scaleY)
+end
+
+local screenScale = getScreenScale()
+local guiScale = math.clamp(screenScale, 0.5, 2.0)
+
+-- UI Sizing constants
+local UI_WIDTH = 380 * guiScale
+local UI_HEIGHT = 520 * guiScale
+local CORNER_RADIUS = 16
+local HEADER_HEIGHT = 48 * guiScale
+local PADDING = 12 * guiScale
+
+-- Color palette (Dark Mode)
+local COLORS = {
+    Background = Color3.fromRGB(18, 18, 22),
+    HeaderBg = Color3.fromRGB(28, 28, 35),
+    PrimaryAccent = Color3.fromRGB(88, 200, 120),
+    SecondaryAccent = Color3.fromRGB(50, 150, 255),
+    WarningAccent = Color3.fromRGB(255, 180, 50),
+    TextPrimary = Color3.fromRGB(235, 235, 245),
+    TextSecondary = Color3.fromRGB(160, 160, 175),
+    InputBg = Color3.fromRGB(38, 38, 45),
+    InputBorder = Color3.fromRGB(55, 55, 65),
+    ButtonHover = Color3.fromRGB(60, 60, 72),
+    DropdownBg = Color3.fromRGB(30, 30, 38),
+    CardBg = Color3.fromRGB(24, 24, 30),
+    Success = Color3.fromRGB(72, 230, 120),
+    CloseRed = Color3.fromRGB(230, 70, 70),
+    MinimizeYellow = Color3.fromRGB(240, 200, 60),
+    Shadow = Color3.fromRGB(0, 0, 0),
 }
 
--- Map all possible variations the game might send
-local WeatherNameMap = {}
-for k,v in pairs(WeatherDB) do
-    local key = k:lower():gsub("[^a-z]","")
-    WeatherNameMap[key] = k
-end
-WeatherNameMap["goldmoon"] = "Gold Moon"
-WeatherNameMap["goldenmoon"] = "Gold Moon"
-WeatherNameMap["rainbowmoon"] = "Rainbow Moon"
-WeatherNameMap["midas"] = "Gold Moon"
-WeatherNameMap["bloodmoon"] = "Blood Moon"
-WeatherNameMap["thunderstorm"] = "Lightning"
-WeatherNameMap["thunder"] = "Lightning"
-WeatherNameMap["blizzard"] = "Snowfall"
-WeatherNameMap["snow"] = "Snowfall"
+-- State
+local state = {
+    minimized = false,
+    visible = true,
+    selectedEventSeed = "Gold Seed",
+    moveSpeed = 24, -- default roblox walkspeed
+    speedEnabled = false,
+    autoCollectEnabled = false,
+    connection = nil,
+    speedConnection = nil,
+}
 
--- ==========================================
--- CONNECT TO WEATHER REMOTE
--- ==========================================
-local function SetupWeatherRemote()
-    local success, remote = pcall(function()
-        return ReplicatedStorage:FindFirstChild("GameEvents") and ReplicatedStorage.GameEvents:FindFirstChild("WeatherEventStarted")
-    end)
-    
-    if success and remote then
-        remote.OnClientEvent:Connect(function(eventName, lengthSec)
-            pcall(function()
-                if type(eventName) ~= "string" then return end
-                
-                -- Normalize the weather name
-                local clean = eventName:lower():gsub("[^a-z]","")
-                local mapped = WeatherNameMap[clean]
-                if not mapped then
-                    for k,v in pairs(WeatherNameMap) do
-                        if clean:find(k) or k:find(clean) then mapped = v; break end
-                    end
-                end
-                if not mapped then mapped = eventName end
-                
-                local dur = (type(lengthSec) == "number" and lengthSec > 0) and lengthSec or (WeatherDB[mapped] and WeatherDB[mapped].dur or 120)
-                
-                currentWeather = mapped
-                weatherDuration = dur
-                weatherStartTime = tick()
-                weatherConnected = true
-                
-                local info = WeatherDB[currentWeather] or WeatherDB.Sunny
-                UpdateWeatherDisplay(info)
-                
-                -- Special alerts
-                if currentWeather == "Gold Moon" then
-                    SetStatus("🌟 GOLD MOON - Golden seeds spawning!")
-                elseif currentWeather == "Rainbow Moon" then
-                    SetStatus("🌈 RAINBOW MOON - Rainbow seeds spawning!")
-                elseif currentWeather == "Blood Moon" then
-                    SetStatus("🌑 BLOOD MOON - Bloodlit mutation active!")
-                elseif currentWeather == "Rainbow" then
-                    SetStatus("🌈 RAINBOW - Rainbow luck boosted 10x!")
-                elseif currentWeather == "Lightning" then
-                    SetStatus("⚡ LIGHTNING - Electric mutation (80x)!")
-                elseif currentWeather == "Snowfall" then
-                    SetStatus("❄️ SNOWFALL - Frozen mutation (3x)!")
-                elseif currentWeather == "Starfall" then
-                    SetStatus("⭐ STARFALL - Starstruck mutation!")
-                elseif currentWeather == "Rain" then
-                    SetStatus("🌧️ RAIN - 2x growth speed!")
+-- Utility: Create UI elements
+local function createUI()
+    -- Main Frame
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, UI_WIDTH, 0, UI_HEIGHT)
+    MainFrame.Position = UDim2.new(0.5, -(UI_WIDTH/2), 0.5, -(UI_HEIGHT/2))
+    MainFrame.BackgroundColor3 = COLORS.Background
+    MainFrame.BorderSize = 0
+    MainFrame.ClipsDescendants = true
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+
+    local MainCorner = Instance.new("UICorner")
+    MainCorner.CornerRadius = UDim.new(0, CORNER_RADIUS)
+    MainCorner.Parent = MainFrame
+
+    local MainShadow = Instance.new("ImageLabel")
+    MainShadow.Name = "MainShadow"
+    MainShadow.Size = UDim2.new(1, 40, 1, 40)
+    MainShadow.Position = UDim2.new(0, -20, 0, -20)
+    MainShadow.BackgroundTransparency = 1
+    MainShadow.Image = "rbxassetid://6014261993"
+    MainShadow.ImageColor3 = COLORS.Shadow
+    MainShadow.ImageTransparency = 0.7
+    MainShadow.ScaleType = Enum.ScaleType.Slice
+    MainShadow.SliceCenter = Rect.new(20, 20, 20, 20)
+    MainShadow.ZIndex = -1
+    MainShadow.Parent = MainFrame
+
+    -- Header
+    local Header = Instance.new("Frame")
+    Header.Name = "Header"
+    Header.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+    Header.BackgroundColor3 = COLORS.HeaderBg
+    Header.BorderSize = 0
+    Header.Parent = MainFrame
+
+    local HeaderCorner = Instance.new("UICorner")
+    HeaderCorner.CornerRadius = UDim.new(0, CORNER_RADIUS)
+    HeaderCorner.Parent = Header
+
+    -- Header top-only round
+    local HeaderFill = Instance.new("Frame")
+    HeaderFill.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT / 2)
+    HeaderFill.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT / 2)
+    HeaderFill.BackgroundColor3 = COLORS.HeaderBg
+    HeaderFill.BorderSize = 0
+    HeaderFill.Parent = Header
+
+    -- App Icon / Title
+    local TitleIcon = Instance.new("ImageLabel")
+    TitleIcon.Size = UDim2.new(0, 24 * guiScale, 0, 24 * guiScale)
+    TitleIcon.Position = UDim2.new(0, PADDING, 0.5, -12 * guiScale)
+    TitleIcon.BackgroundTransparency = 1
+    TitleIcon.Image = "rbxassetid://4483345998" -- leaf/seed icon placeholder
+    TitleIcon.ImageColor3 = COLORS.PrimaryAccent
+    TitleIcon.Parent = Header
+
+    local TitleText = Instance.new("TextLabel")
+    TitleText.Size = UDim2.new(0, 180 * guiScale, 1, 0)
+    TitleText.Position = UDim2.new(0, 44 * guiScale, 0, 0)
+    TitleText.BackgroundTransparency = 1
+    TitleText.Text = "Grow a Garden 2"
+    TitleText.TextColor3 = COLORS.TextPrimary
+    TitleText.Font = Enum.Font.GothamBold
+    TitleText.TextSize = 16 * guiScale
+    TitleText.TextXAlignment = Enum.TextXAlignment.Left
+    TitleText.Parent = Header
+
+    -- Window Controls (macOS-style dots)
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Name = "CloseBtn"
+    CloseBtn.Size = UDim2.new(0, 14 * guiScale, 0, 14 * guiScale)
+    CloseBtn.Position = UDim2.new(1, -(PADDING + 14 * guiScale), 0.5, -7 * guiScale)
+    CloseBtn.BackgroundColor3 = COLORS.CloseRed
+    CloseBtn.Text = ""
+    CloseBtn.BorderSize = 0
+    CloseBtn.AutoButtonColor = false
+    CloseBtn.Parent = Header
+
+    local CloseCorner = Instance.new("UICorner")
+    CloseCorner.CornerRadius = UDim.new(1, 0)
+    CloseCorner.Parent = CloseBtn
+
+    local MinimizeBtn = Instance.new("TextButton")
+    MinimizeBtn.Name = "MinimizeBtn"
+    MinimizeBtn.Size = UDim2.new(0, 14 * guiScale, 0, 14 * guiScale)
+    MinimizeBtn.Position = UDim2.new(1, -(PADDING + 14 * guiScale + 20 * guiScale), 0.5, -7 * guiScale)
+    MinimizeBtn.BackgroundColor3 = COLORS.MinimizeYellow
+    MinimizeBtn.Text = ""
+    MinimizeBtn.BorderSize = 0
+    MinimizeBtn.AutoButtonColor = false
+    MinimizeBtn.Parent = Header
+
+    local MinimizeCorner = Instance.new("UICorner")
+    MinimizeCorner.CornerRadius = UDim.new(1, 0)
+    MinimizeCorner.Parent = MinimizeBtn
+
+    -- Separator
+    local Separator = Instance.new("Frame")
+    Separator.Size = UDim2.new(1, -PADDING * 2, 0, 1)
+    Separator.Position = UDim2.new(0, PADDING, 0, HEADER_HEIGHT)
+    Separator.BackgroundColor3 = COLORS.InputBorder
+    Separator.BorderSize = 0
+    Separator.Parent = MainFrame
+
+    -- Scrollable Content
+    local ScrollingFrame = Instance.new("ScrollingFrame")
+    ScrollingFrame.Name = "Content"
+    ScrollingFrame.Size = UDim2.new(1, 0, 1, -(HEADER_HEIGHT + 2))
+    ScrollingFrame.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT + 2)
+    ScrollingFrame.BackgroundTransparency = 1
+    ScrollingFrame.BorderSize = 0
+    ScrollingFrame.ScrollBarThickness = 4 * guiScale
+    ScrollingFrame.ScrollBarImageColor3 = COLORS.PrimaryAccent
+    ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    ScrollingFrame.Parent = MainFrame
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, PADDING)
+    UIListLayout.Parent = ScrollingFrame
+
+    local UIPadding = Instance.new("UIPadding")
+    UIPadding.PaddingLeft = UDim.new(0, PADDING)
+    UIPadding.PaddingRight = UDim.new(0, PADDING)
+    UIPadding.PaddingTop = UDim.new(0, PADDING)
+    UIPadding.PaddingBottom = UDim.new(0, PADDING * 2)
+    UIPadding.Parent = ScrollingFrame
+
+    -- Helper: Card wrapper
+    local function createCard(title)
+        local Card = Instance.new("Frame")
+        Card.BackgroundColor3 = COLORS.CardBg
+        Card.BorderSize = 0
+        Card.Size = UDim2.new(1, -PADDING * 2, 0, 0)
+        Card.AutomaticSize = Enum.AutomaticSize.Y
+
+        local CardCorner = Instance.new("UICorner")
+        CardCorner.CornerRadius = UDim.new(0, 12)
+        CardCorner.Parent = Card
+
+        local CardPadding = Instance.new("UIPadding")
+        CardPadding.PaddingLeft = UDim.new(0, 14 * guiScale)
+        CardPadding.PaddingRight = UDim.new(0, 14 * guiScale)
+        CardPadding.PaddingTop = UDim.new(0, 14 * guiScale)
+        CardPadding.PaddingBottom = UDim.new(0, 14 * guiScale)
+        CardPadding.Parent = Card
+
+        local CardList = Instance.new("UIListLayout")
+        CardList.Padding = UDim.new(0, 10 * guiScale)
+        CardList.SortOrder = Enum.SortOrder.LayoutOrder
+        CardList.Parent = Card
+
+        local TitleLabel = Instance.new("TextLabel")
+        TitleLabel.Size = UDim2.new(1, 0, 0, 22 * guiScale)
+        TitleLabel.BackgroundTransparency = 1
+        TitleLabel.Text = title
+        TitleLabel.TextColor3 = COLORS.TextPrimary
+        TitleLabel.Font = Enum.Font.GothamSemibold
+        TitleLabel.TextSize = 15 * guiScale
+        TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        TitleLabel.Parent = Card
+
+        return Card, CardList, CardPadding, TitleLabel
+    end
+
+    -- Dropdown helper
+    local function createDropdown(cardList, options, default, callback)
+        local DropdownFrame = Instance.new("Frame")
+        DropdownFrame.Size = UDim2.new(1, 0, 0, 36 * guiScale)
+        DropdownFrame.BackgroundColor3 = COLORS.InputBg
+        DropdownFrame.BorderSize = 0
+        DropdownFrame.ClipsDescendants = true
+
+        local DropCorner = Instance.new("UICorner")
+        DropCorner.CornerRadius = UDim.new(0, 10)
+        DropCorner.Parent = DropdownFrame
+
+        local DropBorder = Instance.new("UIStroke")
+        DropBorder.Color = COLORS.InputBorder
+        DropBorder.Thickness = 1
+        DropBorder.Parent = DropdownFrame
+
+        local SelectedText = Instance.new("TextLabel")
+        SelectedText.Name = "SelectedText"
+        SelectedText.Size = UDim2.new(1, -40 * guiScale, 1, 0)
+        SelectedText.Position = UDim2.new(0, 10 * guiScale, 0, 0)
+        SelectedText.BackgroundTransparency = 1
+        SelectedText.Text = default
+        SelectedText.TextColor3 = COLORS.TextPrimary
+        SelectedText.Font = Enum.Font.Gotham
+        SelectedText.TextSize = 14 * guiScale
+        SelectedText.TextXAlignment = Enum.TextXAlignment.Left
+        SelectedText.Parent = DropdownFrame
+
+        local Arrow = Instance.new("ImageLabel")
+        Arrow.Size = UDim2.new(0, 12 * guiScale, 0, 12 * guiScale)
+        Arrow.Position = UDim2.new(1, -24 * guiScale, 0.5, -6 * guiScale)
+        Arrow.BackgroundTransparency = 1
+        Arrow.Image = "rbxassetid://6031094669"
+        Arrow.ImageColor3 = COLORS.TextSecondary
+        Arrow.Rotation = 180
+        Arrow.Parent = DropdownFrame
+
+        local DropdownBtn = Instance.new("TextButton")
+        DropdownBtn.Size = UDim2.new(1, 0, 1, 0)
+        DropdownBtn.BackgroundTransparency = 1
+        DropdownBtn.Text = ""
+        DropdownBtn.AutoButtonColor = false
+        DropdownBtn.ZIndex = 10
+        DropdownBtn.Parent = DropdownFrame
+
+        local expanded = false
+        local dropdownList = Instance.new("Frame")
+        dropdownList.Size = UDim2.new(1, 0, 0, 0)
+        dropdownList.BackgroundColor3 = COLORS.DropdownBg
+        dropdownList.BorderSize = 0
+        dropdownList.Visible = false
+        dropdownList.ClipsDescendants = true
+
+        local DropListCorner = Instance.new("UICorner")
+        DropListCorner.CornerRadius = UDim.new(0, 10)
+        DropListCorner.Parent = dropdownList
+
+        local DropListBorder = Instance.new("UIStroke")
+        DropListBorder.Color = COLORS.InputBorder
+        DropListBorder.Thickness = 1
+        DropListBorder.Parent = dropdownList
+
+        local DropListLayout = Instance.new("UIListLayout")
+        DropListLayout.Padding = UDim.new(0, 2)
+        DropListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        DropListLayout.Parent = dropdownList
+
+        local function closeDropdown()
+            expanded = false
+            dropdownList.Visible = false
+            dropdownList.Size = UDim2.new(1, 0, 0, 0)
+            Arrow.Rotation = 180
+            DropdownFrame.Size = UDim2.new(1, 0, 0, 36 * guiScale)
+        end
+
+        for _, option in ipairs(options) do
+            local OptBtn = Instance.new("TextButton")
+            OptBtn.Size = UDim2.new(1, -8, 0, 32 * guiScale)
+            OptBtn.BackgroundTransparency = 0.9
+            OptBtn.BackgroundColor3 = COLORS.TextPrimary
+            OptBtn.Text = option
+            OptBtn.TextColor3 = COLORS.TextPrimary
+            OptBtn.Font = Enum.Font.Gotham
+            OptBtn.TextSize = 13 * guiScale
+            OptBtn.BorderSize = 0
+            OptBtn.AutoButtonColor = false
+            OptBtn.Parent = dropdownList
+
+            local OptCorner = Instance.new("UICorner")
+            OptCorner.CornerRadius = UDim.new(0, 8)
+            OptCorner.Parent = OptBtn
+
+            OptBtn.MouseEnter:Connect(function()
+                OptBtn.BackgroundTransparency = 0.7
+            end)
+            OptBtn.MouseLeave:Connect(function()
+                OptBtn.BackgroundTransparency = 0.9
+            end)
+            OptBtn.MouseButton1Click:Connect(function()
+                SelectedText.Text = option
+                callback(option)
+                closeDropdown()
+            end)
+        end
+
+        DropdownBtn.MouseButton1Click:Connect(function()
+            expanded = not expanded
+            if expanded then
+                dropdownList.Visible = true
+                Arrow.Rotation = 0
+                local count = #options
+                local listHeight = math.min(count * (34 * guiScale) + 4, 160 * guiScale)
+                dropdownList.Size = UDim2.new(1, 0, 0, listHeight)
+                DropdownFrame.Size = UDim2.new(1, 0, 0, 36 * guiScale + listHeight + 4)
+            else
+                closeDropdown()
+            end
+        end)
+
+        dropdownList.Parent = DropdownFrame
+        DropdownFrame.Parent = cardList
+
+        return DropdownFrame
+    end
+
+    -- Toggle helper
+    local function createToggle(cardList, label, default, callback)
+        local ToggleFrame = Instance.new("Frame")
+        ToggleFrame.Size = UDim2.new(1, 0, 0, 36 * guiScale)
+        ToggleFrame.BackgroundColor3 = COLORS.InputBg
+        ToggleFrame.BorderSize = 0
+
+        local ToggleCorner = Instance.new("UICorner")
+        ToggleCorner.CornerRadius = UDim.new(0, 10)
+        ToggleCorner.Parent = ToggleFrame
+
+        local ToggleBorder = Instance.new("UIStroke")
+        ToggleBorder.Color = COLORS.InputBorder
+        ToggleBorder.Thickness = 1
+        ToggleBorder.Parent = ToggleFrame
+
+        local ToggleLabel = Instance.new("TextLabel")
+        ToggleLabel.Size = UDim2.new(1, -60 * guiScale, 1, 0)
+        ToggleLabel.Position = UDim2.new(0, 10 * guiScale, 0, 0)
+        ToggleLabel.BackgroundTransparency = 1
+        ToggleLabel.Text = label
+        ToggleLabel.TextColor3 = COLORS.TextPrimary
+        ToggleLabel.Font = Enum.Font.Gotham
+        ToggleLabel.TextSize = 14 * guiScale
+        ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ToggleLabel.Parent = ToggleFrame
+
+        local ToggleBtn = Instance.new("Frame")
+        ToggleBtn.Name = "ToggleBtn"
+        ToggleBtn.Size = UDim2.new(0, 42 * guiScale, 0, 24 * guiScale)
+        ToggleBtn.Position = UDim2.new(1, -(52 * guiScale), 0.5, -12 * guiScale)
+        ToggleBtn.BackgroundColor3 = default and COLORS.PrimaryAccent or COLORS.InputBorder
+        ToggleBtn.BorderSize = 0
+
+        local ToggleCorner2 = Instance.new("UICorner")
+        ToggleCorner2.CornerRadius = UDim.new(1, 0)
+        ToggleCorner2.Parent = ToggleBtn
+
+        local ToggleKnob = Instance.new("Frame")
+        ToggleKnob.Name = "Knob"
+        ToggleKnob.Size = UDim2.new(0, 20 * guiScale, 0, 20 * guiScale)
+        ToggleKnob.Position = UDim2.new(0, default and (20 * guiScale) or 2 * guiScale, 0.5, -10 * guiScale)
+        ToggleKnob.BackgroundColor3 = COLORS.TextPrimary
+        ToggleKnob.BorderSize = 0
+
+        local KnobCorner = Instance.new("UICorner")
+        KnobCorner.CornerRadius = UDim.new(1, 0)
+        KnobCorner.Parent = ToggleKnob
+
+        ToggleKnob.Parent = ToggleBtn
+
+        local ToggleClick = Instance.new("TextButton")
+        ToggleClick.Size = UDim2.new(1, 0, 1, 0)
+        ToggleClick.BackgroundTransparency = 1
+        ToggleClick.Text = ""
+        ToggleClick.AutoButtonColor = false
+        ToggleClick.ZIndex = 10
+        ToggleClick.Parent = ToggleFrame
+
+        local toggled = default
+        ToggleClick.MouseButton1Click:Connect(function()
+            toggled = not toggled
+            ToggleBtn.BackgroundColor3 = toggled and COLORS.PrimaryAccent or COLORS.InputBorder
+            local targetPos = toggled and UDim2.new(0, 20 * guiScale, 0.5, -10 * guiScale) or UDim2.new(0, 2 * guiScale, 0.5, -10 * guiScale)
+            ToggleKnob:TweenPosition(targetPos, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+            callback(toggled)
+        end)
+
+        ToggleFrame.Parent = cardList
+        return ToggleFrame, ToggleBtn, ToggleKnob
+    end
+
+    -- Slider helper
+    local function createSlider(cardList, label, min, max, default, formatStr, callback)
+        local SliderFrame = Instance.new("Frame")
+        SliderFrame.Size = UDim2.new(1, 0, 0, 50 * guiScale)
+        SliderFrame.BackgroundColor3 = COLORS.InputBg
+        SliderFrame.BorderSize = 0
+
+        local SliderCorner = Instance.new("UICorner")
+        SliderCorner.CornerRadius = UDim.new(0, 10)
+        SliderCorner.Parent = SliderFrame
+
+        local SliderBorder = Instance.new("UIStroke")
+        SliderBorder.Color = COLORS.InputBorder
+        SliderBorder.Thickness = 1
+        SliderBorder.Parent = SliderFrame
+
+        local SliderLabel = Instance.new("TextLabel")
+        SliderLabel.Size = UDim2.new(0, 150 * guiScale, 0, 18 * guiScale)
+        SliderLabel.Position = UDim2.new(0, 10 * guiScale, 0, 6 * guiScale)
+        SliderLabel.BackgroundTransparency = 1
+        SliderLabel.Text = label
+        SliderLabel.TextColor3 = COLORS.TextSecondary
+        SliderLabel.Font = Enum.Font.Gotham
+        SliderLabel.TextSize = 12 * guiScale
+        SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+        SliderLabel.Parent = SliderFrame
+
+        local ValueLabel = Instance.new("TextLabel")
+        ValueLabel.Size = UDim2.new(0, 80 * guiScale, 0, 18 * guiScale)
+        ValueLabel.Position = UDim2.new(1, -(90 * guiScale), 0, 6 * guiScale)
+        ValueLabel.BackgroundTransparency = 1
+        ValueLabel.Text = formatStr:format(default)
+        ValueLabel.TextColor3 = COLORS.PrimaryAccent
+        ValueLabel.Font = Enum.Font.GothamSemibold
+        ValueLabel.TextSize = 13 * guiScale
+        ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+        ValueLabel.Parent = SliderFrame
+
+        local Track = Instance.new("Frame")
+        Track.Size = UDim2.new(1, -20 * guiScale, 0, 4 * guiScale)
+        Track.Position = UDim2.new(0, 10 * guiScale, 0, 36 * guiScale)
+        Track.BackgroundColor3 = COLORS.InputBorder
+        Track.BorderSize = 0
+
+        local TrackCorner = Instance.new("UICorner")
+        TrackCorner.CornerRadius = UDim.new(1, 0)
+        TrackCorner.Parent = Track
+
+        local Fill = Instance.new("Frame")
+        Fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+        Fill.BackgroundColor3 = COLORS.PrimaryAccent
+        Fill.BorderSize = 0
+
+        local FillCorner = Instance.new("UICorner")
+        FillCorner.CornerRadius = UDim.new(1, 0)
+        FillCorner.Parent = Fill
+        Fill.Parent = Track
+
+        local Knob = Instance.new("Frame")
+        Knob.Size = UDim2.new(0, 16 * guiScale, 0, 16 * guiScale)
+        Knob.Position = UDim2.new((default - min) / (max - min), -8 * guiScale, 0.5, -8 * guiScale)
+        Knob.BackgroundColor3 = COLORS.TextPrimary
+        Knob.BorderSize = 0
+
+        local KnobCorner = Instance.new("UICorner")
+        KnobCorner.CornerRadius = UDim.new(1, 0)
+        KnobCorner.Parent = Knob
+        Knob.Parent = Track
+
+        Track.Parent = SliderFrame
+
+        local dragging = false
+        local function updateSlider(input)
+            local pos = UserInputService:GetMouseLocation()
+            local absPos = Track.AbsolutePosition
+            local absSize = Track.AbsoluteSize.X
+            local relativeX = math.clamp((pos.X - absPos.X) / absSize, 0, 1)
+            local value = math.floor(min + (max - min) * relativeX)
+            Fill.Size = UDim2.new(relativeX, 0, 1, 0)
+            Knob.Position = UDim2.new(relativeX, -8 * guiScale, 0.5, -8 * guiScale)
+            ValueLabel.Text = formatStr:format(value)
+            callback(value)
+        end
+
+        local SliderClick = Instance.new("TextButton")
+        SliderClick.Size = UDim2.new(1, 0, 1, 0)
+        SliderClick.BackgroundTransparency = 1
+        SliderClick.Text = ""
+        SliderClick.AutoButtonColor = false
+        SliderClick.ZIndex = 5
+        SliderClick.Parent = SliderFrame
+
+        SliderClick.MouseButton1Down:Connect(function()
+            dragging = true
+            updateSlider()
+            local conn
+            conn = UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = false
+                    conn:Disconnect()
                 end
             end)
         end)
-    else
-        warn("⚠️ Weather remote not found, using fallback detection")
-    end
-end
 
--- ==========================================
--- FALLBACK WEATHER DETECTION
--- ==========================================
-local function DetectWeatherFallback()
-    -- Check particle emitters for active weather
-    for _,v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("ParticleEmitter") and v.Enabled then
-            local tag = (v.Name.." "..(v.Parent and v.Parent.Name or "")):lower()
-            if tag:find("lightning") or tag:find("thunder") then return "Lightning" end
-            if tag:find("rain") and not tag:find("bow") and not tag:find("bow") then return "Rain" end
-            if tag:find("snow") or tag:find("blizzard") then return "Snowfall" end
-            if tag:find("star") and tag:find("fall") then return "Starfall" end
-            if tag:find("rainbow") and not tag:find("rain") then return "Rainbow" end
-        end
-    end
-    
-    -- Check clock time for night
-    local ct = Lighting.ClockTime or 12
-    isNight = ct < 5.5 or ct > 18.5
-    
-    -- Check ambient for moon events
-    if isNight then
-        local amb = Lighting.Ambient or Color3.new()
-        if amb.R > 0.35 and amb.G < 0.08 then return "Blood Moon" end
-        if amb.R > 0.35 and amb.G > 0.25 then return "Gold Moon" end
-        if amb.B > 0.4 and amb.R < 0.2 then return "Rainbow Moon" end
-        return "Night"
-    end
-    
-    -- Check sky appearance
-    for _,v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Sky") then
-            local skyColor = v.SkyboxBk or v.SkyboxUp
-            -- Can't easily read skybox colors, skip
-        end
-    end
-    
-    -- Try reading weather icon in player GUI
-    local plrGui = LP:FindFirstChild("PlayerGui")
-    if plrGui then
-        for _, gui in pairs(plrGui:GetDescendants()) do
-            if gui:IsA("ImageLabel") or gui:IsA("TextLabel") then
-                local txt = (gui:IsA("TextLabel") and gui.Text or gui.Name):lower()
-                for weatherName in pairs(WeatherDB) do
-                    if txt:find(weatherName:lower():gsub("[^a-z]","")) then
-                        return weatherName
-                    end
-                end
+        UserInputService.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement) then
+                updateSlider()
             end
-        end
+        end)
+
+        SliderFrame.Parent = cardList
+        return SliderFrame
     end
-    
-    return "Sunny"
-end
 
--- ==========================================
--- DRAWING API UI - FIXED VERSION
--- ==========================================
-local UI = {
-    Bg = nil,
-    TitleBg = nil,
-    Title = nil,
-    MinimizeBtn = nil,
-    MinimizeText = nil,
-    CloseBtn = nil,
-    CloseText = nil,
-    WeatherIcon = nil,
-    WeatherText = nil,
-    WeatherTime = nil,
-    WeatherDesc = nil,
-    StatusText = nil,
-    Sep1 = nil,
-    Sep2 = nil,
-    InfoText = nil,
-    ToggleLabels = {},
-    ToggleDescs = {},
-    ToggleBgs = {},
-    ToggleCircles = {},
-    Toggles = {},
-}
+    -- ====== BUILD UI ======
 
--- Toggle states: 1=AutoCollect, 2=AutoDefense, 3=AutoStayBase, 4=WeatherAlerts
-local ToggleState = {true, true, true, true}
+    -- SECTION 1: Auto Collect Event Seeds
+    local Card1, List1 = createCard("Auto Collect Event Seeds")
+    Card1.Parent = ScrollingFrame
 
-local function Draw(type, props)
-    local d = Drawing.new(type)
-    for k,v in pairs(props) do
-        pcall(function() d[k] = v end)
-    end
-    return d
-end
+    local dropdown = createDropdown(List1, {"Gold Seed", "Rainbow Seed", "Bird", "Seed Pack"}, state.selectedEventSeed, function(val)
+        state.selectedEventSeed = val
+    end)
 
-local C = {
-    bg = Color3.fromRGB(25, 25, 35),
-    accent = Color3.fromRGB(40, 180, 80),
-    text = Color3.fromRGB(230, 230, 230),
-    dim = Color3.fromRGB(140, 140, 140),
-    danger = Color3.fromRGB(220, 60, 60),
-    gold = Color3.fromRGB(255, 210, 60),
-    warn = Color3.fromRGB(255, 180, 50),
-}
-
-local W = 400
-local H = 460
-local TitleH = 36
-local startX = ScreenSize.X/2 - W/2
-local startY = ScreenSize.Y/2 - H/2
-
--- Background
-UI.Bg = Draw("Square", {
-    Size = Vector2.new(W, H),
-    Position = Vector2.new(startX, startY),
-    Color = C.bg,
-    Filled = true,
-    Transparency = 1,
-    ZIndex = 999,
-})
-
--- Title bar
-UI.TitleBg = Draw("Square", {
-    Size = Vector2.new(W, TitleH),
-    Position = Vector2.new(startX, startY),
-    Color = C.accent,
-    Filled = true,
-    Transparency = 1,
-    ZIndex = 1000,
-})
-
-UI.Title = Draw("Text", {
-    Text = "🌱 GAG2 Red Team",
-    Color = Color3.fromRGB(255, 255, 255),
-    Size = 16,
-    Position = Vector2.new(startX + 10, startY + 8),
-    Center = false,
-    Outline = true,
-    ZIndex = 1001,
-    Font = 2,
-})
-
--- Close button (X)
-UI.CloseBtn = Draw("Square", {
-    Size = Vector2.new(28, 28),
-    Position = Vector2.new(startX + W - 34, startY + 4),
-    Color = C.danger,
-    Filled = true,
-    Transparency = 1,
-    ZIndex = 1000,
-})
-
-UI.CloseText = Draw("Text", {
-    Text = "X",
-    Color = Color3.fromRGB(255, 255, 255),
-    Size = 14,
-    Position = Vector2.new(startX + W - 20, startY + 10),
-    Center = true,
-    ZIndex = 1001,
-    Font = 2,
-})
-
--- Minimize button (-)
-UI.MinimizeBtn = Draw("Square", {
-    Size = Vector2.new(28, 28),
-    Position = Vector2.new(startX + W - 68, startY + 4),
-    Color = C.warn,
-    Filled = true,
-    Transparency = 1,
-    ZIndex = 1000,
-})
-
-UI.MinimizeText = Draw("Text", {
-    Text = "—",
-    Color = Color3.fromRGB(255, 255, 255),
-    Size = 14,
-    Position = Vector2.new(startX + W - 54, startY + 10),
-    Center = true,
-    ZIndex = 1001,
-    Font = 2,
-})
-
--- ==========================================
--- BUILD UI CONTENT
--- ==========================================
-local function BuildFullUI()
-    local y = startY + 50
-    
-    -- Weather section header
-    local weatherHdr = Draw("Text", {
-        Text = "=== WEATHER TRACKER ===",
-        Color = Color3.fromRGB(80, 180, 255),
-        Size = 12,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-        Font = 2,
-    })
-    y = y + 22
-    
-    UI.WeatherIcon = Draw("Text", {
-        Text = "☀️",
-        Color = Color3.fromRGB(255, 220, 80),
-        Size = 22,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-    })
-    
-    UI.WeatherText = Draw("Text", {
-        Text = "Current: Sunny",
-        Color = Color3.fromRGB(255, 220, 80),
-        Size = 15,
-        Position = Vector2.new(startX + 42, y + 3),
-        Center = false,
-        ZIndex = 1001,
-        Font = 2,
-    })
-    
-    y = y + 26
-    
-    UI.WeatherDesc = Draw("Text", {
-        Text = "Normal growth",
-        Color = C.dim,
-        Size = 11,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-    })
-    y = y + 16
-    
-    UI.WeatherTime = Draw("Text", {
-        Text = "Remaining: --:--",
-        Color = C.dim,
-        Size = 12,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-    })
-    y = y + 30
-    
-    -- Separator
-    UI.Sep1 = Draw("Line", {
-        From = Vector2.new(startX + 5, y),
-        To = Vector2.new(startX + W - 5, y),
-        Color = Color3.fromRGB(50, 50, 65),
-        Thickness = 1,
-        ZIndex = 1000,
-    })
-    y = y + 12
-    
-    -- Status
-    UI.StatusText = Draw("Text", {
-        Text = "✅ Script Active | Monitoring...",
-        Color = C.text,
-        Size = 13,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-    })
-    y = y + 30
-    
-    -- Separator
-    UI.Sep2 = Draw("Line", {
-        From = Vector2.new(startX + 5, y),
-        To = Vector2.new(startX + W - 5, y),
-        Color = Color3.fromRGB(50, 50, 65),
-        Thickness = 1,
-        ZIndex = 1000,
-    })
-    y = y + 10
-    
-    -- Section header
-    local toggleHdr = Draw("Text", {
-        Text = "=== FEATURES ===",
-        Color = C.accent,
-        Size = 12,
-        Position = Vector2.new(startX + 10, y),
-        Center = false,
-        ZIndex = 1001,
-        Font = 2,
-    })
-    y = y + 22
-    
-    -- Toggle items
-    local toggleData = {
-        {label="Auto-Collect Event Seeds", desc="Golden & Rainbow seeds"},
-        {label="Auto Defense", desc="Attack thieves in your base"},
-        {label="Auto Stay at Base (Night)", desc="Return to base at night"},
-        {label="Weather Alerts", desc="Notify on weather changes"},
-    }
-    
-    for i = 1, 4 do
-        local ty = y + (i-1) * 48
-        
-        local lbl = Draw("Text", {
-            Text = toggleData[i].label,
-            Color = C.text,
-            Size = 14,
-            Position = Vector2.new(startX + 10, ty),
-            Center = false,
-            ZIndex = 1001,
-            Font = 2,
-        })
-        table.insert(UI.ToggleLabels, lbl)
-        
-        local desc = Draw("Text", {
-            Text = toggleData[i].desc,
-            Color = C.dim,
-            Size = 11,
-            Position = Vector2.new(startX + 10, ty + 18),
-            Center = false,
-            ZIndex = 1001,
-        })
-        table.insert(UI.ToggleDescs, desc)
-        
-        -- Toggle background
-        local tBg = Draw("Square", {
-            Size = Vector2.new(46, 24),
-            Position = Vector2.new(startX + W - 60, ty + 2),
-            Color = ToggleState[i] and C.accent or Color3.fromRGB(60, 60, 70),
-            Filled = true,
-            Transparency = 1,
-            ZIndex = 1000,
-        })
-        table.insert(UI.ToggleBgs, tBg)
-        
-        -- Circle/knob
-        local circ = Draw("Square", {
-            Size = Vector2.new(20, 20),
-            Position = ToggleState[i] and Vector2.new(startX + W - 56, ty + 4) or Vector2.new(startX + W - 82, ty + 4),
-            Color = Color3.fromRGB(255, 255, 255),
-            Filled = true,
-            Transparency = 1,
-            ZIndex = 1001,
-        })
-        table.insert(UI.ToggleCircles, circ)
-    end
-    
-    local yEnd = y + 4*48 + 15
-    
-    -- Separator
-    local sep3 = Draw("Line", {
-        From = Vector2.new(startX + 5, yEnd),
-        To = Vector2.new(startX + W - 5, yEnd),
-        Color = Color3.fromRGB(50, 50, 65),
-        Thickness = 1,
-        ZIndex = 1000,
-    })
-    yEnd = yEnd + 12
-    
-    -- Info text
-    UI.InfoText = Draw("Text", {
-        Text = "Gold Moon → Golden Seeds | Rainbow Moon → Rainbow Seeds",
-        Color = Color3.fromRGB(180, 180, 100),
-        Size = 11,
-        Position = Vector2.new(startX + 10, yEnd),
-        Center = false,
-        ZIndex = 1001,
-    })
-    yEnd = yEnd + 16
-    
-    local info2 = Draw("Text", {
-        Text = "2% chance to spawn Rainbow Pet during Rainbow events",
-        Color = C.dim,
-        Size = 11,
-        Position = Vector2.new(startX + 10, yEnd),
-        Center = false,
-        ZIndex = 1001,
-    })
-end
-
-BuildFullUI()
-
--- ==========================================
--- UI FUNCTIONS
--- ==========================================
-local minimized = false
-
-local function UpdateWeatherDisplay(info)
-    if not info then info = WeatherDB[currentWeather] or WeatherDB.Sunny end
-    UI.WeatherIcon.Text = info.icon
-    UI.WeatherText.Text = "Current: " .. currentWeather
-    UI.WeatherText.Color = info.color
-    UI.WeatherIcon.Color = info.color
-    UI.WeatherDesc.Text = info.desc
-end
-
-local function UpdateWeatherTimer()
-    local elapsed = tick() - weatherStartTime
-    local remaining = math.max(0, weatherDuration - elapsed)
-    local mins = math.floor(remaining / 60)
-    local secs = math.floor(remaining % 60)
-    UI.WeatherTime.Text = string.format("Remaining: %02d:%02d", mins, secs)
-end
-
-local function SetStatus(text)
-    if UI.StatusText then UI.StatusText.Text = text end
-end
-
-local function ToggleFeature(idx)
-    ToggleState[idx] = not ToggleState[idx]
-    local bg = UI.ToggleBgs[idx]
-    local circ = UI.ToggleCircles[idx]
-    local ty = 0
-    -- Calculate y position
-    for i = 1, 4 do
-        if i == idx then
-            ty = UI.ToggleLabels[idx].Position.Y - 2
-            break
-        end
-    end
-    
-    if ToggleState[idx] then
-        bg.Color = C.accent
-        circ.Position = Vector2.new(startX + W - 56, ty)
-    else
-        bg.Color = Color3.fromRGB(60, 60, 70)
-        circ.Position = Vector2.new(startX + W - 82, ty)
-    end
-end
-
-local function MinimizeUI()
-    minimized = not minimized
-    if minimized then
-        UI.Bg.Size = Vector2.new(200, TitleH)
-        UI.TitleBg.Size = Vector2.new(200, TitleH)
-        UI.Title.Text = "🌱 GAG2"
-        UI.Title.Position = Vector2.new(startX + 8, startY + 8)
-        
-        -- Hide all content elements
-        UI.CloseBtn.Visible = false
-        UI.CloseText.Visible = false
-        UI.MinimizeText.Text = "+"
-        
-        UI.WeatherIcon.Visible = false
-        UI.WeatherText.Visible = false
-        UI.WeatherTime.Visible = false
-        UI.WeatherDesc.Visible = false
-        UI.StatusText.Visible = false
-        UI.InfoText.Visible = false
-        UI.Sep1.Visible = false
-        UI.Sep2.Visible = false
-        
-        for _,v in pairs(UI.ToggleLabels) do v.Visible = false end
-        for _,v in pairs(UI.ToggleDescs) do v.Visible = false end
-        for _,v in pairs(UI.ToggleBgs) do v.Visible = false end
-        for _,v in pairs(UI.ToggleCircles) do v.Visible = false end
-    else
-        UI.Bg.Size = Vector2.new(W, H)
-        UI.TitleBg.Size = Vector2.new(W, TitleH)
-        UI.Title.Text = "🌱 GAG2 Red Team"
-        UI.Title.Position = Vector2.new(startX + 10, startY + 8)
-        
-        UI.CloseBtn.Visible = true
-        UI.CloseText.Visible = true
-        UI.MinimizeText.Text = "—"
-        
-        UI.WeatherIcon.Visible = true
-        UI.WeatherText.Visible = true
-        UI.WeatherTime.Visible = true
-        UI.WeatherDesc.Visible = true
-        UI.StatusText.Visible = true
-        UI.InfoText.Visible = true
-        UI.Sep1.Visible = true
-        UI.Sep2.Visible = true
-        
-        for _,v in pairs(UI.ToggleLabels) do v.Visible = true end
-        for _,v in pairs(UI.ToggleDescs) do v.Visible = true end
-        for _,v in pairs(UI.ToggleBgs) do v.Visible = true end
-        for _,v in pairs(UI.ToggleCircles) do v.Visible = true end
-    end
-end
-
--- ==========================================
--- MOUSE INPUT HANDLING - FIXED VERSION
--- ==========================================
-local dragging = false
-local dragOffset = Vector2.new(0, 0)
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    local pos = input.Position
-    
-    -- CLOSE BUTTON CHECK
-    local cx, cy = UI.CloseBtn.Position.X, UI.CloseBtn.Position.Y
-    if pos.X >= cx and pos.X <= cx + 28 and pos.Y >= cy and pos.Y <= cy + 28 then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            -- Destroy UI completely
-            for _,v in pairs(UI) do
-                if type(v) == "table" then
-                    for _,vv in pairs(v) do
-                        if type(vv) == "Drawing" then pcall(function() vv:Remove() end) end
-                    end
-                elseif type(v) == "Drawing" then
-                    pcall(function() v:Remove() end)
-                end
-            end
-            print("GAG2: Script unloaded")
-            return
-        end
-    end
-    
-    -- MINIMIZE BUTTON CHECK
-    local mx, my = UI.MinimizeBtn.Position.X, UI.MinimizeBtn.Position.Y
-    if pos.X >= mx and pos.X <= mx + 28 and pos.Y >= my and pos.Y <= my + 28 then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            MinimizeUI()
-            return
-        end
-    end
-    
-    -- DRAG CHECK (title bar area, not on buttons)
-    local bgPos = UI.Bg.Position
-    local bgSize = UI.Bg.Size
-    if pos.Y >= bgPos.Y and pos.Y <= bgPos.Y + TitleH and pos.X >= bgPos.X and pos.X <= bgPos.X + bgSize.X then
-        -- Check if not on close or minimize button
-        local onClose = pos.X >= cx and pos.X <= cx + 28
-        local onMin = pos.X >= mx and pos.X <= mx + 28
-        if not onClose and not onMin then
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragOffset = Vector2.new(pos.X - bgPos.X, pos.Y - bgPos.Y)
-            end
-        end
-    end
-    
-    -- TOGGLE CHECKS (only if not minimized)
-    if not minimized then
-        for i = 1, 4 do
-            local tBg = UI.ToggleBgs[i]
-            if tBg and tBg.Visible then
-                local tx, ty = tBg.Position.X, tBg.Position.Y
-                if pos.X >= tx and pos.X <= tx + 46 and pos.Y >= ty and pos.Y <= ty + 24 then
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        ToggleFeature(i)
-                        return
-                    end
-                end
-            end
-        end
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input, gpe)
-    if gpe then return end
-    if dragging then
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            local pos = input.Position
-            startX = pos.X - dragOffset.X
-            startY = pos.Y - dragOffset.Y
-            
-            -- Update all positions
-            local function MoveDraw(obj, newX, newY)
-                if obj and type(obj) == "Drawing" then
-                    obj.Position = Vector2.new(newX, newY)
-                end
-            end
-            
-            MoveDraw(UI.Bg, startX, startY)
-            MoveDraw(UI.TitleBg, startX, startY)
-            MoveDraw(UI.Title, startX + 10, startY + 8)
-            MoveDraw(UI.CloseBtn, startX + W - 34, startY + 4)
-            MoveDraw(UI.CloseText, startX + W - 20, startY + 10)
-            MoveDraw(UI.MinimizeBtn, startX + W - 68, startY + 4)
-            MoveDraw(UI.MinimizeText, startX + W - 54, startY + 10)
-            
-            if not minimized then
-                local y = startY + 50
-                MoveDraw(UI.WeatherIcon, startX + 10, y + 22)
-                MoveDraw(UI.WeatherText, startX + 42, y + 25)
-                y = y + 48
-                MoveDraw(UI.WeatherDesc, startX + 10, y)
-                y = y + 16
-                MoveDraw(UI.WeatherTime, startX + 10, y)
-                y = y + 30
-                
-                if UI.Sep1 then
-                    UI.Sep1.From = Vector2.new(startX + 5, y)
-                    UI.Sep1.To = Vector2.new(startX + W - 5, y)
-                end
-                y = y + 12
-                MoveDraw(UI.StatusText, startX + 10, y)
-                y = y + 30
-                
-                if UI.Sep2 then
-                    UI.Sep2.From = Vector2.new(startX + 5, y)
-                    UI.Sep2.To = Vector2.new(startX + W - 5, y)
-                end
-                y = y + 32
-                
-                for i = 1, 4 do
-                    local ty = y + (i-1) * 48
-                    if UI.ToggleLabels[i] then
-                        MoveDraw(UI.ToggleLabels[i], startX + 10, ty)
-                    end
-                    if UI.ToggleDescs[i] then
-                        MoveDraw(UI.ToggleDescs[i], startX + 10, ty + 18)
-                    end
-                    if UI.ToggleBgs[i] then
-                        MoveDraw(UI.ToggleBgs[i], startX + W - 60, ty + 2)
-                    end
-                    if UI.ToggleCircles[i] then
-                        if ToggleState[i] then
-                            MoveDraw(UI.ToggleCircles[i], startX + W - 56, ty + 4)
-                        else
-                            MoveDraw(UI.ToggleCircles[i], startX + W - 82, ty + 4)
-                        end
-                    end
-                end
-                
-                local yEnd = y + 4*48 + 15
-                MoveDraw(UI.InfoText, startX + 10, yEnd + 12)
-            end
-        end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gpe)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
--- ==========================================
--- CHAT HEAD SYSTEM
--- ==========================================
-local ChatHead = nil
-local ChatHeadText = nil
-local ChatHeadEnabled = true
-
-local function CreateChatHead()
-    -- Chat head drawing circle
-    ChatHead = Draw("Circle", {
-        Position = Vector2.new(ScreenSize.X - 60, ScreenSize.Y - 160),
-        Radius = 28,
-        Color = C.accent,
-        Filled = true,
-        Transparency = 0.2,
-        ZIndex = 998,
-        NumSides = 32,
-        Thickness = 3,
-    })
-    
-    ChatHeadText = Draw("Text", {
-        Text = "GAG2",
-        Color = Color3.fromRGB(255, 255, 255),
-        Size = 11,
-        Position = Vector2.new(ScreenSize.X - 60, ScreenSize.Y - 164),
-        Center = true,
-        Outline = true,
-        ZIndex = 999,
-        Font = 2,
-    })
-    
-    -- Chat head label
-    ChatHeadLabel = Draw("Text", {
-        Text = "✅",
-        Color = Color3.fromRGB(0, 255, 0),
-        Size = 16,
-        Position = Vector2.new(ScreenSize.X - 60, ScreenSize.Y - 145),
-        Center = true,
-        ZIndex = 999,
-    })
-end
-
-local function UpdateChatHead(text, color)
-    if not ChatHeadEnabled then return end
-    if not ChatHead then CreateChatHead() end
-    if ChatHeadText then
-        ChatHeadText.Text = text or "GAG2"
-    end
-    if ChatHead then
-        ChatHead.Color = color or C.accent
-        -- Pulse animation
-        local pulse = math.sin(tick() * 3) * 0.08
-        ChatHead.Transparency = 0.15 + pulse
-    end
-end
-
-local chatHeadMessages = {
-    "GAG2", "🌱", "✅", "⚔️", "🌙", "🌟", "🌈"
-}
-local chatMsgIdx = 1
-local chatMsgTimer = 0
-
--- Make chat head draggable too
-local chDragging = false
-local chDragOffset = Vector2.new(0,0)
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if not ChatHead then return end
-    local pos = input.Position
-    local chPos = ChatHead.Position
-    local dist = (Vector2.new(pos.X, pos.Y) - chPos).Magnitude
-    if dist < 35 then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            chDragging = true
-            chDragOffset = Vector2.new(pos.X - chPos.X, pos.Y - chPos.Y)
-        end
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input, gpe)
-    if gpe then return end
-    if chDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local pos = input.Position
-        local nx = pos.X - chDragOffset.X
-        local ny = pos.Y - chDragOffset.Y
-        if ChatHead then ChatHead.Position = Vector2.new(nx, ny) end
-        if ChatHeadText then ChatHeadText.Position = Vector2.new(nx, ny - 4) end
-        if ChatHeadLabel then ChatHeadLabel.Position = Vector2.new(nx, ny + 15) end
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gpe)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        chDragging = false
-    end
-end)
-
--- ==========================================
--- CORE GAME FEATURES
--- ==========================================
-
-local function FindEventSeeds()
-    local seeds = {}
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = obj.Name:lower()
-            local hasDetector = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChild("TouchTransmitter") or obj:FindFirstChildWhichIsA("ProximityPrompt")
-            if hasDetector then
-                local isTarget = (name:find("gold") and (name:find("seed") or name:find("coin") or name:find("nugget") or name:find("fruit")))
-                    or (name:find("rainbow") and (name:find("seed") or name:find("fruit") or name:find("star")))
-                    or name:find("goldenseed") or name:find("rainbowseed")
-                    or name:find("midas")
-                if isTarget then
-                    table.insert(seeds, obj)
-                end
-            end
-        end
-    end
-    return seeds
-end
-
-local function CollectSeed(obj)
-    pcall(function()
-        local detector = obj:FindFirstChildWhichIsA("ClickDetector")
-        if detector then fireclickdetector(detector); return true end
-        local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
-        if prompt then fireproximityprompt(prompt); return true end
-        local touch = obj:FindFirstChild("TouchTransmitter")
-        if touch and root then
-            root.CFrame = obj.CFrame * CFrame.new(0, 2, 0)
-            task.wait(0.05)
-            firetouchinterest(root, obj, 0)
-            task.wait(0.05)
-            firetouchinterest(root, obj, 1)
+    local toggle1 = createToggle(List1, "Auto Collect", state.autoCollectEnabled, function(val)
+        state.autoCollectEnabled = val
+        if val then
+            startAutoCollect()
+        else
+            stopAutoCollect()
         end
     end)
-end
 
-local function TeleportTo(pos)
-    if root then root.CFrame = CFrame.new(pos) end
-end
+    -- SECTION 2: Fast Move
+    local Card2, List2 = createCard("Fast Move")
+    Card2.Parent = ScrollingFrame
 
-local function FindMyBase()
-    local pName = LP.Name:lower()
-    -- Check gardens folder
-    local gardens = Workspace:FindFirstChild("Gardens")
-    if gardens then
-        local garden = gardens:FindFirstChild(LP.Name)
-        if garden then return garden end
-        -- Check by partial name
-        for _, v in pairs(gardens:GetChildren()) do
-            if v.Name:lower():find(pName:sub(1, 5)) then return v end
+    local toggle2 = createToggle(List2, "Fast Move", state.speedEnabled, function(val)
+        state.speedEnabled = val
+        if val then
+            applySpeed()
+        else
+            resetSpeed()
         end
-    end
-    -- Check workspace for plots
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            local name = obj.Name:lower()
-            if (name:find("plot") or name:find("garden") or name:find("base")) and (name:find(pName:sub(1, 5)) or (root and (obj.Position - root.Position).Magnitude < 30)) then
-                return obj
-            end
-        end
-    end
-    -- Fallback: find any plot near player
-    if root then
-        local closest, closestDist = nil, 999
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and (obj.Name:lower():find("plot") or obj.Name:lower():find("garden")) then
-                local dist = (obj.Position - root.Position).Magnitude
-                if dist < closestDist then closest = obj; closestDist = dist end
-            end
-        end
-        if closest then return closest end
-    end
-    return nil
-end
+    end)
 
-local function FindThreats()
-    local base = FindMyBase()
-    if not base then return {} end
-    local basePos = base:IsA("BasePart") and base.Position or nil
-    if not basePos then return {} end
-    local threats = {}
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (plr.Character.HumanoidRootPart.Position - basePos).Magnitude
-            if dist < 35 then table.insert(threats, plr) end
+    local slider = createSlider(List2, "Movement Speed", 16, 120, state.moveSpeed, "%dx Speed", function(val)
+        state.moveSpeed = val
+        if state.speedEnabled then
+            applySpeed()
         end
-    end
-    return threats
-end
+    end)
 
-local function EquipWeapon(name)
-    local backpack = LP.Backpack
-    if not backpack then return nil end
-    local target = name:lower()
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and (item.Name:lower():find(target) or target:find(item.Name:lower())) then
-            char.Humanoid:EquipTool(item)
-            task.wait(0.15)
-            return item
-        end
-    end
-    if char then
-        for _, tool in pairs(char:GetChildren()) do
-            if tool:IsA("Tool") then
-                local tn = tool.Name:lower()
-                if tn:find(target) or target:find(tn) then return tool end
-            end
-        end
-    end
-    return nil
-end
+    -- SECTION 3: Info / Credits
+    local Card3, List3 = createCard("About")
+    Card3.Parent = ScrollingFrame
 
-local function AttackThief(thief)
-    if not thief.Character or not thief.Character:FindFirstChild("Humanoid") then return end
-    local tRoot = thief.Character:FindFirstChild("HumanoidRootPart")
-    if not tRoot then return end
-    if root then root.CFrame = CFrame.lookAt(root.Position, tRoot.Position) end
-    
-    local weapons = {"Freeze Ray", "Power Hose", "Crowbar", "Shovel"}
-    for _, wName in ipairs(weapons) do
-        local weapon = EquipWeapon(wName)
-        if weapon then
-            if root then root.CFrame = tRoot.CFrame * CFrame.new(0, 0, 2.5) end
-            weapon:Activate()
-            task.wait(0.15)
-            weapon:Activate()
-            SetStatus("⚔️ Attacking " .. thief.Name .. " with " .. wName)
-            break
-        end
-    end
-end
+    local infoText = Instance.new("TextLabel")
+    infoText.Size = UDim2.new(1, 0, 0, 36 * guiScale)
+    infoText.BackgroundTransparency = 1
+    infoText.Text = "Grow a Garden 2 · Red Team Edition\nDark Mode UI · v1.0"
+    infoText.TextColor3 = COLORS.TextSecondary
+    infoText.Font = Enum.Font.Gotham
+    infoText.TextSize = 12 * guiScale
+    infoText.TextXAlignment = Enum.TextXAlignment.Left
+    infoText.RichText = true
+    infoText.Parent = List3
 
--- ==========================================
--- MAIN LOOP
--- ==========================================
+    -- Functions
+    local autoCollectLoop = nil
 
-local function MainLoop()
-    while task.wait(0.5) do
-        pcall(function()
-            -- Weather: try remote first, fallback to detection
-            if not weatherConnected then
-                local detected = DetectWeatherFallback()
-                if detected ~= currentWeather then
-                    currentWeather = detected
-                    weatherStartTime = tick()
-                    local info = WeatherDB[currentWeather] or WeatherDB.Sunny
-                    weatherDuration = info.dur
-                    UpdateWeatherDisplay(info)
-                    if currentWeather == "Gold Moon" or currentWeather == "Rainbow Moon" then
-                        SetStatus("⭐ EVENT: " .. currentWeather .. " - Seeds spawning!")
-                    else
-                        SetStatus("🌤️ Weather: " .. currentWeather)
+    function startAutoCollect()
+        if autoCollectLoop then return end
+        autoCollectLoop = RunService.Heartbeat:Connect(function()
+            if not state.autoCollectEnabled then return end
+            -- Collect event seeds based on selection
+            local collectionTargets = {
+                ["Gold Seed"] = "GoldSeed",
+                ["Rainbow Seed"] = "RainbowSeed",
+                ["Bird"] = "Bird",
+                ["Seed Pack"] = "SeedPack",
+            }
+            local target = collectionTargets[state.selectedEventSeed]
+            if not target then return end
+
+            -- Find and collect nearby event seeds
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and obj.Name == target then
+                    local distance = (obj.Position - HumanoidRootPart.Position).Magnitude
+                    if distance < 50 then
+                        firetouchinterest(HumanoidRootPart, obj, 0)
+                        task.wait(0.05)
+                        firetouchinterest(HumanoidRootPart, obj, 1)
                     end
                 end
             end
-            
-            UpdateWeatherTimer()
-            
-            -- AUTO COLLECT SEEDS
-            if ToggleState[1] then
-                local seeds = FindEventSeeds()
-                if #seeds > 0 then
-                    for _, seed in ipairs(seeds) do
-                        if root then
-                            local dist = (seed.Position - root.Position).Magnitude
-                            if dist < 150 then
-                                TeleportTo(seed.CFrame * CFrame.new(0, 2, 0))
-                                task.wait(0.1)
-                                CollectSeed(seed)
-                                SetStatus("🎯 Collected " .. seed.Name)
-                                task.wait(0.3)
-                            end
-                        end
-                    end
-                end
-            end
-            
-            -- AUTO STAY BASE AT NIGHT
-            if ToggleState[3] then
-                local ct = Lighting.ClockTime or 12
-                local nightTime = ct < 5.5 or ct > 18.5
-                local isNightWeather = currentWeather == "Night" or currentWeather == "Blood Moon" or currentWeather == "Gold Moon" or currentWeather == "Rainbow Moon"
-                
-                if nightTime or isNightWeather then
-                    local base = FindMyBase()
-                    if base and base:IsA("BasePart") and root then
-                        local dist = (root.Position - base.Position).Magnitude
-                        if dist > 15 then
-                            TeleportTo(base.Position + Vector3.new(0, 3, 0))
-                            SetStatus("🌙 Night - Returned to base")
-                            UpdateChatHead("🌙", Color3.fromRGB(140, 140, 220))
-                            task.wait(1)
-                        end
-                    end
-                end
-            end
-            
-            -- AUTO DEFENSE
-            if ToggleState[2] then
-                local threats = FindThreats()
-                if #threats > 0 then
-                    for _, thief in ipairs(threats) do
-                        AttackThief(thief)
-                        UpdateChatHead("⚔️", C.danger)
-                        task.wait(1.5)
-                    end
-                end
-            end
-            
-            -- Idle status
-            local currentStatus = UI.StatusText and UI.StatusText.Text or ""
-            if not currentStatus:find("⚔️") and not currentStatus:find("🎯") and not currentStatus:find("🌙") and not currentStatus:find("🌟") and not currentStatus:find("🌈") then
-                SetStatus("✅ Active | " .. currentWeather .. " | Monitoring...")
-            end
-            
-            -- CHAT HEAD ANIMATION
-            chatMsgTimer = chatMsgTimer + 0.5
-            if chatMsgTimer >= 5 then
-                chatMsgTimer = 0
-                chatMsgIdx = chatMsgIdx % #chatHeadMessages + 1
-                local weatherIcon = WeatherDB[currentWeather] and WeatherDB[currentWeather].icon or "🌱"
-                local msg = chatHeadMessages[chatMsgIdx]
-                if msg == "GAG2" then
-                    UpdateChatHead("GAG2", C.accent)
-                elseif msg == "🌱" then
-                    UpdateChatHead("🌱", C.accent)
-                elseif msg == "✅" then
-                    UpdateChatHead("✅", Color3.fromRGB(0, 255, 0))
-                elseif msg == weatherIcon then
-                    UpdateChatHead(weatherIcon, WeatherDB[currentWeather] and WeatherDB[currentWeather].color or C.text)
-                else
-                    UpdateChatHead(msg, Color3.fromRGB(255, 255, 255))
+
+            -- Also try collecting via RemoteEvent if game uses that pattern
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("Remote")
+            if remotes then
+                local collectEvent = remotes:FindFirstChild("CollectEventSeed") or remotes:FindFirstChild("CollectSeed") or remotes:FindFirstChild("Collect")
+                if collectEvent then
+                    collectEvent:FireServer(target)
                 end
             end
         end)
     end
+
+    function stopAutoCollect()
+        if autoCollectLoop then
+            autoCollectLoop:Disconnect()
+            autoCollectLoop = nil
+        end
+    end
+
+    function applySpeed()
+        if Character and HumanoidRootPart then
+            local humanoid = Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = state.moveSpeed
+            end
+        end
+    end
+
+    function resetSpeed()
+        if Character and HumanoidRootPart then
+            local humanoid = Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = 24
+            end
+        end
+    end
+
+    -- Character respawn handling
+    LocalPlayer.CharacterAdded:Connect(function(newChar)
+        Character = newChar
+        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+        if state.speedEnabled then
+            task.wait(0.5)
+            applySpeed()
+        end
+    end)
+
+    -- Minimize / Close handlers
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        state.minimized = true
+        MainFrame.Visible = false
+        createChatHead()
+    end)
+
+    CloseBtn.MouseButton1Click:Connect(function()
+        state.visible = false
+        if autoCollectLoop then
+            autoCollectLoop:Disconnect()
+        end
+        if state.speedEnabled then
+            resetSpeed()
+        end
+        MainFrame.Visible = false
+        task.wait(0.5)
+        ScreenGui:Destroy()
+    end)
+
+    -- Chat head
+    function createChatHead()
+        if ScreenGui:FindFirstChild("ChatHead") then return end
+
+        local ChatHead = Instance.new("ImageButton")
+        ChatHead.Name = "ChatHead"
+        ChatHead.Size = UDim2.new(0, 54 * guiScale, 0, 54 * guiScale)
+        ChatHead.Position = UDim2.new(0, 20, 1, -(80 * guiScale))
+        ChatHead.BackgroundTransparency = 1
+        ChatHead.Image = "rbxassetid://4483345998"
+        ChatHead.ImageColor3 = COLORS.PrimaryAccent
+        ChatHead.Draggable = true
+        ChatHead.Active = true
+        ChatHead.Parent = ScreenGui
+
+        local HeadShadow = Instance.new("ImageLabel")
+        HeadShadow.Size = UDim2.new(1, 20, 1, 20)
+        HeadShadow.Position = UDim2.new(0, -10, 0, -10)
+        HeadShadow.BackgroundTransparency = 1
+        HeadShadow.Image = "rbxassetid://6014261993"
+        HeadShadow.ImageColor3 = COLORS.Shadow
+        HeadShadow.ImageTransparency = 0.6
+        HeadShadow.ScaleType = Enum.ScaleType.Slice
+        HeadShadow.SliceCenter = Rect.new(10, 10, 10, 10)
+        HeadShadow.ZIndex = -1
+        HeadShadow.Parent = ChatHead
+
+        local Badge = Instance.new("Frame")
+        Badge.Size = UDim2.new(0, 14 * guiScale, 0, 14 * guiScale)
+        Badge.Position = UDim2.new(1, -6 * guiScale, 0, -2 * guiScale)
+        Badge.BackgroundColor3 = COLORS.PrimaryAccent
+        Badge.BorderSize = 0
+
+        local BadgeCorner = Instance.new("UICorner")
+        BadgeCorner.CornerRadius = UDim.new(1, 0)
+        BadgeCorner.Parent = Badge
+        Badge.Parent = ChatHead
+
+        ChatHead.MouseButton1Click:Connect(function()
+            ChatHead:Destroy()
+            state.minimized = false
+            MainFrame.Visible = true
+        end)
+
+        -- Animate chat head entry
+        ChatHead.Position = UDim2.new(0, 20, 1, 20)
+        ChatHead:TweenPosition(UDim2.new(0, 20, 1, -(80 * guiScale)), Enum.EasingDirection.Out, Enum.EasingStyle.Back, 0.5, true)
+    end
+
+    -- Animate main frame entry
+    MainFrame.Position = UDim2.new(0.5, -(UI_WIDTH/2), 0.5, -UI_HEIGHT)
+    MainFrame.Parent = ScreenGui
+    MainFrame:TweenPosition(UDim2.new(0.5, -(UI_WIDTH/2), 0.5, -(UI_HEIGHT/2)), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.4, true)
+
+    -- Fade in
+    MainFrame.BackgroundTransparency = 0.1
+    task.wait(0.05)
+    MainFrame.BackgroundTransparency = 0
+
+    return MainFrame
 end
 
--- ==========================================
--- INITIALIZATION
--- ==========================================
+-- Initialize
+safeParent(ScreenGui)
+createUI()
 
--- Connect weather remote
-task.spawn(function()
-    task.wait(2)
-    SetupWeatherRemote()
+-- Anti-AFK
+local virtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    virtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    virtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
 end)
 
--- Character respawn handler
-LP.CharacterAdded:Connect(function(newChar)
-    char = newChar
-    root = newChar:WaitForChild("HumanoidRootPart", 10)
-end)
-
--- Create chat head
-CreateChatHead()
-
--- Start main loop
-task.spawn(MainLoop)
-
--- Initial status
-SetStatus("✅ Script loaded | Delta Compatible")
-
--- Chat notification
-pcall(function()
-    StarterGui:SetCore("ChatMakeSystemMessage", {
-        Text = "🌱 GAG2 Red Team Loaded | 5 Features Active | Delta Compatible",
-        Color = Color3.fromRGB(40, 180, 80),
-    })
-end)
-
-print("🌱 GAG2 Red Team Script Loaded Successfully!")
+-- Notify
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Grow a Garden 2",
+    Text = "Script loaded successfully!",
+    Duration = 3,
+})
